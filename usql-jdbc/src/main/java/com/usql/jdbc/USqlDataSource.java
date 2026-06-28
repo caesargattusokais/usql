@@ -57,19 +57,29 @@ public class USqlDataSource implements DataSource {
     }
 
     /**
-     * Convenience factory: create from JDBC URL + properties.
-     * The URL determines the real driver; USQL wraps it transparently.
+     * Factory: create from JDBC URL, auto-detect dialect from URL.
+     * jdbc:mysql://... → MYSQL
+     * jdbc:postgresql://... → POSTGRESQL
+     * jdbc:oracle:thin:@... → ORACLE
+     * jdbc:dm://... → DM
      */
-    public static USqlDataSource create(String realJdbcUrl, String user, String password,
-                                         Dialect dialect) throws SQLException {
-        // Strip jdbc:usql:<dialect>: prefix if present
-        String url = realJdbcUrl;
-        if (url.startsWith("jdbc:usql:")) {
-            url = "jdbc:" + url.substring(url.indexOf(':', 10) + 1);
-        }
-        // Create a simple DataSource from the URL
-        var ds = new SimpleDriverDataSource(url, user, password);
+    public static USqlDataSource create(String jdbcUrl, String user, String password) throws SQLException {
+        Dialect dialect = detectDialect(jdbcUrl);
+        var ds = new SimpleDriverDataSource(jdbcUrl, user, password);
         return new USqlDataSource(ds, dialect);
+    }
+
+    /**
+     * Detect database dialect from JDBC URL.
+     */
+    public static Dialect detectDialect(String jdbcUrl) {
+        String url = jdbcUrl.toLowerCase();
+        if (url.contains(":mysql:") || url.contains(":mariadb:") || url.contains(":mysql-")) return Dialect.MYSQL;
+        if (url.contains(":postgresql:") || url.contains(":pgsql:")) return Dialect.POSTGRESQL;
+        if (url.contains(":oracle:")) return Dialect.ORACLE;
+        if (url.contains(":dm:")) return Dialect.DM;
+        throw new IllegalArgumentException("Cannot detect dialect from JDBC URL: " + jdbcUrl +
+            ". Supported: mysql, postgresql, oracle, dm");
     }
 
     public Dialect dialect() { return dialect; }

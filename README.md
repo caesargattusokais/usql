@@ -34,19 +34,16 @@ spring:
     password: pass
 ```
 
-**添加一个 @Configuration 类：**
+**添加一个 @Configuration 类（5 行代码）：**
 
 ```java
 @Configuration
 public class UsqlConfig {
     @Bean
     @Primary
-    public DataSource usqlDataSource(DataSourceProperties props) {
-        // 用 USqlDataSource 包装 Spring Boot 自动创建的 DataSource
-        DataSource realDs = DataSourceBuilder.create()
-            .url(props.getUrl()).username(props.getUsername()).password(props.getPassword())
-            .build();
-        return new USqlDataSource(realDs, Dialect.POSTGRESQL);  // 指定目标方言
+    public DataSource dataSource(DataSourceProperties props) throws Exception {
+        // URL 自动识别方言：mysql→MySQL, postgresql→PG, oracle→Oracle, dm→DM
+        return USqlDataSource.create(props.getUrl(), props.getUsername(), props.getPassword());
     }
 }
 ```

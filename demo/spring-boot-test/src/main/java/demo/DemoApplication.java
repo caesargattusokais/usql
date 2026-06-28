@@ -1,11 +1,9 @@
 package demo;
 
 import com.usql.jdbc.USqlDataSource;
-import com.usql.dialect.Dialect;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
-import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -50,15 +48,9 @@ public class DemoApplication {
     static class UsqlConfig {
         @Bean
         @Primary
-        public DataSource usqlDataSource(DataSourceProperties props) {
-            // 1. Spring Boot 按正常流程创建 DataSource（带连接池）
-            DataSource realDs = DataSourceBuilder.create()
-                .url(props.getUrl())
-                .username(props.getUsername())
-                .password(props.getPassword())
-                .build();
-            // 2. 用 USqlDataSource 包装，指定目标方言
-            return new USqlDataSource(realDs, Dialect.MYSQL);
+        public DataSource usqlDataSource(DataSourceProperties props) throws Exception {
+            // USqlDataSource 包装连接，从 URL 自动识别方言，HikariCP 正常池化
+            return USqlDataSource.create(props.getUrl(), props.getUsername(), props.getPassword());
         }
     }
 }
