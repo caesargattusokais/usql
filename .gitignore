@@ -1,0 +1,30 @@
+# Build output
+target/
+out/
+*.class
+*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Generated
+*.gen
+antlr4-generated/
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Test output
+*.log
