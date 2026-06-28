@@ -140,7 +140,7 @@ public class OracleBackend implements DialectBackend {
                 .map(f -> generateTableRef(f, opt))
                 .collect(Collectors.joining(", ")));
         } else {
-            sb.append(" FROM DUAL");
+            sb.append(" FROM DUAL"); // DUAL is unquoted in Oracle
         }
 
         if (sel.core().where() != null)
