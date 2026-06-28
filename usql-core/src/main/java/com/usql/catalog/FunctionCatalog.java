@@ -286,9 +286,135 @@ public class FunctionCatalog {
         // ── Aggregate functions ──
 
         reg("COUNT", "Row count", DataType.IntType.BIGINT);
-        reg("SUM", "Sum of values", null);  // return type depends on argument
+        reg("SUM", "Sum of values", null);
         reg("AVG", "Average of values", null);
         reg("MIN", "Minimum value", null);
         reg("MAX", "Maximum value", null);
+
+        // ── More string functions ──
+        reg("LTRIM", "Remove leading spaces", new DataType.VarcharType(0));
+        reg("RTRIM", "Remove trailing spaces", new DataType.VarcharType(0));
+        reg("CHAR_LENGTH", "Character length", DataType.IntType.INT);
+        reg("REPEAT", "Repeat string n times", new DataType.VarcharType(0));
+        reg("REVERSE", "Reverse string", new DataType.VarcharType(0));
+        regDialect("LPAD", "Left pad string", new DataType.VarcharType(0),
+            "LPAD", "LPAD", "LPAD", "LPAD");
+        regDialect("RPAD", "Right pad string", new DataType.VarcharType(0),
+            "RPAD", "RPAD", "RPAD", "RPAD");
+        regDialect("ASCII", "ASCII code of first char", DataType.IntType.INT,
+            "ASCII", "ASCII", "ASCII", "ASCII");
+        regDialect("LOCATE", "Locate substring position", DataType.IntType.INT,
+            "LOCATE", "POSITION", "INSTR", "INSTR");
+        regDialect("TRANSLATE", "Character translation", new DataType.VarcharType(0),
+            "TRANSLATE", "TRANSLATE", "TRANSLATE", "TRANSLATE");
+
+        // ── More numeric functions ──
+        reg("EXP", "e raised to power n", DataType.FloatType.DOUBLE);
+        regDialect("LN", "Natural logarithm", DataType.FloatType.DOUBLE,
+            "LN", "LN", "LN", "LN");
+        regDialect("LOG", "Logarithm base x of y", DataType.FloatType.DOUBLE,
+            "LOG", "LOG", "LOG", "LOG");
+        regDialect("TRUNC", "Truncate to n decimals", DataType.FloatType.DOUBLE,
+            "TRUNCATE", "TRUNC", "TRUNC", "TRUNC");
+        regDialect("RAND", "Random number 0-1", DataType.FloatType.DOUBLE,
+            "RAND", "RANDOM", "DBMS_RANDOM.VALUE", "RAND");
+        reg("COS", "Cosine", DataType.FloatType.DOUBLE);
+        reg("SIN", "Sine", DataType.FloatType.DOUBLE);
+        reg("TAN", "Tangent", DataType.FloatType.DOUBLE);
+        reg("ACOS", "Arc cosine", DataType.FloatType.DOUBLE);
+        reg("ASIN", "Arc sine", DataType.FloatType.DOUBLE);
+        reg("ATAN", "Arc tangent", DataType.FloatType.DOUBLE);
+        regDialect("ATAN2", "Arc tangent of y/x", DataType.FloatType.DOUBLE,
+            "ATAN2", "ATAN2", "ATAN2", "ATAN2");
+        regDialect("PI", "Mathematical constant pi", DataType.FloatType.DOUBLE,
+            "PI", "PI", "PI", "PI");
+        regDialect("DEGREES", "Radians to degrees", DataType.FloatType.DOUBLE,
+            "DEGREES", "DEGREES", "DEGREES", "DEGREES");
+        regDialect("RADIANS", "Degrees to radians", DataType.FloatType.DOUBLE,
+            "RADIANS", "RADIANS", "RADIANS", "RADIANS");
+        regDialect("STDDEV", "Population standard deviation", DataType.FloatType.DOUBLE,
+            "STDDEV", "STDDEV", "STDDEV", "STDDEV");
+        regDialect("VARIANCE", "Population variance", DataType.FloatType.DOUBLE,
+            "VARIANCE", "VARIANCE", "VARIANCE", "VARIANCE");
+
+        // ── More date/time functions ──
+        regDialect("DATE_SUB", "Subtract interval from date", new DataType.DatetimeType(0),
+            "DATE_SUB", "DATE_SUB", "DATE_SUB", "DATE_SUB");
+        regDialect("DAY", "Day of month", DataType.IntType.INT,
+            "DAY", "EXTRACT(DAY FROM TIMESTAMP", "EXTRACT(DAY FROM", "DAY");
+        regDialect("MONTH", "Month number", DataType.IntType.INT,
+            "MONTH", "EXTRACT(MONTH FROM TIMESTAMP", "EXTRACT(MONTH FROM", "MONTH");
+        regDialect("YEAR", "Year number", DataType.IntType.INT,
+            "YEAR", "EXTRACT(YEAR FROM TIMESTAMP", "EXTRACT(YEAR FROM", "YEAR");
+        regDialect("QUARTER", "Quarter (1-4)", DataType.IntType.INT,
+            "QUARTER", "EXTRACT(QUARTER FROM TIMESTAMP", "EXTRACT(QUARTER FROM", "QUARTER");
+        regDialect("HOUR", "Hour from time", DataType.IntType.INT,
+            "HOUR", "EXTRACT(HOUR FROM TIMESTAMP", "EXTRACT(HOUR FROM", "HOUR");
+        regDialect("MINUTE", "Minute from time", DataType.IntType.INT,
+            "MINUTE", "EXTRACT(MINUTE FROM TIMESTAMP", "EXTRACT(MINUTE FROM", "MINUTE");
+        regDialect("SECOND", "Second from time", DataType.IntType.INT,
+            "SECOND", "EXTRACT(SECOND FROM TIMESTAMP", "EXTRACT(SECOND FROM", "SECOND");
+        regDialect("DATEDIFF", "Alias for DATE_DIFF", DataType.IntType.BIGINT,
+            "DATEDIFF", "DATEDIFF", "MONTHS_BETWEEN", "DATEDIFF");
+        regDialect("DAYOFWEEK", "Day of week (1=Sunday)", DataType.IntType.INT,
+            "DAYOFWEEK", "EXTRACT(DOW FROM TIMESTAMP", "TO_CHAR", "DAYOFWEEK");
+        regDialect("DAYOFMONTH", "Day of month", DataType.IntType.INT,
+            "DAYOFMONTH", "EXTRACT(DAY FROM TIMESTAMP", "EXTRACT(DAY FROM", "DAY");
+        regDialect("DAYOFYEAR", "Day of year", DataType.IntType.INT,
+            "DAYOFYEAR", "EXTRACT(DOY FROM TIMESTAMP", "TO_CHAR", "DAYOFYEAR");
+        regDialect("WEEK", "Week number", DataType.IntType.INT,
+            "WEEK", "EXTRACT(WEEK FROM TIMESTAMP", "TO_CHAR", "WEEK");
+        regDialect("LAST_DAY", "Last day of month", new DataType.DateType(),
+            "LAST_DAY", "LAST_DAY", "LAST_DAY", "LAST_DAY");
+        regDialect("TO_DATE", "Convert string to date", new DataType.DateType(),
+            "STR_TO_DATE", "TO_DATE", "TO_DATE", "TO_DATE");
+        regDialect("UNIX_TIMESTAMP", "Seconds since 1970-01-01", DataType.IntType.BIGINT,
+            "UNIX_TIMESTAMP", "EXTRACT(EPOCH FROM NOW())", "UNIX_TIMESTAMP", "UNIX_TIMESTAMP");
+
+        // ── Conditional functions ──
+        regDialect("IF", "IF(cond, trueVal, falseVal)", null,
+            "IF", "CASE WHEN", "CASE WHEN", "IF");
+        regDialect("ISNULL", "Check if value is NULL", new DataType.BooleanType(),
+            "ISNULL", "ISNULL", "NVL2", "ISNULL");
+
+        // ── Group aggregate ──
+        regDialect("GROUP_CONCAT", "Concatenate group values", new DataType.VarcharType(0),
+            "GROUP_CONCAT", "STRING_AGG", "LISTAGG", "LISTAGG");
+        regDialect("STRING_AGG", "String aggregation with delimiter", new DataType.VarcharType(0),
+            "GROUP_CONCAT", "STRING_AGG", "LISTAGG", "LISTAGG");
+        regDialect("MEDIAN", "Median value", DataType.FloatType.DOUBLE,
+            "MEDIAN", "PERCENTILE_CONT(0.5)", "MEDIAN", "MEDIAN");
+
+        // ── Window functions ──
+        reg("ROW_NUMBER", "Row number in window", DataType.IntType.BIGINT);
+        reg("RANK", "Rank in window (with gaps)", DataType.IntType.BIGINT);
+        reg("DENSE_RANK", "Dense rank in window", DataType.IntType.BIGINT);
+        reg("LAG", "Value from previous row", null);
+        reg("LEAD", "Value from next row", null);
+        reg("FIRST_VALUE", "First value in window", null);
+        reg("LAST_VALUE", "Last value in window", null);
+        reg("NTILE", "Bucket number (1-n)", DataType.IntType.INT);
+        reg("PERCENT_RANK", "Percentile rank", DataType.FloatType.DOUBLE);
+        reg("CUME_DIST", "Cumulative distribution", DataType.FloatType.DOUBLE);
+
+        // ── More utility functions ──
+        regDialect("MD5", "MD5 hash", new DataType.VarcharType(32),
+            "MD5", "MD5", "DBMS_CRYPTO.HASH", "MD5");
+        regDialect("RANDOM", "Random number", DataType.FloatType.DOUBLE,
+            "RAND", "RANDOM", "DBMS_RANDOM.VALUE", "RAND");
+        regDialect("NOW", "Alias for CURRENT_TIMESTAMP", new DataType.DatetimeType(3),
+            "NOW", "NOW", "SYSDATE", "SYSDATE");
+        regDialect("CURDATE", "Alias for CURRENT_DATE", new DataType.DateType(),
+            "CURDATE", "CURRENT_DATE", "TRUNC(SYSDATE)", "CURDATE");
+        regDialect("SYSDATE", "Server date+time", new DataType.DatetimeType(0),
+            "NOW", "NOW", "SYSDATE", "SYSDATE");
+        regDialect("IFNULL", "MySQL alias for NVL", null,
+            "IFNULL", "COALESCE", "NVL", "NVL");
+        reg("CHAR", "Character from ASCII code", new DataType.VarcharType(1));
+        reg("SPACE", "String of n spaces", new DataType.VarcharType(0));
+        regDialect("INITCAP", "Capitalize first letter", new DataType.VarcharType(0),
+            "INITCAP", "INITCAP", "INITCAP", "INITCAP");
+        regDialect("NVL2", "NVL2(expr, notNull, isNull)", null,
+            "IF", "CASE WHEN", "NVL2", "NVL2");
     }
 }
