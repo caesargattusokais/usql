@@ -8,7 +8,7 @@
 ## 进度总览
 
 - Phase 1 MVP: 100%
-- Phase 2 扩展: 50%
+- Phase 2 扩展: 70%
 - Phase 3 交付: 5%
 - Phase 4 高级: 0%
 
@@ -39,8 +39,8 @@
 |---|------|------|
 | 2.1 | Oracle + 达梦 Backend | OK |
 | 2.2 | 函数目录扩展到 100+ | TODO |
-| 2.3 | DDL 全链路测试 | TODO |
-| 2.4 | AUTO_INCREMENT 转 SEQUENCE+TRIGGER | TODO |
+| 2.3 | DDL 全链路测试 (5 tests x 4 DBs = 20/20) | OK |
+| 2.4 | AUTO_INCREMENT → IDENTITY (Oracle/PG/DM) | OK |
 | 2.5 | ENUM 跨库适配 | TODO |
 | 2.6 | Docker 多库 CI 验证 | TODO |
 | 2.7 | 完整 polyfill 引擎 | TODO |
