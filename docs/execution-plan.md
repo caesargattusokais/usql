@@ -8,7 +8,7 @@
 ## 进度总览
 
 - Phase 1 MVP: 100%
-- Phase 2 扩展: 90%
+- Phase 2 扩展: 100%
 - Phase 3 交付: 5%
 - Phase 4 高级: 0%
 
@@ -42,8 +42,8 @@
 | 2.3 | DDL 全链路测试 (5 tests x 4 DBs = 20/20) | OK |
 | 2.4 | AUTO_INCREMENT → IDENTITY (Oracle/PG/DM) | OK |
 | 2.5 | ENUM 跨库适配 (MySQL原生/PG+Oracle+DM CHECK) | OK |
-| 2.6 | Docker 多库 CI 验证 | TODO |
-| 2.7 | 完整 polyfill 引擎 | TODO |
+| 2.6 | Docker CI 验证 (7 suites x 4 DBs) | OK |
+| 2.7 | 完整 polyfill (16 capabilities documented) | OK |
 
 ---
 
