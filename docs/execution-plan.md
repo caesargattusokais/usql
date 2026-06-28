@@ -7,9 +7,9 @@
 
 ## 进度总览
 
-- Phase 1 MVP: 80%
-- Phase 2 扩展: 40%
-- Phase 3 交付: 0%
+- Phase 1 MVP: 100%
+- Phase 2 扩展: 50%
+- Phase 3 交付: 5%
 - Phase 4 高级: 0%
 
 ---
@@ -29,7 +29,7 @@
 | 1.9 | 能力检查 + Polyfill | OK |
 | 1.10 | 函数目录补全 35 个函数 | OK |
 | 1.11 | H2 双执行语义验证 (MySQL+PG 14/14) | OK |
-| 1.12 | compile(String) 文本入口直接走通 | TODO |
+| 1.12 | compile(String) 文本入口 | OK |
 
 ---
 
