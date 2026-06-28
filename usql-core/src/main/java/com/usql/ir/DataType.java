@@ -1,5 +1,7 @@
 package com.usql.ir;
 
+import java.util.List;
+
 /**
  * U-SQL canonical type system.
  * Each database dialect maps its native types to/from these.
@@ -116,6 +118,11 @@ public sealed interface DataType {
 
     record NullType() implements DataType {
         public String typeName() { return "NULL"; }
+    }
+
+    /** ENUM type with allowed values */
+    record EnumType(List<String> values) implements DataType {
+        public String typeName() { return "ENUM(" + String.join(",", values) + ")"; }
     }
 
     // ── Helpers ──

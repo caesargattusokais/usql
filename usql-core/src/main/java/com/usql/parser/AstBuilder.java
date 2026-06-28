@@ -618,13 +618,27 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         int[] typeInfo = extractTypeInfo(ctx.dataType());
         String typeName = ctx.dataType().getText().split("\\(")[0];
 
+        // Extract ENUM values
+        List<String> enumValues = List.of();
+        if ("ENUM".equalsIgnoreCase(typeName)) {
+            String text = ctx.dataType().getText();
+            int lp = text.indexOf('(');
+            int rp = text.lastIndexOf(')');
+            if (lp >= 0 && rp > lp) {
+                String valPart = text.substring(lp + 1, rp);
+                enumValues = java.util.Arrays.stream(valPart.split(","))
+                    .map(s -> s.trim().replaceAll("^'|'$", ""))
+                    .collect(Collectors.toList());
+            }
+        }
+
         List<ColumnConstraint> constraints = ctx.columnConstraint().stream()
             .map(c -> (ColumnConstraint) visit(c))
             .collect(Collectors.toList());
 
         Expression defaultVal = ctx.defaultValue != null ? (Expression) visit(ctx.defaultValue) : null;
 
-        return new ColumnDef(name, typeName, typeInfo[0], typeInfo[1], constraints, defaultVal);
+        return new ColumnDef(name, typeName, typeInfo[0], typeInfo[1], enumValues, constraints, defaultVal);
     }
 
     @Override

@@ -69,6 +69,7 @@ public class OracleBackend implements DialectBackend {
             case DataType.BinaryType b  -> "RAW(" + b.length() + ")";
             case DataType.VarbinaryType vb -> "RAW(" + vb.length() + ")";
             case DataType.BlobType bl   -> "BLOB";
+            case DataType.EnumType e    -> "VARCHAR2(255)";
             default -> type.typeName();
         };
     }
@@ -399,6 +400,12 @@ public class OracleBackend implements DialectBackend {
         sb.append(ct.columns().stream()
             .map(col -> generateColumnDef(col, opt))
             .collect(Collectors.joining(",\n")));
+        // Add ENUM CHECK constraints at table level
+        for (var col : ct.columns()) {
+            for (var check : generateEnumChecks(col)) {
+                sb.append(",\n").append(check);
+            }
+        }
         if (ct.constraints() != null && !ct.constraints().isEmpty()) {
             sb.append(",\n");
             sb.append(ct.constraints().stream()
@@ -411,6 +418,9 @@ public class OracleBackend implements DialectBackend {
 
     private String generateColumnDef(IRColumnDef col, GenerateOptions opt) {
         var sb = new StringBuilder("  ").append(quoteIdentifier(col.name())).append(" ").append(mapType(col.type()));
+        // Oracle: DEFAULT before NOT NULL
+        if (col.defaultValue() != null)
+            sb.append(" DEFAULT ").append(generateExpr(col.defaultValue(), opt));
         if (col.constraints() != null) {
             for (var c : col.constraints()) {
                 if (c instanceof ColNotNull) sb.append(" NOT NULL");
@@ -434,9 +444,17 @@ public class OracleBackend implements DialectBackend {
                 }
             }
         }
-        if (col.defaultValue() != null)
-            sb.append(" DEFAULT ").append(generateExpr(col.defaultValue(), opt));
         return sb.toString();
+    }
+
+    private List<String> generateEnumChecks(IRColumnDef col) {
+        if (col.type() instanceof DataType.EnumType e) {
+            String values = e.values().stream()
+                .map(v -> "'" + v.replace("'", "''") + "'")
+                .collect(Collectors.joining(", "));
+            return List.of("  CHECK (" + quoteIdentifier(col.name()) + " IN (" + values + "))");
+        }
+        return List.of();
     }
 
     private String generateTableConstraint(IRTableConstraint c, GenerateOptions opt) {

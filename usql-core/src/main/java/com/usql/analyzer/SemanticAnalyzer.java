@@ -467,7 +467,12 @@ public class SemanticAnalyzer {
     }
 
     private IRColumnDef analyzeColumnDef(ColumnDef c, Set<Capability> caps) {
-        DataType type = parseTypeName(c.typeName(), c.typePrecision(), c.typeScale());
+        DataType type;
+        if ("ENUM".equalsIgnoreCase(c.typeName()) && c.enumValues() != null && !c.enumValues().isEmpty()) {
+            type = new DataType.EnumType(c.enumValues());
+        } else {
+            type = parseTypeName(c.typeName(), c.typePrecision(), c.typeScale());
+        }
         List<IRColumnConstraint> constraints = new ArrayList<>();
         if (c.constraints() != null) {
             for (var con : c.constraints()) {

@@ -124,6 +124,7 @@ public final class USqlAst {
         String typeName,          // raw type text from parser, e.g. "VARCHAR(100)"
         int typePrecision,
         int typeScale,
+        List<String> enumValues,  // for ENUM('v1','v2',...)
         List<ColumnConstraint> constraints,
         Expression defaultValue
     ) {}

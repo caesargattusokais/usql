@@ -69,6 +69,7 @@ public class PgBackend implements DialectBackend {
             case DataType.VarbinaryType vb -> "BYTEA";
             case DataType.BlobType bl   -> "BYTEA";
             case DataType.ArrayType arr -> mapType(arr.elementType()) + "[]";
+            case DataType.EnumType e    -> "VARCHAR(255)";
             default -> type.typeName();
         };
     }
@@ -371,6 +372,12 @@ public class PgBackend implements DialectBackend {
         sb.append(ct.columns().stream()
             .map(col -> generateColumnDef(col, opt))
             .collect(Collectors.joining(",\n")));
+        // ENUM CHECKs
+        for (var col : ct.columns()) {
+            for (var check : generateEnumChecks(col)) {
+                sb.append(",\n").append(check);
+            }
+        }
         if (ct.constraints() != null && !ct.constraints().isEmpty()) {
             sb.append(",\n");
             sb.append(ct.constraints().stream()
@@ -402,6 +409,16 @@ public class PgBackend implements DialectBackend {
         }
         if (col.defaultValue() != null) sb.append(" DEFAULT ").append(generateExpr(col.defaultValue(), opt));
         return sb.toString();
+    }
+
+    private List<String> generateEnumChecks(IRColumnDef col) {
+        if (col.type() instanceof DataType.EnumType e) {
+            String values = e.values().stream()
+                .map(v -> "'" + v.replace("'", "''") + "'")
+                .collect(Collectors.joining(", "));
+            return List.of("  CHECK (" + quoteIdentifier(col.name()) + " IN (" + values + "))");
+        }
+        return List.of();
     }
 
     private String generateTableConstraint(IRTableConstraint c, GenerateOptions opt) {

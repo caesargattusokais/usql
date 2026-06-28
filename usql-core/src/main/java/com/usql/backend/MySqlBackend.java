@@ -67,6 +67,9 @@ public class MySqlBackend implements DialectBackend {
             case DataType.BinaryType b  -> "BINARY(" + b.length() + ")";
             case DataType.VarbinaryType vb -> "VARBINARY(" + vb.length() + ")";
             case DataType.BlobType bl   -> "LONGBLOB";
+            case DataType.EnumType e    -> "ENUM(" + e.values().stream()
+                .map(v -> "'" + v.replace("'", "''") + "'")
+                .collect(Collectors.joining(", ")) + ")";
             default -> type.typeName();
         };
     }
