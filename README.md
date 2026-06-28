@@ -98,14 +98,14 @@ executeQuery(sql) → compiler.compile(sql, dialect) → 翻译后 SQL
 
 ### 连接池兼容性
 
-| 连接池 | 支持 | 说明 |
+| 连接池 | 支持 | 验证 |
 |--------|------|------|
-| HikariCP | ✅ | Spring Boot 默认，已验证 |
-| Druid | ✅ | 替换 starter 即可 |
-| Tomcat CP | ✅ | 替换 starter 即可 |
-| DBCP2 | ✅ | 替换 starter 即可 |
+| HikariCP | ✅ | Spring Boot 默认，实测通过 |
+| Druid | ✅ | 实测通过 (druid-spring-boot-3-starter) |
+| Tomcat CP | ✅ | 实测通过 (tomcat-jdbc) |
+| DBCP2 | ✅ | 同架构， `DataSource` 包装即可 |
 
-所有连接池统一通过 `BeanPostProcessor` 包装，无需单独适配。
+所有连接池统一通过 `USqlDataSource` 包装池化 DataSource，连接池在包装层下方正常工作。
 
 ### 手动创建 DataSource
 
