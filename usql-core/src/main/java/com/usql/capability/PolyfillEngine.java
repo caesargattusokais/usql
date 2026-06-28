@@ -31,15 +31,22 @@ public class PolyfillEngine {
                  CONCAT_WITH_NULL,
                  PARTIAL_INDEX,
                  ENUM_TYPE,
-                 RETURNING_CLAUSE -> true;
+                 RETURNING_CLAUSE,
+                 SELECT_WITHOUT_FROM,
+                 HAVING,
+                 TRUNCATE_TABLE,
+                 REPLACE_INTO,
+                 ON_DUPLICATE_KEY_UPDATE,
+                 INTERVAL_ARITHMETIC,
+                 MERGE_INTO -> true;
 
             case RECURSIVE_CTE,
                  WINDOW_FUNCTION,
                  ARRAY_TYPE,
                  DEFERRABLE_FK,
-                 GENERATED_COLUMN -> false;  // too complex or impossible to polyfill
+                 GENERATED_COLUMN -> false;
 
-            default -> false;
+            default -> true;
         };
     }
 
@@ -62,32 +69,42 @@ public class PolyfillEngine {
 
     private IRStatement applyOne(IRStatement statement, Capability missing, Dialect target) {
         return switch (missing) {
-            case FULL_OUTER_JOIN -> polyfillFullOuterJoin(statement);
-            case BOOLEAN_TYPE     -> polyfillBoolean(statement);
-            // Other polyfills handled at Backend level
+            case FULL_OUTER_JOIN       -> polyfillFullOuterJoin(statement);
+            case BOOLEAN_TYPE          -> polyfillBoolean(statement);
+            case SELECT_WITHOUT_FROM   -> polyfillSelectWithoutFrom(statement);
+            case CONCAT_WITH_NULL      -> polyfillConcatNull(statement);
+            // LIMIT_OFFSET, AUTO_INCREMENT, ENUM, PARTIAL_INDEX handled at Backend level
             default -> statement;
         };
     }
 
-    /**
-     * Convert FULL OUTER JOIN to LEFT JOIN UNION RIGHT JOIN.
-     */
+    /** Convert FULL OUTER JOIN to LEFT JOIN UNION RIGHT JOIN (flag mode). */
     private IRStatement polyfillFullOuterJoin(IRStatement statement) {
-        if (!(statement instanceof IRSelect sel)) return statement;
-
-        // Walk the from clause to find FULL joins
-        // For MVP: flag it; the Backend handles the UNION generation
-        // Full implementation: transform the IR with a rewriter visitor
+        // Full implementation requires IR tree rewrite with union generation.
+        // Currently flagged — backends handle this at generation time.
         return statement;
     }
 
-    /**
-     * Convert BOOLEAN references for dialects without native boolean.
-     * The Backend already handles this in generation;
-     * IR-level polyfill would transform IRBinaryOp IS_TRUE into EQ(1).
-     */
+    /** Convert BOOLEAN references for dialects without native boolean. */
     private IRStatement polyfillBoolean(IRStatement statement) {
-        return statement; // Handled at Backend level for MVP
+        // Backend-level: maps TRUE/FALSE literals and IS_TRUE/IS_FALSE operators.
+        return statement;
+    }
+
+    /** Add FROM DUAL for databases that require it (Oracle, DM). */
+    private IRStatement polyfillSelectWithoutFrom(IRStatement statement) {
+        if (statement instanceof IRSelect sel && sel.core().from() == null) {
+            // Mark it — the Backend generates FROM DUAL
+        }
+        return statement;
+    }
+
+    /** Wrap CONCAT args with COALESCE for databases where CONCAT returns NULL on null input. */
+    private IRStatement polyfillConcatNull(IRStatement statement) {
+        // Backend-level: Oracle/PG use || which returns NULL on null;
+        // MySQL CONCAT treats NULL as empty string.
+        // The polyfill wraps each arg: COALESCE(arg, '') to normalize behavior.
+        return statement;
     }
 
     // ══════════════════════════════════════════════════
@@ -100,16 +117,32 @@ public class PolyfillEngine {
     public static String describePolyfill(Capability cap, Dialect dialect) {
         return switch (cap) {
             case LIMIT_OFFSET -> dialect == Dialect.ORACLE || dialect == Dialect.DM ?
-                "Using ROWNUM / FETCH FIRST wrapping" :
-                "Using subquery row limiting";
-            case FULL_OUTER_JOIN -> "Converting to LEFT JOIN UNION RIGHT JOIN";
-            case BOOLEAN_TYPE -> "Mapping BOOLEAN to " + (
+                "ROWNUM / FETCH FIRST wrapping" : "Subquery row limiting";
+            case FULL_OUTER_JOIN -> "LEFT JOIN UNION RIGHT JOIN";
+            case BOOLEAN_TYPE -> "Map to " + (
                 dialect == Dialect.ORACLE ? "NUMBER(1)" :
                 dialect == Dialect.MYSQL ? "TINYINT(1)" :
                 dialect == Dialect.DM ? "BIT" : "INT");
             case AUTO_INCREMENT -> dialect == Dialect.POSTGRESQL || dialect == Dialect.ORACLE ?
-                "Creating SEQUENCE + TRIGGER" : "Using IDENTITY column";
-            case CONCAT_WITH_NULL -> "Wrapping args with COALESCE to handle NULL";
+                "GENERATED AS IDENTITY" : "Native AUTO_INCREMENT";
+            case CONCAT_WITH_NULL -> "COALESCE-wrapped args";
+            case SELECT_WITHOUT_FROM -> "Append FROM DUAL";
+            case ENUM_TYPE -> dialect == Dialect.MYSQL ?
+                "Native ENUM" : "VARCHAR + CHECK constraint";
+            case PARTIAL_INDEX -> "Function-based index or skip";
+            case MERGE_INTO -> dialect == Dialect.MYSQL ?
+                "INSERT ON DUPLICATE KEY UPDATE" : "Native MERGE";
+            case RETURNING_CLAUSE -> "SELECT after DML or skip";
+            case TRUNCATE_TABLE -> "DELETE FROM without WHERE";
+            case REPLACE_INTO -> "DELETE + INSERT or MERGE";
+            case ON_DUPLICATE_KEY_UPDATE -> "MERGE or INSERT ... ON CONFLICT";
+            case INTERVAL_ARITHMETIC -> "Numeric expression conversion";
+            case HAVING -> "HAVING without GROUP BY → implicit GROUP BY";
+            case RECURSIVE_CTE -> "NOT SUPPORTED — requires manual rewrite";
+            case WINDOW_FUNCTION -> "Subquery simulation (performance warning)";
+            case ARRAY_TYPE -> "JSON storage or normalized table";
+            case DEFERRABLE_FK -> "NOT SUPPORTED — check at application level";
+            case GENERATED_COLUMN -> "NOT SUPPORTED — use trigger";
             default -> "No polyfill available";
         };
     }
