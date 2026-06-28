@@ -8,38 +8,79 @@ import java.sql.*;
 import java.util.*;
 
 /**
- * Test each registered U-SQL function against real databases (MySQL, PostgreSQL).
- * Verifies that the function catalog's dialect mappings produce correct results.
- *
- * Each function is tested via the full compiler pipeline:
- *   U-SQL → Parse → AST → IR → Target SQL → execute on real DB
+ * Test each registered U-SQL function against all available real databases.
  *
  * Run: mvn test-compile exec:java -Dexec.mainClass=com.usql.FunctionVerificationTest
  */
 public class FunctionVerificationTest {
 
+    record Target(String name, Connection conn, Dialect dialect) {}
     record TestCase(String label, String usql, Object expected) {}
 
     static USqlCompiler compiler;
-    static Connection mysql, pg;
+    static List<Target> targets = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         compiler = USqlCompiler.builder().build();
 
-        // Connect
-        Class.forName("com.mysql.cj.jdbc.Driver");
-        mysql = DriverManager.getConnection(
+        tryConnect("MySQL", Dialect.MYSQL,
+            "com.mysql.cj.jdbc.Driver",
             "jdbc:mysql://localhost:3306/login_db?useSSL=false&allowPublicKeyRetrieval=true",
             "login_user", "login123");
-
-        Class.forName("org.postgresql.Driver");
-        pg = DriverManager.getConnection(
+        tryConnect("PostgreSQL", Dialect.POSTGRESQL,
+            "org.postgresql.Driver",
             "jdbc:postgresql://localhost:5432/mydb", "postgres", "postgres123");
+        tryConnect("Oracle", Dialect.ORACLE,
+            "oracle.jdbc.OracleDriver",
+            "jdbc:oracle:thin:@localhost:1521/orclpdb1", "system", "oracle123");
 
-        // Build function test cases
+        if (targets.isEmpty()) {
+            System.out.println("No databases available. Exiting.");
+            return;
+        }
+
+        List<TestCase> tests = buildTests();
+        int pass = 0, fail = 0;
+
+        for (Target target : targets) {
+            System.out.println("\n=== " + target.name() + " ===");
+            setupTables(target);
+
+            for (TestCase tc : tests) {
+                try {
+                    if (testOne(target, tc)) {
+                        System.out.println("  PASS: " + tc.label());
+                        pass++;
+                    } else {
+                        fail++;
+                    }
+                } catch (Exception e) {
+                    System.out.println("  ERROR: " + tc.label() + " — " + e.getMessage());
+                    fail++;
+                }
+            }
+
+            cleanupTables(target);
+        }
+
+        for (Target t : targets) { try { t.conn().close(); } catch (Exception ignored) {} }
+
+        System.out.println("\n=== Result: " + pass + " passed, " + fail + " failed ===");
+    }
+
+    static void tryConnect(String name, Dialect dialect, String driver, String url, String user, String pw) {
+        try {
+            Class.forName(driver);
+            Connection conn = DriverManager.getConnection(url, user, pw);
+            targets.add(new Target(name, conn, dialect));
+            System.out.println("  Connected to " + name);
+        } catch (Exception e) {
+            System.out.println("  SKIP " + name + ": " + e.getMessage());
+        }
+    }
+
+    static List<TestCase> buildTests() {
         List<TestCase> tests = new ArrayList<>();
-
-        // ── String functions ──
         tests.add(new TestCase("LENGTH",         "SELECT LENGTH('hello')",        5L));
         tests.add(new TestCase("UPPER",          "SELECT UPPER('hello')",        "HELLO"));
         tests.add(new TestCase("LOWER",          "SELECT LOWER('HELLO')",        "hello"));
@@ -49,8 +90,6 @@ public class FunctionVerificationTest {
         tests.add(new TestCase("CONCAT",         "SELECT CONCAT('a', 'b')",      "ab"));
         tests.add(new TestCase("LEFT",           "SELECT LEFT('hello', 2)",      "he"));
         tests.add(new TestCase("RIGHT",          "SELECT RIGHT('hello', 2)",     "lo"));
-
-        // ── Numeric functions ──
         tests.add(new TestCase("ABS",            "SELECT ABS(-5)",              5L));
         tests.add(new TestCase("ROUND",          "SELECT ROUND(3.14159, 2)",    3.14));
         tests.add(new TestCase("CEIL",           "SELECT CEIL(3.1)",            4L));
@@ -59,77 +98,35 @@ public class FunctionVerificationTest {
         tests.add(new TestCase("POWER",          "SELECT POWER(2, 3)",          8.0));
         tests.add(new TestCase("SQRT",           "SELECT SQRT(9)",              3.0));
         tests.add(new TestCase("SIGN",           "SELECT SIGN(-5)",             -1L));
-
-        // ── NULL handling ──
         tests.add(new TestCase("COALESCE",       "SELECT COALESCE(NULL, 42)",   42L));
         tests.add(new TestCase("NULLIF-equal",   "SELECT NULLIF(5, 5)",         null));
         tests.add(new TestCase("NULLIF-diff",    "SELECT NULLIF(5, 3)",         5L));
         tests.add(new TestCase("NVL-null",       "SELECT NVL(NULL, 99)",        99L));
         tests.add(new TestCase("NVL-value",      "SELECT NVL(1, 99)",           1L));
-
-        // ── GREATEST / LEAST ──
         tests.add(new TestCase("GREATEST",       "SELECT GREATEST(3, 7)",       7L));
         tests.add(new TestCase("LEAST",          "SELECT LEAST(3, 7)",          3L));
-
-        // ── Date functions (tolerance-based) ──
-        // CURRENT_DATE, CURRENT_TIME, CURRENT_TIMESTAMP — skip exact value check,
-        // just verify they execute without error
-
-        // ── Aggregate functions ──
-        setupTables();
         tests.add(new TestCase("COUNT",          "SELECT COUNT(*) FROM func_test",        4L));
         tests.add(new TestCase("SUM",            "SELECT SUM(val) FROM func_test",        10L));
         tests.add(new TestCase("AVG",            "SELECT AVG(val) FROM func_test",        2.5));
         tests.add(new TestCase("MIN",            "SELECT MIN(val) FROM func_test",        1L));
         tests.add(new TestCase("MAX",            "SELECT MAX(val) FROM func_test",        4L));
         tests.add(new TestCase("INSTR",          "SELECT INSTR('hello', 'l')",            3L));
-
-        // Run
-        int pass = 0, fail = 0;
-        System.out.println("=== Function Verification ===\n");
-
-        for (TestCase tc : tests) {
-            try {
-                // MySQL
-                boolean mysqlPass = testOne("MySQL", mysql, tc);
-                // PostgreSQL
-                boolean pgPass = testOne("PG", pg, tc);
-
-                if (mysqlPass && pgPass) {
-                    System.out.println("  PASS: " + tc.label());
-                    pass++;
-                } else {
-                    fail++;
-                }
-            } catch (Exception e) {
-                System.out.println("  ERROR: " + tc.label() + " — " + e.getMessage());
-                fail++;
-            }
-        }
-
-        cleanupTables();
-        mysql.close();
-        pg.close();
-
-        System.out.println("\n=== Result: " + pass + " passed, " + fail + " failed ===");
+        return tests;
     }
 
-    static boolean testOne(String name, Connection conn, TestCase tc) throws Exception {
-        Dialect dialect = name.equals("MySQL") ? Dialect.MYSQL : Dialect.POSTGRESQL;
-
-        // Compile U-SQL through the full pipeline
+    static boolean testOne(Target target, TestCase tc) throws Exception {
         Statement ast = AstBuilder.buildSingle(tc.usql());
-        CompilationResult result = compiler.compileFromAst(ast, dialect);
+        CompilationResult result = compiler.compileFromAst(ast, target.dialect());
         if (!result.isSuccess()) {
-            System.out.println("  FAIL " + name + " " + tc.label() + " — compile: " + result.report());
+            System.out.println("  FAIL " + target.name() + " " + tc.label() + " — compile: " + result.report());
             return false;
         }
         String sql = result.getSql();
 
-        try (java.sql.Statement stmt = conn.createStatement();
+        try (java.sql.Statement stmt = target.conn().createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             if (!rs.next()) {
-                System.out.println("  FAIL " + name + " " + tc.label() + " — no result row");
+                System.out.println("  FAIL " + target.name() + " " + tc.label() + " — no result row");
                 return false;
             }
             Object val = rs.getObject(1);
@@ -137,48 +134,46 @@ public class FunctionVerificationTest {
 
             if (expected == null) {
                 boolean ok = val == null || rs.wasNull();
-                if (!ok) System.out.println("  FAIL " + name + " " + tc.label() + " — expected NULL, got " + val);
+                if (!ok) System.out.println("  FAIL " + target.name() + " " + tc.label() + " — expected NULL, got " + val);
                 return ok;
             }
-
             if (expected instanceof Number en) {
                 if (val instanceof Number vn) {
                     double diff = Math.abs(vn.doubleValue() - en.doubleValue());
                     if (diff < 0.01) return true;
-                    System.out.println("  FAIL " + name + " " + tc.label() + " — expected " + expected + ", got " + val);
+                    System.out.println("  FAIL " + target.name() + " " + tc.label() + " — expected " + expected + ", got " + val);
                     return false;
                 }
             }
-
             String actual = val != null ? val.toString().trim() : "NULL";
-            String expStr = expected.toString().trim();
-            if (!actual.equals(expStr)) {
-                System.out.println("  FAIL " + name + " " + tc.label() + " — expected " + expStr + ", got " + actual);
+            if (!actual.equals(expected.toString().trim())) {
+                System.out.println("  FAIL " + target.name() + " " + tc.label() + " — expected " + expected + ", got " + actual);
                 return false;
             }
             return true;
         }
     }
 
-    static void setupTables() throws SQLException {
-        try {
-            try (java.sql.Statement s = mysql.createStatement()) {
-                s.execute("DROP TABLE IF EXISTS func_test");
-                s.execute("CREATE TABLE func_test (id INT, val INT)");
-                s.execute("INSERT INTO func_test VALUES (1,1), (2,2), (3,3), (4,4)");
-            }
-        } catch (SQLException ignored) {}
-        try {
-            try (java.sql.Statement s = pg.createStatement()) {
-                s.execute("DROP TABLE IF EXISTS func_test");
-                s.execute("CREATE TABLE func_test (id INT, val INT)");
-                s.execute("INSERT INTO func_test VALUES (1,1), (2,2), (3,3), (4,4)");
-            }
-        } catch (SQLException ignored) {}
+    static void setupTables(Target target) throws Exception {
+        // Use quoted identifiers for Oracle to match compiler-generated SQL
+        String quoted = target.dialect() == Dialect.ORACLE ? "\"func_test\"" : "func_test";
+        try (java.sql.Statement s = target.conn().createStatement()) {
+            try { s.execute("DROP TABLE " + quoted); } catch (SQLException ignored) {}
+        }
+        // Create table through the compiler so case handling matches generated queries
+        Statement ast = AstBuilder.buildSingle("CREATE TABLE func_test (id INT, val INT)");
+        CompilationResult ddl = compiler.compileFromAst(ast, target.dialect());
+        try (java.sql.Statement s = target.conn().createStatement()) {
+            s.execute(ddl.getSql());
+            s.execute("INSERT INTO " + quoted + " VALUES (1,1)");
+            s.execute("INSERT INTO " + quoted + " VALUES (2,2)");
+            s.execute("INSERT INTO " + quoted + " VALUES (3,3)");
+            s.execute("INSERT INTO " + quoted + " VALUES (4,4)");
+        }
     }
 
-    static void cleanupTables() throws SQLException {
-        try { mysql.createStatement().execute("DROP TABLE IF EXISTS func_test"); } catch (SQLException ignored) {}
-        try { pg.createStatement().execute("DROP TABLE IF EXISTS func_test"); } catch (SQLException ignored) {}
+    static void cleanupTables(Target target) {
+        String quoted = target.dialect() == Dialect.ORACLE ? "\"func_test\"" : "func_test";
+        try { target.conn().createStatement().execute("DROP TABLE " + quoted); } catch (SQLException ignored) {}
     }
 }

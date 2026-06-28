@@ -182,15 +182,29 @@ public class FunctionCatalog {
                 new PolyfillConfig(PolyfillStrategy.EXPRESSION, "POSITION({1} IN {0})")));
         }
 
-        regDialect("LEFT", "Leftmost n characters", new DataType.VarcharType(0),
-            "LEFT", "LEFT", "LEFT", "LEFT",
-            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
-                "SUBSTR({0}, 1, {1})"));
+        // LEFT: Oracle doesn't have it, polyfill with SUBSTR
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, dm("LEFT"));
+            m.put(Dialect.POSTGRESQL, dm("LEFT"));
+            m.put(Dialect.ORACLE, new DialectMapping("SUBSTR", "SUBSTR({0}, 1, {1})", false, null));
+            m.put(Dialect.DM, dm("LEFT"));
+            functions.put("LEFT", new FunctionDef("LEFT", "Leftmost n characters",
+                new DataType.VarcharType(0), m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION, "SUBSTR({0}, 1, {1})")));
+        }
 
-        regDialect("RIGHT", "Rightmost n characters", new DataType.VarcharType(0),
-            "RIGHT", "RIGHT", "RIGHT", "RIGHT",
-            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
-                "SUBSTR({0}, LENGTH({0}) - {1} + 1)"));
+        // RIGHT: Oracle doesn't have it, polyfill with SUBSTR
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, dm("RIGHT"));
+            m.put(Dialect.POSTGRESQL, dm("RIGHT"));
+            m.put(Dialect.ORACLE, new DialectMapping("SUBSTR", "SUBSTR({0}, LENGTH({0}) - {1} + 1)", false, null));
+            m.put(Dialect.DM, dm("RIGHT"));
+            functions.put("RIGHT", new FunctionDef("RIGHT", "Rightmost n characters",
+                new DataType.VarcharType(0), m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION, "SUBSTR({0}, LENGTH({0}) - {1} + 1)")));
+        }
 
         regDialect("CONCAT_WS", "Concatenate with separator", new DataType.VarcharType(0),
             "CONCAT_WS", "CONCAT_WS", "CONCAT_WS", "CONCAT_WS");

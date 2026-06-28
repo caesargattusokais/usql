@@ -52,11 +52,18 @@
             <version>42.7.1</version>
             <scope>test</scope>
         </dependency>
-        <!-- Oracle and DM drivers need manual install (licensing) -->
-        <!-- <dependency>
+        <!-- Oracle JDBC (manually installed from container) -->
+        <dependency>
             <groupId>com.oracle.database.jdbc</groupId>
-            <artifactId>ojdbc11</artifactId>
-            <version>23.3.0.23.09</version>
+            <artifactId>ojdbc8</artifactId>
+            <version>19.3.0.0</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- DM JDBC (requires download from https://eco.dameng.com) -->
+        <!-- <dependency>
+            <groupId>com.dameng</groupId>
+            <artifactId>DmJdbcDriver</artifactId>
+            <version>8.1.2</version>
             <scope>test</scope>
         </dependency> -->
 
