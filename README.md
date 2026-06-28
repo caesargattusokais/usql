@@ -22,34 +22,47 @@ java -jar usql-cli/target/usql-cli-1.0.0-SNAPSHOT.jar migrate \
 
 ### 2. JDBC 驱动（Java 项目零侵入）
 
-#### Spring Boot 项目（推荐）
+#### Spring Boot 项目（推荐方式）
 
-**application.yml — 只改一行 URL：**
+**application.yml — 正常配置真实数据库：**
 
 ```yaml
 spring:
   datasource:
-    # 原来: jdbc:mysql://localhost:3306/mydb
-    # USQL:  在 mysql 前加 usql:
-    url: jdbc:usql:mysql://localhost:3306/mydb?useSSL=false&allowPublicKeyRetrieval=true
-    username: login_user
-    password: login123
-    driver-class-name: com.usql.jdbc.USqlDriver
+    url: jdbc:mysql://localhost:3306/mydb
+    username: user
+    password: pass
 ```
 
-代码不变，正常写 JdbcTemplate / MyBatis / JPA：
+**添加一个 @Configuration 类：**
+
+```java
+@Configuration
+public class UsqlConfig {
+    @Bean
+    @Primary
+    public DataSource usqlDataSource(DataSourceProperties props) {
+        // 用 USqlDataSource 包装 Spring Boot 自动创建的 DataSource
+        DataSource realDs = DataSourceBuilder.create()
+            .url(props.getUrl()).username(props.getUsername()).password(props.getPassword())
+            .build();
+        return new USqlDataSource(realDs, Dialect.POSTGRESQL);  // 指定目标方言
+    }
+}
+```
+
+**代码零改动：**
 
 ```java
 @Autowired JdbcTemplate jdbc;
 
-// 写 U-SQL，编译器自动翻译
+// 写 U-SQL，编译器自动翻译为 PG SQL，在 MySQL 上执行
 jdbc.queryForList(
     "SELECT name, COUNT(*) AS cnt FROM users GROUP BY name LIMIT 10"
 );
-// → 自动翻译为对应数据库的 SQL
 ```
 
-**pom.xml 加依赖：**
+**pom.xml：**
 
 ```xml
 <dependency>
@@ -57,7 +70,7 @@ jdbc.queryForList(
     <artifactId>usql-jdbc</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
-<!-- usql-jdbc 已包含 MySQL/PG/Oracle/达梦 四库驱动，无需额外添加 -->
+<!-- usql-jdbc 已包含 MySQL/PG/Oracle/达梦 四库驱动 -->
 ```
 
 #### 普通 Java 项目
