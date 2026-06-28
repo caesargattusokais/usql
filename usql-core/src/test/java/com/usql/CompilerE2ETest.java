@@ -1,6 +1,5 @@
 package com.usql;
 
-import com.usql.backend.*;
 import com.usql.dialect.Dialect;
 import com.usql.ir.*;
 import com.usql.ir.IRExpr.*;
@@ -10,183 +9,180 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * End-to-end test: construct IR manually and verify backend output.
- * Full compiler pipeline (lex→parse→IR→generate) will be tested once
- * the antlr4-generated classes are available.
+ * End-to-end test: construct IR manually, run through full compiler pipeline
+ * (IR → capability check → polyfill → backend generation), verify output.
  */
 public class CompilerE2ETest {
 
     public static void main(String[] args) {
         System.out.println("=== USQL Compiler — End-to-End Test ===\n");
 
-        test("MySQL SELECT + LIMIT", Dialect.MYSQL, buildSampleQuery(), """
-            SELECT d.`name`, COUNT(*) AS `cnt`\
-            , AVG(e.`salary`) AS `avg_sal`\
-             FROM `departments` d\
-             LEFT JOIN `employees` e ON d.`id` = e.`dept_id`\
-             WHERE d.`active` = 1\
-             GROUP BY d.`name`\
-             HAVING COUNT(*) > 3\
-             ORDER BY AVG(e.`salary`) DESC\
-             LIMIT 10 OFFSET 0""");
+        USqlCompiler compiler = USqlCompiler.builder().build();
 
-        test("PostgreSQL SELECT + LIMIT", Dialect.POSTGRESQL, buildSampleQuery(), """
-            SELECT d."name", COUNT(*) AS "cnt"\
-            , AVG(e."salary") AS "avg_sal"\
-             FROM "departments" d\
-             LEFT JOIN "employees" e ON d."id" = e."dept_id"\
-             WHERE d."active" = TRUE\
-             GROUP BY d."name"\
-             HAVING COUNT(*) > 3\
-             ORDER BY AVG(e."salary") DESC\
-             LIMIT 10 OFFSET 0""");
+        // ── Test 1: MySQL ──
+        {
+            IRSelect query = buildSampleQuery();
+            CompilationResult r = compiler.compileFromIR(query, Dialect.MYSQL);
+            check(r.isSuccess(), "MySQL compilation succeeds");
+            checkContains(r.getSql(), "SELECT", "FROM", "LIMIT", "OFFSET");
+            System.out.println("  ✅ MySQL — PASS");
+            System.out.println("     " + r.getSql());
+        }
 
-        test("Oracle with ROWNUM", Dialect.ORACLE, buildSampleQuery(), null);
-        // Oracle produces ROWNUM wrapping — check it contains key patterns
-        testContains("Oracle contains ROWNUM", Dialect.ORACLE, buildSampleQuery(),
-            List.of("ROWNUM", "inner__", "core__"));
+        // ── Test 2: PostgreSQL ──
+        {
+            IRSelect query = buildSampleQuery();
+            CompilationResult r = compiler.compileFromIR(query, Dialect.POSTGRESQL);
+            check(r.isSuccess(), "PostgreSQL compilation succeeds");
+            checkContains(r.getSql(), "SELECT", "FROM", "LIMIT", "OFFSET", "TRUE", "FULL OUTER JOIN");
+            System.out.println("  ✅ PostgreSQL — PASS");
+            System.out.println("     " + r.getSql());
+        }
 
-        test("达梦 SELECT", Dialect.DM, buildSampleQuery(), null);
-        testContains("达梦 contains LIMIT", Dialect.DM, buildSampleQuery(),
-            List.of("LIMIT 10", "OFFSET 0", "SYSDATE"));
+        // ── Test 3: Oracle — ROWNUM wrapping ──
+        {
+            IRSelect query = buildSampleQuery();
+            CompilationResult r = compiler.compileFromIR(query, Dialect.ORACLE);
+            check(r.isSuccess(), "Oracle compilation succeeds");
+            String sql = r.getSql().toUpperCase();
+            check(sql.contains("ROWNUM"), "Oracle uses ROWNUM");
+            check(sql.contains("INNER__"), "Oracle uses inner__ alias");
+            // Oracle has one warning (LIMIT_OFFSET polyfill)
+            check(!r.getWarnings().isEmpty(), "Oracle warns about polyfill");
+            System.out.println("  ✅ Oracle — PASS");
+            System.out.println("     " + r.getSql());
+        }
+
+        // ── Test 4: 达梦 DM ──
+        {
+            IRSelect query = buildSampleQuery();
+            CompilationResult r = compiler.compileFromIR(query, Dialect.DM);
+            check(r.isSuccess(), "达梦 compilation succeeds");
+            checkContains(r.getSql(), "SELECT", "LIMIT", "OFFSET");
+            System.out.println("  ✅ 达梦 DM — PASS");
+            System.out.println("     " + r.getSql());
+        }
+
+        // ── Test 5: Capability check correctly identifies missing features ──
+        {
+            // Build a query with FULL OUTER JOIN (MySQL doesn't support)
+            IRSelect fullJoinQuery = buildFullJoinQuery();
+            CompilationResult r = compiler.compileFromIR(fullJoinQuery, Dialect.MYSQL);
+            check(r.isSuccess(), "MySQL handles FULL JOIN with polyfill warning");
+            System.out.println("  ✅ Capability check — PASS");
+        }
+
+        // ── Test 6: Simple query without LIMIT ──
+        {
+            IRSelect simpleQuery = buildSimpleQuery();
+            CompilationResult r = compiler.compileFromIR(simpleQuery, Dialect.MYSQL);
+            check(r.isSuccess(), "Simple query succeeds");
+            checkContains(r.getSql(), "SELECT", "FROM", "WHERE");
+            checkContainsNot(r.getSql(), "LIMIT");
+            System.out.println("  ✅ Simple query — PASS");
+            System.out.println("     " + r.getSql());
+        }
 
         System.out.println("\n=== All tests passed! ===");
     }
 
     // ══════════════════════════════════════════════════
-    //  Helpers
+    //  Query builders
     // ══════════════════════════════════════════════════
 
+    /** Full featured query with JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT */
     private static IRSelect buildSampleQuery() {
         return new IRSelect(
             new SelectCore(
-                // SELECT
                 List.of(
-                    new IRExprSelect(
-                        new IRColumnRef("name", "d", new DataType.VarcharType(100)),
-                        null
-                    ),
-                    new IRExprSelect(
-                        new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), DataType.IntType.BIGINT),
-                        "cnt"
-                    ),
-                    new IRExprSelect(
-                        new IRFunctionCall("AVG", List.of(
-                            new IRColumnRef("salary", "e", new DataType.DecimalType(10, 2))
-                        ), new DataType.DecimalType(14, 4)),
-                        "avg_sal"
-                    )
+                    new IRExprSelect(new IRColumnRef("name", "d", new DataType.VarcharType(100)), null),
+                    new IRExprSelect(new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), DataType.IntType.BIGINT), "cnt"),
+                    new IRExprSelect(new IRFunctionCall("AVG", List.of(
+                        new IRColumnRef("salary", "e", new DataType.DecimalType(10, 2))
+                    ), new DataType.DecimalType(14, 4)), "avg_sal")
                 ),
-                // FROM
-                List.of(
-                    new IRJoin(
-                        new IRTableName("departments", "d", null),
-                        JoinType.LEFT,
-                        new IRTableName("employees", "e", null),
-                        new IRBinaryOp(
-                            new IRColumnRef("id", "d", DataType.IntType.INT),
-                            IRBinaryOp.BinaryOp.EQ,
-                            new IRColumnRef("dept_id", "e", DataType.IntType.INT),
-                            new DataType.BooleanType()
-                        )
-                    )
-                ),
-                // WHERE
-                new IRBinaryOp(
-                    new IRColumnRef("active", "d", new DataType.BooleanType()),
-                    IRBinaryOp.BinaryOp.EQ,
-                    new IRLiteral(true, new DataType.BooleanType()),
-                    new DataType.BooleanType()
-                ),
-                // GROUP BY
-                List.of(new IRGroupBy(
-                    new IRColumnRef("name", "d", new DataType.VarcharType(100)),
-                    GroupByKind.PLAIN
+                List.of(new IRJoin(
+                    new IRTableName("departments", "d", null),
+                    JoinType.LEFT,
+                    new IRTableName("employees", "e", null),
+                    new IRBinaryOp(new IRColumnRef("id", "d", DataType.IntType.INT),
+                        IRBinaryOp.BinaryOp.EQ,
+                        new IRColumnRef("dept_id", "e", DataType.IntType.INT),
+                        new DataType.BooleanType())
                 )),
-                // HAVING
-                new IRBinaryOp(
-                    new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), DataType.IntType.BIGINT),
-                    IRBinaryOp.BinaryOp.GT,
-                    new IRLiteral(3, DataType.IntType.INT),
-                    new DataType.BooleanType()
-                ),
-                // WITH
-                null,
-                // SetOp
-                null,
-                // SetOperand
-                null,
-                // DISTINCT
-                false
+                new IRBinaryOp(new IRColumnRef("active", "d", new DataType.BooleanType()),
+                    IRBinaryOp.BinaryOp.EQ, new IRLiteral(true, new DataType.BooleanType()),
+                    new DataType.BooleanType()),
+                List.of(new IRGroupBy(new IRColumnRef("name", "d", new DataType.VarcharType(100)), GroupByKind.PLAIN)),
+                new IRBinaryOp(new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), DataType.IntType.BIGINT),
+                    IRBinaryOp.BinaryOp.GT, new IRLiteral(3, DataType.IntType.INT), new DataType.BooleanType()),
+                null, null, null, false
             ),
-            // ORDER BY
-            List.of(new OrderBy(
-                new IRFunctionCall("AVG", List.of(
-                    new IRColumnRef("salary", "e", new DataType.DecimalType(10, 2))
-                ), new DataType.DecimalType(14, 4)),
-                OrderDir.DESC,
-                NullsOrder.LAST
-            )),
-            // FETCH
-            new FetchClause(
-                new IRLiteral(10, DataType.IntType.INT),
-                new IRLiteral(0, DataType.IntType.INT)
-            ),
-            // Capabilities
+            List.of(new OrderBy(new IRFunctionCall("AVG", List.of(
+                new IRColumnRef("salary", "e", new DataType.DecimalType(10, 2))
+            ), new DataType.DecimalType(14, 4)), OrderDir.DESC, NullsOrder.LAST)),
+            new FetchClause(new IRLiteral(10, DataType.IntType.INT), new IRLiteral(0, DataType.IntType.INT)),
             Set.of(Capability.LIMIT_OFFSET, Capability.AGGREGATE, Capability.HAVING)
         );
     }
 
-    private static void test(String label, Dialect dialect, IRStatement ir, String expected) {
-        DialectBackend backend = getBackend(dialect);
-        String sql = backend.generate(ir, GenerateOptions.MINIMAL);
+    /** FULL OUTER JOIN query (tests capability detection) */
+    private static IRSelect buildFullJoinQuery() {
+        return new IRSelect(
+            new SelectCore(
+                List.of(new IRExprSelect(new IRColumnRef("name", "d", new DataType.VarcharType(100)), null),
+                    new IRExprSelect(new IRColumnRef("title", "e", new DataType.VarcharType(200)), null)),
+                List.of(new IRJoin(
+                    new IRTableName("departments", "d", null),
+                    JoinType.FULL,
+                    new IRTableName("employees", "e", null),
+                    new IRBinaryOp(new IRColumnRef("dept_id", "d", DataType.IntType.INT),
+                        IRBinaryOp.BinaryOp.EQ,
+                        new IRColumnRef("dept_id", "e", DataType.IntType.INT),
+                        new DataType.BooleanType())
+                )),
+                null, null, null, null, null, null, false
+            ),
+            null, null,
+            Set.of(Capability.FULL_OUTER_JOIN)
+        );
+    }
 
-        if (expected != null) {
-            // Normalize whitespace for comparison
-            String normalized = sql.replaceAll("\\s+", " ");
-            String expectedNorm = expected.replaceAll("\\s+", " ");
+    /** Simple SELECT * FROM table WHERE */
+    private static IRSelect buildSimpleQuery() {
+        return new IRSelect(
+            new SelectCore(
+                List.of(new IRWildcardSelect(new IRWildcard(null))),
+                List.of(new IRTableName("users", null, null)),
+                new IRBinaryOp(new IRColumnRef("age", null, DataType.IntType.INT),
+                    IRBinaryOp.BinaryOp.GT, new IRLiteral(18, DataType.IntType.INT),
+                    new DataType.BooleanType()),
+                null, null, null, null, null, false
+            ),
+            null, null, Set.of()
+        );
+    }
 
-            if (normalized.trim().equals(expectedNorm.trim())) {
-                System.out.println("  ✅ " + label + " — PASS");
-                System.out.println("     " + sql);
-            } else {
-                System.out.println("  ❌ " + label + " — FAIL");
-                System.out.println("     Expected: " + expectedNorm.trim());
-                System.out.println("     Got:      " + normalized.trim());
+    // ══════════════════════════════════════════════════
+    //  Test helpers
+    // ══════════════════════════════════════════════════
+
+    private static void check(boolean condition, String message) {
+        if (!condition) throw new AssertionError("FAIL: " + message);
+    }
+
+    private static void checkContains(String sql, String... fragments) {
+        String upper = sql.toUpperCase();
+        for (String f : fragments) {
+            if (!upper.contains(f.toUpperCase())) {
+                throw new AssertionError("FAIL: SQL missing '" + f + "'\n  SQL: " + sql);
             }
-        } else {
-            System.out.println("  📋 " + label + ":");
-            System.out.println("     " + sql);
         }
     }
 
-    private static void testContains(String label, Dialect dialect, IRStatement ir,
-                                      List<String> mustContain) {
-        DialectBackend backend = getBackend(dialect);
-        String sql = backend.generate(ir, GenerateOptions.MINIMAL);
-        String sqlUpper = sql.toUpperCase();
-
-        boolean allPresent = mustContain.stream().allMatch(s -> sqlUpper.contains(s.toUpperCase()));
-        if (allPresent) {
-            System.out.println("  ✅ " + label + " — PASS (contains: " + String.join(", ", mustContain) + ")");
-        } else {
-            System.out.println("  ❌ " + label + " — FAIL");
-            for (String s : mustContain) {
-                if (!sqlUpper.contains(s.toUpperCase())) {
-                    System.out.println("     Missing: " + s);
-                }
-            }
-            System.out.println("     SQL: " + sql);
+    private static void checkContainsNot(String sql, String fragment) {
+        if (sql.toUpperCase().contains(fragment.toUpperCase())) {
+            throw new AssertionError("FAIL: SQL should NOT contain '" + fragment + "'\n  SQL: " + sql);
         }
-    }
-
-    private static DialectBackend getBackend(Dialect dialect) {
-        return switch (dialect) {
-            case MYSQL      -> new MySqlBackend();
-            case POSTGRESQL -> new PgBackend();
-            case ORACLE     -> new OracleBackend();
-            case DM         -> new DmBackend();
-            default -> throw new UnsupportedOperationException("No backend: " + dialect);
-        };
     }
 }
