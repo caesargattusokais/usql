@@ -22,29 +22,51 @@ java -jar usql-cli/target/usql-cli-1.0.0-SNAPSHOT.jar migrate \
 
 ### 2. JDBC 驱动（Java 项目零侵入）
 
+#### Spring Boot 项目（推荐）
+
+**application.yml — 只改一行 URL：**
+
+```yaml
+spring:
+  datasource:
+    # 原来: jdbc:mysql://localhost:3306/mydb
+    # USQL:  在 mysql 前加 usql:
+    url: jdbc:usql:mysql://localhost:3306/mydb?useSSL=false&allowPublicKeyRetrieval=true
+    username: login_user
+    password: login123
+    driver-class-name: com.usql.jdbc.USqlDriver
+```
+
+代码不变，正常写 JdbcTemplate / MyBatis / JPA：
+
+```java
+@Autowired JdbcTemplate jdbc;
+
+// 写 U-SQL，编译器自动翻译
+jdbc.queryForList(
+    "SELECT name, COUNT(*) AS cnt FROM users GROUP BY name LIMIT 10"
+);
+// → 自动翻译为对应数据库的 SQL
+```
+
+**pom.xml 加依赖：**
+
 ```xml
-<!-- pom.xml -->
 <dependency>
     <groupId>com.usql</groupId>
     <artifactId>usql-jdbc</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.0-SNAPSHOT</version>
 </dependency>
+<!-- usql-jdbc 已包含 MySQL/PG/Oracle/达梦 四库驱动，无需额外添加 -->
 ```
 
+#### 普通 Java 项目
+
 ```java
-// 连接串: jdbc:usql:<dialect>:<真实数据库URL>
-// 原来是 jdbc:mysql://host/db
-// 改成    jdbc:usql:mysql://host/db    ← 只加 usql: 四个字符
 Connection conn = DriverManager.getConnection(
     "jdbc:usql:oracle://localhost:1521/orclpdb1", "user", "pass");
 Statement stmt = conn.createStatement();
-
-// 正常写 SQL（U-SQL 语法）
-ResultSet rs = stmt.executeQuery(
-    "SELECT d.name, COUNT(*) AS cnt FROM departments d " +
-    "JOIN employees e ON d.id = e.dept_id " +
-    "GROUP BY d.name LIMIT 10");
-// ← 这条 SQL 在 Oracle 上正确执行（自动翻译成 ROWNUM 包裹语法）
+ResultSet rs = stmt.executeQuery("SELECT ... LIMIT 10");
 ```
 
 支持四种方言 URL：
