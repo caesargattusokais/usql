@@ -50,8 +50,10 @@ public class SemanticAnalyzer {
         errors.clear();
         warnings.clear();
         scopes.clear();
+        pushScope(); // ensure scope is always available for table ref resolution
 
         IRStatement ir = analyzeStatement(stmt);
+        popScope();
 
         return new AnalysisResult(
             new SemanticIR(ir),
