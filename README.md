@@ -2,64 +2,26 @@
 
 写一次 SQL，在 MySQL、PostgreSQL、Oracle、达梦 DM 上正确执行。
 
+---
+
+## 目录
+
+- [快速开始](#快速开始)
+- [Spring Boot 集成](#spring-boot-集成)
+- [Java 项目集成](#java-项目集成)
+- [命令行工具](#命令行工具)
+- [代理模式](#代理模式)
+- [U-SQL 语法](#u-sql-语法)
+- [方言映射表](#方言映射表)
+- [DDL 映射](#ddl-映射)
+- [SQL 编写规则](#sql-编写规则)
+- [项目结构与构建](#项目结构与构建)
+
+---
+
 ## 快速开始
 
-### 1. 命令行翻译（任何语言项目都能用）
-
-```bash
-# 编译
-cd usql && mvn package -pl usql-cli -am -DskipTests
-
-# 翻译一条 SQL
-java -jar usql-cli/target/usql-cli-1.0.0-SNAPSHOT.jar translate \
-  --sql "SELECT name, COUNT(*) AS cnt FROM users GROUP BY name LIMIT 10" \
-  --to oracle
-
-# 批量迁移
-java -jar usql-cli/target/usql-cli-1.0.0-SNAPSHOT.jar migrate \
-  --to postgresql --input ./sql/ --output ./pg-sql/
-```
-
-### 2. JDBC 驱动（Java 项目零侵入）
-
-#### Spring Boot 项目（推荐方式）
-
-**application.yml — 正常配置真实数据库：**
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/mydb
-    username: user
-    password: pass
-```
-
-**添加一个 @Configuration 类（5 行代码）：**
-
-```java
-@Configuration
-public class UsqlConfig {
-    @Bean
-    @Primary
-    public DataSource dataSource(DataSourceProperties props) throws Exception {
-        // URL 自动识别方言：mysql→MySQL, postgresql→PG, oracle→Oracle, dm→DM
-        return USqlDataSource.create(props.getUrl(), props.getUsername(), props.getPassword());
-    }
-}
-```
-
-**代码零改动：**
-
-```java
-@Autowired JdbcTemplate jdbc;
-
-// 写 U-SQL，编译器自动翻译为 PG SQL，在 MySQL 上执行
-jdbc.queryForList(
-    "SELECT name, COUNT(*) AS cnt FROM users GROUP BY name LIMIT 10"
-);
-```
-
-**pom.xml：**
+### 1. 添加依赖
 
 ```xml
 <dependency>
@@ -67,41 +29,129 @@ jdbc.queryForList(
     <artifactId>usql-jdbc</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
-<!-- usql-jdbc 已包含 MySQL/PG/Oracle/达梦 四库驱动 -->
 ```
 
-#### 普通 Java 项目
+usql-jdbc 已包含 MySQL/PG/Oracle/达梦 四库 JDBC 驱动。
+
+### 2. 写配置（Spring Boot）
+
+`application.yml` 不变，新增一个配置类：
 
 ```java
+@Configuration
+public class UsqlConfig {
+    @Bean
+    static BeanPostProcessor usqlWrapper(Environment env) {
+        return new BeanPostProcessor() {
+            public Object postProcessAfterInitialization(Object bean, String name) {
+                if (bean instanceof DataSource ds && !(bean instanceof USqlDataSource)) {
+                    String url = env.getProperty("spring.datasource.url");
+                    return new USqlDataSource(ds, USqlDriver.detectDialect(url));
+                }
+                return bean;
+            }
+        };
+    }
+}
+```
+
+### 3. 写代码
+
+```java
+@Autowired JdbcTemplate jdbc;
+
+// 正常写 SQL，编译器自动翻译为目标数据库方言
+jdbc.queryForList(
+    "SELECT name, COUNT(*) AS cnt FROM users GROUP BY name LIMIT 10"
+);
+```
+
+**完成。** 连接池 (HikariCP/Druid/Tomcat/DBCP2) 正常工作，SQL 透明编译。
+
+---
+
+## Spring Boot 集成
+
+### 架构
+
+```
+application.yml (不变)
+       │
+       ▼
+Spring Boot 创建 HikariCP/Druid DataSource (连接池)
+       │
+       ▼
+BeanPostProcessor 用 USqlDataSource 包装
+       │
+       ▼
+应用调用 JdbcTemplate / MyBatis / JPA
+       │
+       ▼
+USqlConnection.createStatement() → USqlStatement
+       │
+       ▼
+executeQuery(sql) → compiler.compile(sql, dialect) → 翻译后 SQL
+       │
+       ▼
+池中的真实 Connection 执行翻译后 SQL → 返回结果
+```
+
+### 连接池兼容性
+
+| 连接池 | 支持 | 说明 |
+|--------|------|------|
+| HikariCP | ✅ | Spring Boot 默认，已验证 |
+| Druid | ✅ | 替换 starter 即可 |
+| Tomcat CP | ✅ | 替换 starter 即可 |
+| DBCP2 | ✅ | 替换 starter 即可 |
+
+所有连接池统一通过 `BeanPostProcessor` 包装，无需单独适配。
+
+### 手动创建 DataSource
+
+```java
+// 方式一：从 URL 自动创建（无连接池）
+DataSource ds = USqlDataSource.create(
+    "jdbc:mysql://localhost:3306/mydb", "user", "pass");
+
+// 方式二：包装已有的池化 DataSource
+HikariDataSource pooled = new HikariDataSource();
+pooled.setJdbcUrl("jdbc:mysql://localhost:3306/mydb");
+pooled.setUsername("user");
+pooled.setPassword("pass");
+DataSource usqlDs = new USqlDataSource(pooled,
+    USqlDriver.detectDialect("jdbc:mysql://localhost:3306/mydb"));
+
+// 方式三：显式指定方言
+DataSource usqlDs = new USqlDataSource(pooled, Dialect.ORACLE);
+// → 应用写 U-SQL，自动翻译成 Oracle SQL，在 MySQL 上执行
+```
+
+### 方言检测规则
+
+```
+jdbc:mysql://...      → MYSQL
+jdbc:postgresql://... → POSTGRESQL
+jdbc:oracle:thin:@... → ORACLE
+jdbc:dm://...         → DM
+jdbc:usql:oracle://...→ ORACLE  (显式指定，优先)
+```
+
+---
+
+## Java 项目集成
+
+### JDBC Driver 模式
+
+```java
+// 连接串加 usql: 前缀
 Connection conn = DriverManager.getConnection(
     "jdbc:usql:oracle://localhost:1521/orclpdb1", "user", "pass");
 Statement stmt = conn.createStatement();
 ResultSet rs = stmt.executeQuery("SELECT ... LIMIT 10");
 ```
 
-支持四种方言 URL：
-```
-jdbc:usql:mysql://host:port/db
-jdbc:usql:postgresql://host:port/db
-jdbc:usql:oracle:thin:@host:port/pdb
-jdbc:usql:dm://host:port
-```
-
-### 3. 代理模式（任何语言，零代码侵入）
-
-```bash
-# 启动代理（文本模式，telnet/nc 可连）
-java -jar usql-proxy/target/usql-proxy-1.0.0-SNAPSHOT.jar \
-  --mode text --port 3312 \
-  --dialect oracle \
-  --backend jdbc:oracle:thin:@localhost:1521/orclpdb1 \
-  --user system --password oracle123
-
-# 任何语言通过 TCP 发 U-SQL，得到翻译后结果
-echo "SELECT name, COUNT(*) AS cnt FROM users GROUP BY name LIMIT 10" | nc localhost 3312
-```
-
-### 4. 代码内嵌编译
+### 代码内嵌编译
 
 ```java
 USqlCompiler compiler = USqlCompiler.builder().build();
@@ -110,51 +160,74 @@ CompilationResult r = compiler.compile(
     Dialect.ORACLE
 );
 System.out.println(r.getSql());
-// 输出: SELECT * FROM (SELECT "name" FROM "users" WHERE "active" = 1)
-//        WHERE ROWNUM <= 10
+// → SELECT * FROM (SELECT "name" FROM "users" WHERE "active" = 1)
+//   WHERE ROWNUM <= 10
 ```
 
 ---
 
-## U-SQL 语法参考
+## 命令行工具
 
-### 基本原则
+```bash
+# 编译
+cd usql && mvn package -pl usql-cli -am -DskipTests
 
-**U-SQL = 标准 SQL + 常用能力的统一写法**
+# 单条翻译
+java -jar usql-cli/target/usql-cli-1.0.0-SNAPSHOT.jar translate \
+  --sql "SELECT name, COUNT(*) AS cnt FROM users GROUP BY name LIMIT 10" \
+  --to oracle
 
-- 语法接近 SQL-92 标准
-- 不需要为不同数据库写不同方言
-- 编译器自动适配目标数据库的语法和函数
+# 批量迁移
+java -jar usql-cli/target/usql-cli-1.0.0-SNAPSHOT.jar migrate \
+  --to postgresql --input ./sql/ --output ./pg-sql/
 
-### SELECT 查询
+# 列出支持的方言
+java -jar usql-cli/target/usql-cli-1.0.0-SNAPSHOT.jar dialects
+
+# 管道到真实数据库
+java -jar usql-cli.jar translate --sql "SELECT ..." --to mysql | mysql -u user -p db
+```
+
+---
+
+## 代理模式
+
+```bash
+# 文本模式（telnet/nc 可连）
+java -jar usql-proxy/target/usql-proxy-1.0.0-SNAPSHOT.jar \
+  --mode text --port 3312 \
+  --dialect oracle \
+  --backend jdbc:oracle:thin:@localhost:1521/orclpdb1 \
+  --user system --password oracle123
+
+# 任何语言通过 TCP 发 U-SQL
+echo "SELECT name, COUNT(*) AS cnt FROM users GROUP BY name LIMIT 10" | nc localhost 3312
+```
+
+---
+
+## U-SQL 语法
+
+### SELECT
 
 ```sql
--- 基本查询（和标准 SQL 一样）
+-- 基本查询
 SELECT name, age FROM users WHERE age > 18
 
--- 分页 — 统一用 LIMIT / OFFSET
+-- 分页 — 统一用 LIMIT / OFFSET（所有数据库）
 SELECT name FROM users ORDER BY name LIMIT 10 OFFSET 0
 
 -- JOIN（裸 JOIN = INNER JOIN）
-SELECT d.name, e.salary
-FROM departments d
-JOIN employees e ON d.id = e.dept_id
+SELECT d.name, e.salary FROM departments d JOIN employees e ON d.id = e.dept_id
 
--- LEFT JOIN / RIGHT JOIN / FULL JOIN
+-- LEFT / RIGHT / FULL JOIN
 SELECT d.name, COUNT(e.id) AS cnt
-FROM departments d
-LEFT JOIN employees e ON d.id = e.dept_id
+FROM departments d LEFT JOIN employees e ON d.id = e.dept_id
 GROUP BY d.name
 
 -- 聚合
 SELECT dept_id, COUNT(*) AS cnt, AVG(salary) AS avg_sal
-FROM employees
-GROUP BY dept_id
-HAVING COUNT(*) > 5
-ORDER BY avg_sal DESC
-
--- DISTINCT
-SELECT DISTINCT dept_id FROM employees
+FROM employees GROUP BY dept_id HAVING COUNT(*) > 5
 
 -- 表达式（不需要 FROM）
 SELECT LENGTH('hello'), UPPER('world'), 1 + 2 AS sum
@@ -170,138 +243,124 @@ WHERE EXISTS (SELECT 1 FROM departments d WHERE d.id = employees.dept_id)
 SELECT name FROM employees WHERE dept_id = 1
 UNION ALL
 SELECT name FROM employees WHERE dept_id = 2
-ORDER BY name
 
 -- CASE
 SELECT name,
   CASE WHEN salary > 70000 THEN 'High'
-       WHEN salary > 50000 THEN 'Medium'
-       ELSE 'Low' END AS level
+       WHEN salary > 50000 THEN 'Medium' ELSE 'Low' END AS level
 FROM employees
+
+-- DISTINCT / ORDER BY / BETWEEN / LIKE / IS NULL
+SELECT DISTINCT dept_id FROM employees ORDER BY dept_id
+SELECT name FROM employees WHERE salary BETWEEN 50000 AND 80000
+SELECT name FROM employees WHERE name LIKE 'A%'
+SELECT name FROM employees WHERE dept_id IS NULL
 ```
 
 ### INSERT / UPDATE / DELETE
 
 ```sql
--- INSERT
 INSERT INTO users (name, email) VALUES ('Alice', 'alice@test.com')
-INSERT INTO users (name, email) VALUES ('Bob', 'bob@test.com'), ('Carol', 'carol@test.com')
-
--- UPDATE
+INSERT INTO users VALUES ('Bob', 'bob@test.com'), ('Carol', 'carol@test.com')
 UPDATE users SET salary = 80000 WHERE name = 'Bob'
-
--- DELETE
 DELETE FROM users WHERE name = 'Bob'
 ```
 
-### DDL（建表）
+### DDL
 
 ```sql
--- 建表 — 所有约束语法统一
 CREATE TABLE users (
-    id INT PRIMARY KEY AUTO_INCREMENT,   -- 自增主键
+    id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(200),
     salary DECIMAL(10,2) DEFAULT 0.00,
-    active BOOLEAN DEFAULT TRUE,          -- 布尔类型
+    active BOOLEAN DEFAULT TRUE,
     created_date DATE,
     bio TEXT
 )
 
--- 索引
 CREATE UNIQUE INDEX idx_email ON users (email)
 ```
 
 ---
 
-## 方言映射对照表
+## 方言映射表
 
 ### 基本语法差异
 
 | U-SQL | MySQL | PostgreSQL | Oracle | 达梦 DM |
 |-------|-------|-----------|--------|---------|
-| `LIMIT n OFFSET m` | `LIMIT n OFFSET m` | `LIMIT n OFFSET m` | 自动 ROWNUM 包裹 | `LIMIT n OFFSET m` |
+| `LIMIT n OFFSET m` | `LIMIT n OFFSET m` | `LIMIT n OFFSET m` | ROWNUM 包裹 | `LIMIT n OFFSET m` |
 | `AUTO_INCREMENT` | `AUTO_INCREMENT` | `GENERATED AS IDENTITY` | `GENERATED BY DEFAULT AS IDENTITY` | `IDENTITY` |
 | `BOOLEAN` | `TINYINT(1)` | `BOOLEAN` | `NUMBER(1)` | `BIT` |
 | `SELECT expr` (无 FROM) | `SELECT expr` | `SELECT expr` | `SELECT expr FROM DUAL` | `SELECT expr FROM DUAL` |
 | 标识符引号 | `` `name` `` | `"name"` | `"name"` | `"name"` |
 
-### 函数映射（重点）
-
-**字符串函数：**
+### 字符串函数
 
 | U-SQL | MySQL | PostgreSQL | Oracle | 达梦 DM |
 |-------|-------|-----------|--------|---------|
 | `LENGTH(s)` | `LENGTH(s)` | `LENGTH(s)` | `LENGTH(s)` | `LENGTH(s)` |
-| `UPPER(s)` | `UPPER(s)` | `UPPER(s)` | `UPPER(s)` | `UPPER(s)` |
-| `LOWER(s)` | `LOWER(s)` | `LOWER(s)` | `LOWER(s)` | `LOWER(s)` |
-| `TRIM(s)` | `TRIM(s)` | `TRIM(s)` | `TRIM(s)` | `TRIM(s)` |
-| `SUBSTR(s,start,len)` | `SUBSTR(s,start,len)` | `SUBSTR(s,start,len)` | `SUBSTR(s,start,len)` | `SUBSTR(s,start,len)` |
-| `REPLACE(s,old,new)` | `REPLACE(s,old,new)` | `REPLACE(s,old,new)` | `REPLACE(s,old,new)` | `REPLACE(s,old,new)` |
+| `UPPER(s)` / `LOWER(s)` | 同名 | 同名 | 同名 | 同名 |
+| `TRIM(s)` / `LTRIM(s)` / `RTRIM(s)` | 同名 | 同名 | 同名 | 同名 |
+| `SUBSTR(s,start,len)` | `SUBSTR` | `SUBSTR` | `SUBSTR` | `SUBSTR` |
+| `REPLACE(s,old,new)` | 同名 | 同名 | 同名 | 同名 |
 | `CONCAT(a,b)` | `CONCAT(a,b)` | `CONCAT(a,b)` | `CONCAT(a,b)` | `CONCAT(a,b)` |
-| `LEFT(s,n)` | `LEFT(s,n)` | `LEFT(s,n)` | `SUBSTR(s,1,n)` | `LEFT(s,n)` |
-| `RIGHT(s,n)` | `RIGHT(s,n)` | `RIGHT(s,n)` | `SUBSTR(s,LENGTH(s)-n+1)` | `RIGHT(s,n)` |
-| `INSTR(s,sub)` | `INSTR(s,sub)` | `POSITION(sub IN s)` | `INSTR(s,sub)` | `INSTR(s,sub)` |
-| `LPAD(s,n,pad)` | `LPAD(s,n,pad)` | `LPAD(s,n,pad)` | `LPAD(s,n,pad)` | `LPAD(s,n,pad)` |
-| `REVERSE(s)` | `REVERSE(s)` | `REVERSE(s)` | `REVERSE(s)` | `REVERSE(s)` |
-| `REPEAT(s,n)` | `REPEAT(s,n)` | `REPEAT(s,n)` | `RPAD(s,LENGTH(s)*n,s)` | `REPEAT(s,n)` |
+| `LEFT(s,n)` | `LEFT` | `LEFT` | `SUBSTR(s,1,n)` | `LEFT` |
+| `RIGHT(s,n)` | `RIGHT` | `RIGHT` | `SUBSTR(s,-n)` | `RIGHT` |
+| `INSTR(s,sub)` | `INSTR` | `POSITION(sub IN s)` | `INSTR` | `INSTR` |
+| `LPAD(s,n,pad)` / `RPAD` | 同名 | 同名 | 同名 | 同名 |
+| `REPEAT(s,n)` | `REPEAT` | `REPEAT` | `RPAD(s,LENGTH(s)*n,s)` | `REPEAT` |
+| `REVERSE(s)` | 同名 | 同名 | 同名 | 同名 |
+| `CHAR_LENGTH(s)` | 同名 | 同名 | `LENGTH(s)` | 同名 |
 | `SPACE(n)` | `SPACE(n)` | `REPEAT(' ',n)` | `RPAD(' ',n,' ')` | `SPACE(n)` |
-| `INITCAP(s)` | `CONCAT(UPPER(LEFT(s,1)),LOWER(SUBSTR(s,2)))` | `INITCAP(s)` | `INITCAP(s)` | `INITCAP(s)` |
-| `CHAR_LENGTH(s)` | `CHAR_LENGTH(s)` | `CHAR_LENGTH(s)` | `LENGTH(s)` | `CHAR_LENGTH(s)` |
+| `INITCAP(s)` | `CONCAT(UPPER(LEFT(s,1)),LOWER(SUBSTR(s,2)))` | 同名 | 同名 | 同名 |
 
-**数值函数：**
+### 数值函数
 
 | U-SQL | MySQL | PostgreSQL | Oracle | 达梦 DM |
 |-------|-------|-----------|--------|---------|
-| `ABS(n)` | `ABS(n)` | `ABS(n)` | `ABS(n)` | `ABS(n)` |
-| `ROUND(n,d)` | `ROUND(n,d)` | `ROUND(n,d)` | `ROUND(n,d)` | `ROUND(n,d)` |
-| `CEIL(n)` | `CEIL(n)` | `CEIL(n)` | `CEIL(n)` | `CEIL(n)` |
-| `FLOOR(n)` | `FLOOR(n)` | `FLOOR(n)` | `FLOOR(n)` | `FLOOR(n)` |
-| `MOD(a,b)` | `MOD(a,b)` | `MOD(a,b)` | `MOD(a,b)` | `MOD(a,b)` |
-| `POWER(x,y)` | `POWER(x,y)` | `POWER(x,y)` | `POWER(x,y)` | `POWER(x,y)` |
-| `SQRT(x)` | `SQRT(x)` | `SQRT(x)` | `SQRT(x)` | `SQRT(x)` |
-| `EXP(x)` | `EXP(x)` | `EXP(x)` | `EXP(x)` | `EXP(x)` |
-| `LN(x)` | `LN(x)` | `LN(x)` | `LN(x)` | `LN(x)` |
+| `ABS(n)` / `ROUND(n,d)` / `CEIL(n)` / `FLOOR(n)` | 同名 | 同名 | 同名 | 同名 |
+| `MOD(a,b)` / `POWER(x,y)` / `SQRT(x)` | 同名 | 同名 | 同名 | 同名 |
+| `EXP(x)` / `LN(x)` | 同名 | 同名 | 同名 | 同名 |
 | `TRUNC(n,d)` | `TRUNCATE(n,d)` | `TRUNC(n,d)` | `TRUNC(n,d)` | `TRUNC(n,d)` |
 | `PI()` | `PI()` | `PI()` | `ACOS(-1)` | `PI()` |
-| `RAND()` | `RAND()` | `RANDOM()` | `DBMS_RANDOM.VALUE` | `RAND()` |
+| `SIN` / `COS` / `TAN` | 同名 | 同名 | 同名 | 同名 |
 
-**日期函数：**
+### 日期函数
 
 | U-SQL | MySQL | PostgreSQL | Oracle | 达梦 DM |
 |-------|-------|-----------|--------|---------|
 | `CURRENT_TIMESTAMP()` | `NOW()` | `NOW()` | `SYSDATE` | `SYSDATE` |
 | `CURRENT_DATE` | `CURDATE` | `CURRENT_DATE` | `TRUNC(SYSDATE)` | `CURDATE` |
-| `DATE_ADD(d,INTERVAL n unit)` | `DATE_ADD(d,INTERVAL n unit)` | `DATE_ADD(d,INTERVAL n unit)` | `DATE_ADD(d,INTERVAL n unit)` | `DATE_ADD(d,INTERVAL n unit)` |
-| `DATE_DIFF(d1,d2,unit)` | `TIMESTAMPDIFF(unit,d2,d1)` | `DATE_DIFF(d1,d2,unit)` | `MONTHS_BETWEEN(d1,d2)` | `DATEDIFF(unit,d2,d1)` |
-| `DATE_FORMAT(d,fmt)` | `DATE_FORMAT(d,fmt)` | `TO_CHAR(d,fmt)` | `TO_CHAR(d,fmt)` | `TO_CHAR(d,fmt)` |
-| `EXTRACT(YEAR FROM d)` | `EXTRACT(YEAR FROM d)` | `EXTRACT(YEAR FROM d)` | `EXTRACT(YEAR FROM d)` | `EXTRACT(YEAR FROM d)` |
+| `EXTRACT(YEAR FROM d)` | 同名 | 同名 | 同名 | 同名 |
+| `DATE_ADD(d,INTERVAL n unit)` | 同名 | 同名 | 同名 | 同名 |
+| `DATE_FORMAT(d,fmt)` | `DATE_FORMAT` | `TO_CHAR` | `TO_CHAR` | `TO_CHAR` |
+| `DATE_DIFF(d1,d2)` | `TIMESTAMPDIFF` | `DATE_DIFF` | `MONTHS_BETWEEN` | `DATEDIFF` |
 
-**条件/空值：**
+### 条件 / 空值
 
 | U-SQL | MySQL | PostgreSQL | Oracle | 达梦 DM |
 |-------|-------|-----------|--------|---------|
-| `COALESCE(a,b,...)` | `COALESCE(a,b,...)` | `COALESCE(a,b,...)` | `COALESCE(a,b,...)` | `COALESCE(a,b,...)` |
-| `NULLIF(a,b)` | `NULLIF(a,b)` | `NULLIF(a,b)` | `NULLIF(a,b)` | `NULLIF(a,b)` |
+| `COALESCE(a,b,...)` | 同名 | 同名 | 同名 | 同名 |
+| `NULLIF(a,b)` | 同名 | 同名 | 同名 | 同名 |
 | `NVL(a,default)` | `IFNULL(a,default)` | `COALESCE(a,default)` | `NVL(a,default)` | `NVL(a,default)` |
-| `GREATEST(a,b)` | `GREATEST(a,b)` | `GREATEST(a,b)` | `GREATEST(a,b)` | `GREATEST(a,b)` |
-| `LEAST(a,b)` | `LEAST(a,b)` | `LEAST(a,b)` | `LEAST(a,b)` | `LEAST(a,b)` |
+| `GREATEST(a,b)` / `LEAST(a,b)` | 同名 | 同名 | 同名 | 同名 |
 
-**聚合函数：**
+### 聚合函数
 
 | U-SQL | MySQL | PostgreSQL | Oracle | 达梦 DM |
 |-------|-------|-----------|--------|---------|
-| `COUNT(*)` | `COUNT(*)` | `COUNT(*)` | `COUNT(*)` | `COUNT(*)` |
-| `SUM(x)` | `SUM(x)` | `SUM(x)` | `SUM(x)` | `SUM(x)` |
-| `AVG(x)` | `AVG(x)` | `AVG(x)` | `AVG(x)` | `AVG(x)` |
-| `MIN(x)` / `MAX(x)` | `MIN(x)`/`MAX(x)` | `MIN(x)`/`MAX(x)` | `MIN(x)`/`MAX(x)` | `MIN(x)`/`MAX(x)` |
-| `STDDEV(x)` | `STDDEV(x)` | `STDDEV(x)` | `STDDEV(x)` | `STDDEV(x)` |
-| `VARIANCE(x)` | `VARIANCE(x)` | `VARIANCE(x)` | `VARIANCE(x)` | `VARIANCE(x)` |
-| `GROUP_CONCAT(x,sep)` | `GROUP_CONCAT(x SEPARATOR sep)` | `STRING_AGG(x,sep)` | `LISTAGG(x,sep)` | `LISTAGG(x,sep)` |
+| `COUNT` / `SUM` / `AVG` / `MIN` / `MAX` | 同名 | 同名 | 同名 | 同名 |
+| `STDDEV` / `VARIANCE` | 同名 | 同名 | 同名 | 同名 |
+| `GROUP_CONCAT(x,sep)` | `GROUP_CONCAT` | `STRING_AGG` | `LISTAGG` | `LISTAGG` |
 
-### DDL 映射
+---
 
-**自增主键：**
+## DDL 映射
+
+### 自增主键
+
 ```sql
 -- U-SQL
 id INT PRIMARY KEY AUTO_INCREMENT
@@ -309,10 +368,11 @@ id INT PRIMARY KEY AUTO_INCREMENT
 -- MySQL:     id INT PRIMARY KEY AUTO_INCREMENT
 -- PostgreSQL: id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY
 -- Oracle:     id NUMBER(10) GENERATED BY DEFAULT ON NULL AS IDENTITY PRIMARY KEY
--- 达梦 DM:    id INT PRIMARY KEY IDENTITY
+-- DM:         id INT PRIMARY KEY IDENTITY
 ```
 
-**布尔类型：**
+### 布尔类型
+
 ```sql
 -- U-SQL
 active BOOLEAN DEFAULT TRUE
@@ -323,28 +383,29 @@ active BOOLEAN DEFAULT TRUE
 -- DM:     active BIT DEFAULT 1
 ```
 
-**枚举类型：**
+### 枚举类型
+
 ```sql
 -- U-SQL
 status ENUM('active','inactive','pending')
 
--- MySQL:  status ENUM('active','inactive','pending')        -- 原生 ENUM
--- PG:     status VARCHAR(255) CHECK (status IN (...))       -- VARCHAR + CHECK
--- Oracle: status VARCHAR2(255) CHECK (status IN (...))      -- VARCHAR2 + CHECK
--- DM:     status VARCHAR(255) CHECK (status IN (...))       -- VARCHAR + CHECK
+-- MySQL:  status ENUM('active','inactive','pending')              — 原生 ENUM
+-- PG:     status VARCHAR(255) CHECK (status IN ('active',...))    — VARCHAR + CHECK
+-- Oracle: status VARCHAR2(255) CHECK (status IN ('active',...))   — VARCHAR2 + CHECK
+-- DM:     status VARCHAR(255) CHECK (status IN ('active',...))    — VARCHAR + CHECK
 ```
 
 ---
 
 ## SQL 编写规则
 
-1. **分页统一用 `LIMIT n OFFSET m`**，不要写 `TOP`、`ROWNUM`、`FETCH FIRST`
-2. **布尔值用 `TRUE` / `FALSE`**，编译器自动映射为 `1`/`0`（MySQL/Oracle/DM）或 `TRUE`/`FALSE`（PG）
-3. **字符串拼接用 `CONCAT(a,b)`**，编译器自动处理 NULL 语义差异
-4. **自增列用 `AUTO_INCREMENT`**，编译器自动转换为各数据库的 IDENTITY 语法
-5. **日期时间统一用标准函数**：`CURRENT_DATE`、`CURRENT_TIMESTAMP`、`DATE_ADD`、`DATE_DIFF`
-6. **不需要写 `FROM DUAL`**，编译器在你需要的时候自动加上
-7. **标识符（表名、列名）大小写不敏感**，编译器为每个数据库使用正确的引号风格
+1. **分页统一用 `LIMIT n OFFSET m`**，不写 `TOP`、`ROWNUM`、`FETCH FIRST`
+2. **布尔值用 `TRUE` / `FALSE`**，编译器自动映射
+3. **自增列用 `AUTO_INCREMENT`**，编译器转换为各库 IDENTITY 语法
+4. **字符串拼接用 `CONCAT(a,b)`**
+5. **日期函数用标准名**：`CURRENT_DATE`、`CURRENT_TIMESTAMP()`、`DATE_ADD`、`DATE_DIFF`
+6. **不写 `FROM DUAL`**，编译器自动补
+7. **标识符大小写不敏感**，编译器使用正确的引号风格
 
 ---
 
@@ -352,24 +413,28 @@ status ENUM('active','inactive','pending')
 
 ```
 usql/
-├── usql-core/     核心编译器（IR、语法、语义分析、Backend）
-├── usql-jdbc/     JDBC 驱动（jdbc:usql:... 即插即用）
-├── usql-cli/      命令行工具（翻译、批量迁移）
-├── usql-proxy/    数据库代理（文本模式 + MySQL Wire Protocol）
-├── docker/        Docker Compose 四库环境
-└── docs/          设计文档 + 执行计划
+├── usql-core/      核心编译器（IR、语法、语义分析、Backend）
+├── usql-jdbc/      JDBC 驱动 + DataSource 包装
+├── usql-cli/       命令行工具
+├── usql-proxy/     数据库代理（文本模式 + MySQL Wire Protocol）
+├── docker/         Docker Compose（MySQL/PG/Oracle/DM 四库环境）
+├── demo/           Spring Boot 集成示例
+└── docs/           设计文档 + 执行计划
 ```
 
-## 构建
+## 构建与测试
 
 ```bash
-# 编译全部模块
+# 编译
 mvn compile
+
+# 安装到本地 Maven 仓库（供其他项目依赖）
+mvn install -DskipTests
 
 # 运行全部测试（需要 Docker 四库在线）
 mvn exec:java -pl usql-core -Dexec.mainClass=com.usql.CiRunner
 
-# 打包 CLI 和 Proxy
+# 打包 CLI / Proxy
 mvn package -pl usql-cli,usql-proxy -am -DskipTests
 ```
 
@@ -377,9 +442,11 @@ mvn package -pl usql-cli,usql-proxy -am -DskipTests
 
 | 测试套件 | 内容 | 数据库 |
 |----------|------|--------|
-| SemanticVerification | 25 种查询类型 | 4 库 × 25 = 100 |
-| FunctionVerification | 50 个函数 | 4 库 × 50 = 200 |
-| DdlVerification | CREATE/INSERT/UPDATE/DELETE/INDEX | 4 库 × 5 = 20 |
-| EnumTest | ENUM 约束 | 4 库 × 1 = 4 |
-| CompilerE2E / TextInput | 编译器单元测试 | 32 |
-| **总计** | | **380 测试** |
+| SemanticVerification | 25 种查询 × 4 库 | 100 |
+| FunctionVerification | 50 个函数 × 4 库 | 200 |
+| DdlVerification | DDL/DML 操作 × 4 库 | 20 |
+| EnumTest | ENUM 约束验证 | 4 |
+| CompilerE2E / TextInput | 编译器单元 | 32 |
+| **总计** | | **356** |
+
+全部在 MySQL 8.0 / PostgreSQL 16 / Oracle 19c / 达梦 DM8 Docker 容器上真实执行验证。
