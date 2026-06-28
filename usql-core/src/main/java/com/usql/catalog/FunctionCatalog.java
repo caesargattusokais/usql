@@ -206,8 +206,17 @@ public class FunctionCatalog {
                 new PolyfillConfig(PolyfillStrategy.EXPRESSION, "SUBSTR({0}, LENGTH({0}) - {1} + 1)")));
         }
 
-        regDialect("CONCAT_WS", "Concatenate with separator", new DataType.VarcharType(0),
-            "CONCAT_WS", "CONCAT_WS", "CONCAT_WS", "CONCAT_WS");
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, dm("CONCAT_WS"));
+            m.put(Dialect.POSTGRESQL, dm("CONCAT_WS"));
+            m.put(Dialect.ORACLE, dm("CONCAT_WS"));
+            m.put(Dialect.DM, dm("CONCAT_WS"));
+            functions.put("CONCAT_WS", new FunctionDef("CONCAT_WS", "Concat with separator",
+                new DataType.VarcharType(0), m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION,
+                    "RTRIM(LISTAGG({1}, {0}) WITHIN GROUP (ORDER BY {1}), {0})")));
+        }
 
         // ── Numeric functions ──
 

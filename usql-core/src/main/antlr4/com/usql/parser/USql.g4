@@ -265,7 +265,7 @@ whenClause
 
 functionCall
     : funcName=identifier LPAREN (DISTINCT | ALL)?
-      (exprList | STAR) RPAREN
+      (exprList | STAR)? RPAREN
     ;
 
 literal
