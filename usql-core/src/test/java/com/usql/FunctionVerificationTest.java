@@ -125,10 +125,6 @@ public class FunctionVerificationTest {
             return false;
         }
         String sql = result.getSql();
-        // DEBUG: show generated SQL for first test
-        if (tc.label().equals("LENGTH")) {
-            System.out.println("  DEBUG " + name + ": [" + sql + "]");
-        }
 
         try (java.sql.Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
