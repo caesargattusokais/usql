@@ -88,19 +88,17 @@ public class USqlCompiler {
 
     /**
      * Compile U-SQL text with custom generation options.
+     *
+     * Full pipeline: Text → Lexer → Parser → AST → Semantic Analysis → IR → Backend → SQL
      */
     public CompilationResult compile(String usql, Dialect target, GenerateOptions genOpts) {
-        List<CompilationResult.Error> allErrors = new ArrayList<>();
-
-        // Phase 1-2: Lex + Parse (requires antlr4)
+        // Phase 1-2: Lex + Parse
         List<Statement> astNodes;
         try {
             astNodes = com.usql.parser.AstBuilder.build(usql);
-        } catch (UnsupportedOperationException e) {
+        } catch (com.usql.parser.AstBuilder.ParseException e) {
             return CompilationResult.failed(List.of(
-                CompilationResult.Error.of(0, 0,
-                    "Parser not yet available — run 'mvn generate-sources' to generate antlr4 classes. " +
-                    "Use compileFromAst() to compile manually constructed AST nodes.")
+                CompilationResult.Error.of(0, 0, "Parse error: " + e.getMessage())
             ));
         }
 
