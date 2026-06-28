@@ -9,7 +9,7 @@
 
 - Phase 1 MVP: 100%
 - Phase 2 扩展: 100%
-- Phase 3 交付: 70%
+- Phase 3 交付: 100%
 - Phase 4 高级: 0%
 
 ---
@@ -56,8 +56,8 @@
 | 3.3 | usql-cli translate 命令 | OK |
 | 3.4 | usql-cli migrate 命令 | OK |
 | 3.5 | usql-cli verify 命令 | OK |
-| 3.6 | usql-proxy MySQL Wire Protocol | TODO |
-| 3.7 | usql-proxy COM_QUERY 翻译转发 | TODO |
+| 3.6 | usql-proxy MySQL Wire Protocol | OK |
+| 3.7 | usql-proxy COM_QUERY 翻译转发 | OK |
 
 ---
 
