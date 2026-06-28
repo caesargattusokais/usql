@@ -303,8 +303,18 @@ public class FunctionCatalog {
         // ── More string functions ──
         reg("LTRIM", "Remove leading spaces", new DataType.VarcharType(0));
         reg("RTRIM", "Remove trailing spaces", new DataType.VarcharType(0));
-        reg("CHAR_LENGTH", "Character length", DataType.IntType.INT);
-        reg("REPEAT", "Repeat string n times", new DataType.VarcharType(0));
+        regDialect("CHAR_LENGTH", "Character length", DataType.IntType.INT,
+            "CHAR_LENGTH", "CHAR_LENGTH", "LENGTH", "CHAR_LENGTH");
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, dm("REPEAT"));
+            m.put(Dialect.POSTGRESQL, dm("REPEAT"));
+            m.put(Dialect.ORACLE, new DialectMapping("RPAD", "RPAD({0}, LENGTH({0}) * {1}, {0})", false, null));
+            m.put(Dialect.DM, dm("REPEAT"));
+            functions.put("REPEAT", new FunctionDef("REPEAT", "Repeat string n times",
+                new DataType.VarcharType(0), m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION, "RPAD({0}, LENGTH({0}) * {1}, {0})")));
+        }
         reg("REVERSE", "Reverse string", new DataType.VarcharType(0));
         regDialect("LPAD", "Left pad string", new DataType.VarcharType(0),
             "LPAD", "LPAD", "LPAD", "LPAD");
@@ -335,8 +345,16 @@ public class FunctionCatalog {
         reg("ATAN", "Arc tangent", DataType.FloatType.DOUBLE);
         regDialect("ATAN2", "Arc tangent of y/x", DataType.FloatType.DOUBLE,
             "ATAN2", "ATAN2", "ATAN2", "ATAN2");
-        regDialect("PI", "Mathematical constant pi", DataType.FloatType.DOUBLE,
-            "PI", "PI", "PI", "PI");
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, dm("PI"));
+            m.put(Dialect.POSTGRESQL, dm("PI"));
+            m.put(Dialect.ORACLE, new DialectMapping("ACOS", "ACOS(-1)", false, null));
+            m.put(Dialect.DM, dm("PI"));
+            functions.put("PI", new FunctionDef("PI", "Mathematical constant pi",
+                DataType.FloatType.DOUBLE, m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION, "ACOS(-1)")));
+        }
         regDialect("DEGREES", "Radians to degrees", DataType.FloatType.DOUBLE,
             "DEGREES", "DEGREES", "DEGREES", "DEGREES");
         regDialect("RADIANS", "Degrees to radians", DataType.FloatType.DOUBLE,
@@ -383,16 +401,31 @@ public class FunctionCatalog {
         // ── Conditional functions ──
         regDialect("IF", "IF(cond, trueVal, falseVal)", null,
             "IF", "CASE WHEN", "CASE WHEN", "IF");
-        regDialect("ISNULL", "Check if value is NULL", new DataType.BooleanType(),
-            "ISNULL", "ISNULL", "NVL2", "ISNULL");
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, dm("ISNULL"));
+            m.put(Dialect.POSTGRESQL, new DialectMapping("ISNULL", "CASE WHEN {0} IS NULL THEN TRUE ELSE FALSE END", false, null));
+            m.put(Dialect.ORACLE, new DialectMapping("CASE", "CASE WHEN {0} IS NULL THEN 1 ELSE 0 END", false, null));
+            m.put(Dialect.DM, dm("ISNULL"));
+            functions.put("ISNULL", new FunctionDef("ISNULL", "Check if value is NULL",
+                new DataType.BooleanType(), m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION, "CASE WHEN {0} IS NULL THEN 1 ELSE 0 END")));
+        }
 
         // ── Group aggregate ──
         regDialect("GROUP_CONCAT", "Concatenate group values", new DataType.VarcharType(0),
             "GROUP_CONCAT", "STRING_AGG", "LISTAGG", "LISTAGG");
         regDialect("STRING_AGG", "String aggregation with delimiter", new DataType.VarcharType(0),
             "GROUP_CONCAT", "STRING_AGG", "LISTAGG", "LISTAGG");
-        regDialect("MEDIAN", "Median value", DataType.FloatType.DOUBLE,
-            "MEDIAN", "PERCENTILE_CONT(0.5)", "MEDIAN", "MEDIAN");
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, dm("MEDIAN")); // MySQL 8.0+ has MEDIAN via community extension
+            m.put(Dialect.POSTGRESQL, new DialectMapping("PERCENTILE_CONT", "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY {0})", false, null));
+            m.put(Dialect.ORACLE, dm("MEDIAN"));
+            m.put(Dialect.DM, dm("MEDIAN"));
+            functions.put("MEDIAN", new FunctionDef("MEDIAN", "Median value",
+                DataType.FloatType.DOUBLE, m, null));
+        }
 
         // ── Window functions ──
         reg("ROW_NUMBER", "Row number in window", DataType.IntType.BIGINT);
@@ -420,9 +453,26 @@ public class FunctionCatalog {
         regDialect("IFNULL", "MySQL alias for NVL", null,
             "IFNULL", "COALESCE", "NVL", "NVL");
         reg("CHAR", "Character from ASCII code", new DataType.VarcharType(1));
-        reg("SPACE", "String of n spaces", new DataType.VarcharType(0));
-        regDialect("INITCAP", "Capitalize first letter", new DataType.VarcharType(0),
-            "INITCAP", "INITCAP", "INITCAP", "INITCAP");
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, dm("SPACE"));
+            m.put(Dialect.POSTGRESQL, new DialectMapping("REPEAT", "REPEAT(' ', {0})", false, null));
+            m.put(Dialect.ORACLE, new DialectMapping("RPAD", "RPAD(' ', {0}, ' ')", false, null));
+            m.put(Dialect.DM, dm("SPACE"));
+            functions.put("SPACE", new FunctionDef("SPACE", "String of n spaces",
+                new DataType.VarcharType(0), m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION, "REPEAT(' ', {0})")));
+        }
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, new DialectMapping("INITCAP", "CONCAT(UPPER(LEFT({0},1)), LOWER(SUBSTR({0},2)))", false, null));
+            m.put(Dialect.POSTGRESQL, dm("INITCAP"));
+            m.put(Dialect.ORACLE, dm("INITCAP"));
+            m.put(Dialect.DM, dm("INITCAP"));
+            functions.put("INITCAP", new FunctionDef("INITCAP", "Capitalize first letter",
+                new DataType.VarcharType(0), m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION, "CONCAT(UPPER(LEFT({0},1)), LOWER(SUBSTR({0},2)))")));
+        }
         regDialect("NVL2", "NVL2(expr, notNull, isNull)", null,
             "IF", "CASE WHEN", "NVL2", "NVL2");
     }

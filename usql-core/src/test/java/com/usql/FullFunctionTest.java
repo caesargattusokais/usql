@@ -103,7 +103,7 @@ public class FullFunctionTest {
             {"MEDIAN",      "SELECT MEDIAN(val) FROM func_test", null},
 
             // Date functions
-            {"CURRENT_TIMESTAMP", "SELECT CURRENT_TIMESTAMP", null},
+            {"CUR_TIMESTAMP", "SELECT CURRENT_TIMESTAMP()", null},
 
             // INSTR
             {"INSTR",       "SELECT INSTR('hello','l')",      "3"},
@@ -143,15 +143,19 @@ public class FullFunctionTest {
         catch (Exception e) { System.out.println("SKIP " + n + ": " + e.getMessage()); }
     }
 
-    static void setupTable(Target t) throws SQLException {
+    static void setupTable(Target t) throws Exception {
         String tbl = t.q("func_test");
         try (java.sql.Statement s = t.conn().createStatement()) {
             try { s.execute("DROP TABLE " + tbl); } catch (SQLException ignored) {}
-            s.execute("CREATE TABLE " + tbl + " (id INT, val INT)");
+        }
+        // Use compiler for DDL so column names match generated queries
+        Statement ddlAst = AstBuilder.buildSingle("CREATE TABLE func_test (id INT, val INT)");
+        String ddl = compiler.compileFromAst(ddlAst, t.dialect()).getSql();
+        try (java.sql.Statement s = t.conn().createStatement()) {
+            s.execute(ddl);
             try {
                 s.execute("INSERT INTO " + tbl + " VALUES (1,1),(2,2),(3,3),(4,4),(5,5)");
             } catch (SQLException e) {
-                // Single-row fallback for Oracle
                 for (int i = 1; i <= 5; i++)
                     s.execute("INSERT INTO " + tbl + " VALUES (" + i + "," + i + ")");
             }
