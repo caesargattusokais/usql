@@ -261,11 +261,12 @@ public class USqlCompiler {
      */
     public static SchemaProvider schemaOf(SchemaProvider.TableDef... tables) {
         return new SchemaProvider() {
-            private final Map<String, SchemaProvider.TableDef> map = Map.of(
+            private final Map<String, SchemaProvider.TableDef> map =
                 java.util.Arrays.stream(tables).collect(
-                    java.util.stream.Collectors.toMap(t -> t.name(), t -> t)
-                )
-            );
+                    java.util.stream.Collectors.toMap(
+                        t -> t.name(), t -> t,
+                        (a, b) -> a, java.util.LinkedHashMap::new)
+                );
 
             @Override
             public Optional<SchemaProvider.TableDef> getTable(String name) {

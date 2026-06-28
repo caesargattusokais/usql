@@ -1,5 +1,7 @@
 package com.usql.ir;
 
+import com.usql.ir.IRStatement.IRSelect;
+
 import java.util.List;
 
 /**

@@ -190,14 +190,16 @@ fkAction
     ;
 
 tableConstraint
-    : (CONSTRAINT name=identifier)?
-      ( PRIMARY KEY LPAREN columnList RPAREN         # TbPrimaryKey
-      | UNIQUE LPAREN columnList RPAREN              # TbUnique
-      | FOREIGN KEY LPAREN columnList RPAREN
-        REFERENCES refTable=identifier LPAREN columnList RPAREN
-        (ON UPDATE fkAction)? (ON DELETE fkAction)?  # TbForeignKey
-      | CHECK LPAREN expr RPAREN                     # TbCheck
-      )
+    : (CONSTRAINT name=identifier)? tableConstraintBody
+    ;
+
+tableConstraintBody
+    : PRIMARY KEY LPAREN columnList RPAREN                                       # TbPrimaryKey
+    | UNIQUE LPAREN columnList RPAREN                                            # TbUnique
+    | FOREIGN KEY LPAREN columnList RPAREN
+      REFERENCES refTable=identifier LPAREN columnList RPAREN
+      (ON UPDATE fkAction)? (ON DELETE fkAction)?                                # TbForeignKey
+    | CHECK LPAREN expr RPAREN                                                   # TbCheck
     ;
 
 tableOptions

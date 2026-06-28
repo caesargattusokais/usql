@@ -254,9 +254,12 @@ public class MySqlBackend implements DialectBackend {
                 // For now, use CONCAT function
                 yield " || "; // MySQL: || is OR by default unless PIPES_AS_CONCAT mode
             }
-            case LIKE         -> " LIKE ";
-            case NOT_LIKE     -> " NOT LIKE ";
+            case LIKE             -> " LIKE ";
+            case NOT_LIKE         -> " NOT LIKE ";
             case IS_DISTINCT_FROM -> " <=> "; // MySQL's null-safe equals
+            case IN               -> " IN ";
+            case NOT_IN           -> " NOT IN ";
+            case BETWEEN          -> " BETWEEN ";
         };
         return "(" + left + operator + right + ")";
     }

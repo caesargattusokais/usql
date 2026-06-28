@@ -267,6 +267,7 @@ public class OracleBackend implements DialectBackend {
             case CONCAT -> " || ";
             case LIKE -> " LIKE "; case NOT_LIKE -> " NOT LIKE ";
             case IS_DISTINCT_FROM -> " IS DISTINCT FROM ";
+            case IN -> " IN "; case NOT_IN -> " NOT IN "; case BETWEEN -> " BETWEEN ";
         };
         return "(" + left + operator + right + ")";
     }

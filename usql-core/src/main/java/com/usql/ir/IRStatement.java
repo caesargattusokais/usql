@@ -153,7 +153,8 @@ public sealed interface IRStatement {
         List<IRMergeAction> actions,
         Set<Capability> capabilities
     ) implements IRStatement {
-        {
+        public IRMerge {
+            capabilities = new java.util.LinkedHashSet<>(capabilities);
             capabilities.add(Capability.MERGE_INTO);
         }
     }
@@ -186,9 +187,7 @@ public sealed interface IRStatement {
     sealed interface IRColumnConstraint {}
     record ColNotNull() implements IRColumnConstraint {}
     record ColUnique(boolean clustered) implements IRColumnConstraint {}
-    record ColPrimaryKey(boolean autoIncrement) implements IRColumnConstraint {
-        { if (autoIncrement) {} } // triggers AUTO_INCREMENT capability
-    }
+    record ColPrimaryKey(boolean autoIncrement) implements IRColumnConstraint {}
     record ColCheck(IRExpr condition) implements IRColumnConstraint {}
     record ColReferences(
         String targetTable, String targetColumn,
@@ -230,7 +229,10 @@ public sealed interface IRStatement {
         IRExpr whereClause,
         Set<Capability> capabilities
     ) implements IRStatement {
-        { if (whereClause != null) capabilities.add(Capability.PARTIAL_INDEX); }
+        public IRCreateIndex {
+            capabilities = new java.util.LinkedHashSet<>(capabilities);
+            if (whereClause != null) capabilities.add(Capability.PARTIAL_INDEX);
+        }
     }
 
     record IndexColumn(String name, IRStatement.OrderDir dir, IRStatement.NullsOrder nulls) {}

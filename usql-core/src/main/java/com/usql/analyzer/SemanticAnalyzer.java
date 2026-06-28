@@ -1,14 +1,14 @@
 package com.usql.analyzer;
 
+import com.usql.CompilationResult;
 import com.usql.SchemaProvider;
-import com.usql.ast.USqlAst;
 import com.usql.ast.USqlAst.*;
 import com.usql.catalog.FunctionCatalog;
 import com.usql.catalog.TypeCatalog;
-import com.usql.dialect.Dialect;
 import com.usql.ir.*;
 import com.usql.ir.IRExpr.*;
 import com.usql.ir.IRStatement.*;
+import com.usql.ir.IRStatement;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -106,13 +106,13 @@ public class SemanticAnalyzer {
             caps.add(Capability.AGGREGATE);
             groupBy = s.groupBy().stream()
                 .map(g -> {
-                    if (g.kind() != GroupByKind.PLAIN) caps.add(Capability.GROUPING_SETS);
+                    if (g.kind() != com.usql.ast.USqlAst.GroupByKind.PLAIN) caps.add(Capability.GROUPING_SETS);
                     return new IRGroupBy(analyzeExpr(g.expr()),
                         switch (g.kind()) {
-                            case PLAIN -> IRGroupBy.GroupByKind.PLAIN;
-                            case ROLLUP -> IRGroupBy.GroupByKind.ROLLUP;
-                            case CUBE -> IRGroupBy.GroupByKind.CUBE;
-                            case GROUPING_SETS -> IRGroupBy.GroupByKind.GROUPING_SETS;
+                            case PLAIN -> IRStatement.GroupByKind.PLAIN;
+                            case ROLLUP -> IRStatement.GroupByKind.ROLLUP;
+                            case CUBE -> IRStatement.GroupByKind.CUBE;
+                            case GROUPING_SETS -> IRStatement.GroupByKind.GROUPING_SETS;
                         });
                 })
                 .collect(Collectors.toList());
@@ -133,12 +133,12 @@ public class SemanticAnalyzer {
         }
 
         // FETCH
-        FetchClause fetch = null;
+        IRStatement.FetchClause fetch = null;
         if (s.fetch() != null) {
             caps.add(Capability.LIMIT_OFFSET);
             IRExpr limit = s.fetch().limit() != null ? analyzeExpr(s.fetch().limit()) : null;
             IRExpr offset = s.fetch().offset() != null ? analyzeExpr(s.fetch().offset()) : null;
-            fetch = new FetchClause(limit, offset);
+            fetch = new IRStatement.FetchClause(limit, offset);
         }
 
         if (s.distinct()) caps.add(Capability.DISTINCT);
@@ -201,12 +201,12 @@ public class SemanticAnalyzer {
                 IRTableRef left = analyzeTableRef(jt.left());
                 IRTableRef right = analyzeTableRef(jt.right());
                 IRExpr condition = jt.condition() != null ? analyzeExpr(jt.condition()) : null;
-                JoinType jtype = switch (jt.type()) {
-                    case INNER -> JoinType.INNER;
-                    case LEFT  -> JoinType.LEFT;
-                    case RIGHT -> JoinType.RIGHT;
-                    case CROSS -> JoinType.CROSS;
-                    case FULL  -> JoinType.FULL;
+                IRStatement.JoinType jtype = switch (jt.type()) {
+                    case INNER -> IRStatement.JoinType.INNER;
+                    case LEFT  -> IRStatement.JoinType.LEFT;
+                    case RIGHT -> IRStatement.JoinType.RIGHT;
+                    case CROSS -> IRStatement.JoinType.CROSS;
+                    case FULL  -> IRStatement.JoinType.FULL;
                 };
                 yield new IRJoin(left, jtype, right, condition);
             }
@@ -415,8 +415,8 @@ public class SemanticAnalyzer {
 
     private IRUpdate analyzeUpdate(UpdateStmt upd) {
         IRTableRef table = analyzeTableRef(upd.table());
-        List<SetClause> sets = upd.sets().stream()
-            .map(s -> new SetClause(s.column(), analyzeExpr(s.value())))
+        List<IRStatement.SetClause> sets = upd.sets().stream()
+            .map(s -> new IRStatement.SetClause(s.column(), analyzeExpr(s.value())))
             .collect(Collectors.toList());
         IRExpr where = upd.where() != null ? analyzeExpr(upd.where()) : null;
         return new IRUpdate(table, sets, where, new LinkedHashSet<>());
@@ -444,9 +444,9 @@ public class SemanticAnalyzer {
 
         IRTableName name = new IRTableName(ct.tableName(), null, null);
 
-        TableOptions opts = null;
+        IRStatement.TableOptions opts = null;
         if (ct.options() != null) {
-            opts = new TableOptions(ct.options().engine(), ct.options().tablespace(),
+            opts = new IRStatement.TableOptions(ct.options().engine(), ct.options().tablespace(),
                 ct.options().characterSet(), ct.options().collation(), ct.options().comment());
         }
 
@@ -497,13 +497,13 @@ public class SemanticAnalyzer {
         if (where != null) caps.add(Capability.PARTIAL_INDEX);
 
         var cols = ci.columns().stream()
-            .map(c -> new IndexColumn(c.name(),
-                c.desc() ? OrderDir.DESC : OrderDir.ASC,
-                c.nullsFirst() ? NullsOrder.FIRST : NullsOrder.LAST))
+            .<IRStatement.IndexColumn>map(c -> new IRStatement.IndexColumn(c.name(),
+                c.desc() ? IRStatement.OrderDir.DESC : IRStatement.OrderDir.ASC,
+                c.nullsFirst() ? IRStatement.NullsOrder.FIRST : IRStatement.NullsOrder.LAST))
             .collect(Collectors.toList());
 
         return new IRCreateIndex(ci.name(), new IRTableName(ci.tableName(), null, null),
-            cols, ci.unique(), ci.ifNotExists(), IndexType.BTREE, where, caps);
+            cols, ci.unique(), ci.ifNotExists(), IRStatement.IndexType.BTREE, where, caps);
     }
 
     // ══════════════════════════════════════════════════
@@ -580,12 +580,12 @@ public class SemanticAnalyzer {
         if (!scopes.isEmpty()) scopes.pop();
     }
 
-    private SetOp mapSetOp(com.usql.ast.USqlAst.SetOp op) {
+    private IRStatement.SetOp mapSetOp(com.usql.ast.USqlAst.SetOp op) {
         return switch (op) {
-            case UNION -> SetOp.UNION;
-            case UNION_ALL -> SetOp.UNION_ALL;
-            case INTERSECT -> SetOp.INTERSECT;
-            case EXCEPT -> SetOp.EXCEPT;
+            case UNION -> IRStatement.SetOp.UNION;
+            case UNION_ALL -> IRStatement.SetOp.UNION_ALL;
+            case INTERSECT -> IRStatement.SetOp.INTERSECT;
+            case EXCEPT -> IRStatement.SetOp.EXCEPT;
         };
     }
 

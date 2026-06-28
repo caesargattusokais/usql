@@ -1,5 +1,7 @@
 package com.usql.ir;
 
+import java.util.Set;
+
 /**
  * Wrapper for the fully analyzed Semantic IR.
  * Produced by the SemanticAnalyzer, consumed by Backends.
