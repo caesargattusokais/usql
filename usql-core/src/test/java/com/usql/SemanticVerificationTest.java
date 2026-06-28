@@ -66,7 +66,7 @@ public class SemanticVerificationTest {
         queries.put("LIMIT OFFSET",    "SELECT name FROM employees ORDER BY name LIMIT 3 OFFSET 1");
 
         // Run against each available target
-        for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL)) {
+        for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE)) {
             System.out.println("\n=== " + target.displayName() + " ===");
             try (Connection targetConn = test.connect(target)) {
                 if (targetConn == null) {
@@ -140,57 +140,50 @@ public class SemanticVerificationTest {
         }
     }
 
-    void setupTargetSchema(Connection conn, Dialect dialect) throws SQLException {
+    void setupTargetSchema(Connection conn, Dialect dialect) throws Exception {
+        // Use compiler-generated DDL so table/column names match generated queries
+        USqlCompiler compiler = USqlCompiler.builder().build();
+
+        // Drop first — try both quoted and unquoted for Oracle
         try (java.sql.Statement stmt = conn.createStatement()) {
-            // Drop if exists
-            try { stmt.execute("DROP TABLE employees"); } catch (SQLException ignored) {}
-            try { stmt.execute("DROP TABLE departments"); } catch (SQLException ignored) {}
-
-            // Create tables (dialect-aware DDL)
-            String deptDdl = "CREATE TABLE departments (id INT PRIMARY KEY, name VARCHAR(100))";
-            String empDdl;
-            switch (dialect) {
-                case MYSQL:
-                    empDdl = "CREATE TABLE employees (" +
-                        "id INT PRIMARY KEY, name VARCHAR(100), dept_id INT, " +
-                        "salary DECIMAL(10,2), active TINYINT(1))";
-                    break;
-                case POSTGRESQL:
-                    empDdl = "CREATE TABLE employees (" +
-                        "id INT PRIMARY KEY, name VARCHAR(100), dept_id INT, " +
-                        "salary DECIMAL(10,2), active BOOLEAN)";
-                    break;
-                case ORACLE:
-                    empDdl = "CREATE TABLE employees (" +
-                        "id NUMBER(10) PRIMARY KEY, name VARCHAR2(100), dept_id NUMBER(10), " +
-                        "salary NUMBER(10,2), active NUMBER(1))";
-                    break;
-                default:
-                    empDdl = "CREATE TABLE employees (" +
-                        "id INT PRIMARY KEY, name VARCHAR(100), dept_id INT, " +
-                        "salary DECIMAL(10,2), active TINYINT(1))";
+            for (String tbl : List.of("employees", "departments")) {
+                try { stmt.execute("DROP TABLE " + tbl); } catch (SQLException ignored) {}
+                try { stmt.execute("DROP TABLE \"" + tbl + "\""); } catch (SQLException ignored) {}
             }
+        }
 
-            stmt.execute(deptDdl);
-            stmt.execute(empDdl);
+        // Create via compiler
+        for (String ddl : List.of(
+            "CREATE TABLE departments (id INT PRIMARY KEY, name VARCHAR(100))",
+            "CREATE TABLE employees (id INT PRIMARY KEY, name VARCHAR(100), dept_id INT, salary DECIMAL(10,2), active BOOLEAN)"
+        )) {
+            var ast = com.usql.parser.AstBuilder.buildSingle(ddl);
+            var result = compiler.compileFromAst(ast, dialect);
+            try (java.sql.Statement stmt = conn.createStatement()) {
+                stmt.execute(result.getSql());
+            }
+        }
 
-            // Insert data
-            stmt.execute("INSERT INTO departments VALUES (1, 'Engineering')");
-            stmt.execute("INSERT INTO departments VALUES (2, 'Sales')");
-            stmt.execute("INSERT INTO departments VALUES (3, 'Marketing')");
-            stmt.execute("INSERT INTO departments VALUES (4, 'HR')");
+        // Insert test data — use quoted identifiers for Oracle case-sensitivity
+        boolean quoted = dialect == Dialect.ORACLE;
+        String dep = quoted ? "\"departments\"" : "departments";
+        String emp = quoted ? "\"employees\"" : "employees";
+        String bt = dialect == Dialect.POSTGRESQL ? "TRUE" : "1";
+        String bf = dialect == Dialect.POSTGRESQL ? "FALSE" : "0";
 
-            String boolTrue = dialect == Dialect.POSTGRESQL ? "TRUE" : "1";
-            String boolFalse = dialect == Dialect.POSTGRESQL ? "FALSE" : "0";
-
-            stmt.execute("INSERT INTO employees VALUES (1, 'Alice', 1, 80000.00, " + boolTrue + ")");
-            stmt.execute("INSERT INTO employees VALUES (2, 'Bob', 1, 75000.00, " + boolTrue + ")");
-            stmt.execute("INSERT INTO employees VALUES (3, 'Charlie', 2, 60000.00, " + boolTrue + ")");
-            stmt.execute("INSERT INTO employees VALUES (4, 'Diana', 2, 55000.00, " + boolFalse + ")");
-            stmt.execute("INSERT INTO employees VALUES (5, 'Eve', 1, 90000.00, " + boolTrue + ")");
-            stmt.execute("INSERT INTO employees VALUES (6, 'Frank', 3, 45000.00, " + boolTrue + ")");
-            stmt.execute("INSERT INTO employees VALUES (7, 'Grace', NULL, 50000.00, " + boolTrue + ")");
-            stmt.execute("INSERT INTO employees VALUES (8, 'Henry', 3, 48000.00, " + boolFalse + ")");
+        try (java.sql.Statement stmt = conn.createStatement()) {
+            stmt.execute("INSERT INTO " + dep + " VALUES (1, 'Engineering')");
+            stmt.execute("INSERT INTO " + dep + " VALUES (2, 'Sales')");
+            stmt.execute("INSERT INTO " + dep + " VALUES (3, 'Marketing')");
+            stmt.execute("INSERT INTO " + dep + " VALUES (4, 'HR')");
+            stmt.execute("INSERT INTO " + emp + " VALUES (1, 'Alice', 1, 80000.00, " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (2, 'Bob', 1, 75000.00, " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (3, 'Charlie', 2, 60000.00, " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (4, 'Diana', 2, 55000.00, " + bf + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (5, 'Eve', 1, 90000.00, " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (6, 'Frank', 3, 45000.00, " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (7, 'Grace', NULL, 50000.00, " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (8, 'Henry', 3, 48000.00, " + bf + ")");
         }
     }
 
