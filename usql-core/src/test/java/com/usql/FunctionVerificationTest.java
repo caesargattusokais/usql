@@ -34,6 +34,10 @@ public class FunctionVerificationTest {
             "oracle.jdbc.OracleDriver",
             "jdbc:oracle:thin:@localhost:1521/orclpdb1", "system", "oracle123");
 
+        tryConnect("达梦DM", Dialect.DM,
+            "dm.jdbc.driver.DmDriver",
+            "jdbc:dm://localhost:5236", "SYSDBA", "dm12345678");
+
         if (targets.isEmpty()) {
             System.out.println("No databases available. Exiting.");
             return;
@@ -156,7 +160,7 @@ public class FunctionVerificationTest {
 
     static void setupTables(Target target) throws Exception {
         // Use quoted identifiers for Oracle to match compiler-generated SQL
-        String quoted = target.dialect() == Dialect.ORACLE ? "\"func_test\"" : "func_test";
+        String quoted = (target.dialect() == Dialect.ORACLE || target.dialect() == Dialect.DM) ? "\"func_test\"" : "func_test";
         try (java.sql.Statement s = target.conn().createStatement()) {
             try { s.execute("DROP TABLE " + quoted); } catch (SQLException ignored) {}
         }
@@ -173,7 +177,7 @@ public class FunctionVerificationTest {
     }
 
     static void cleanupTables(Target target) {
-        String quoted = target.dialect() == Dialect.ORACLE ? "\"func_test\"" : "func_test";
+        String quoted = (target.dialect() == Dialect.ORACLE || target.dialect() == Dialect.DM) ? "\"func_test\"" : "func_test";
         try { target.conn().createStatement().execute("DROP TABLE " + quoted); } catch (SQLException ignored) {}
     }
 }

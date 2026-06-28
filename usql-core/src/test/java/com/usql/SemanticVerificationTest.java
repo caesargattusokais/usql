@@ -66,7 +66,7 @@ public class SemanticVerificationTest {
         queries.put("LIMIT OFFSET",    "SELECT name FROM employees ORDER BY name LIMIT 3 OFFSET 1");
 
         // Run against each available target
-        for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE)) {
+        for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE, Dialect.DM)) {
             System.out.println("\n=== " + target.displayName() + " ===");
             try (Connection targetConn = test.connect(target)) {
                 if (targetConn == null) {
@@ -164,8 +164,8 @@ public class SemanticVerificationTest {
             }
         }
 
-        // Insert test data — use quoted identifiers for Oracle case-sensitivity
-        boolean quoted = dialect == Dialect.ORACLE;
+        // Insert test data — use quoted identifiers for Oracle/DM case-sensitivity
+        boolean quoted = dialect == Dialect.ORACLE || dialect == Dialect.DM;
         String dep = quoted ? "\"departments\"" : "departments";
         String emp = quoted ? "\"employees\"" : "employees";
         String bt = dialect == Dialect.POSTGRESQL ? "TRUE" : "1";
