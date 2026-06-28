@@ -41,7 +41,7 @@
 | 2.2 | 函数目录扩展到 100+ | TODO |
 | 2.3 | DDL 全链路测试 (5 tests x 4 DBs = 20/20) | OK |
 | 2.4 | AUTO_INCREMENT → IDENTITY (Oracle/PG/DM) | OK |
-| 2.5 | ENUM 跨库适配 | TODO |
+| 2.5 | ENUM 跨库适配 (MySQL原生/PG+Oracle+DM CHECK) | OK |
 | 2.6 | Docker 多库 CI 验证 | TODO |
 | 2.7 | 完整 polyfill 引擎 | TODO |
 
