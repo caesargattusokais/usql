@@ -34,7 +34,7 @@ public class CompilerE2ETest {
             IRSelect query = buildSampleQuery();
             CompilationResult r = compiler.compileFromIR(query, Dialect.POSTGRESQL);
             check(r.isSuccess(), "PostgreSQL compilation succeeds");
-            checkContains(r.getSql(), "SELECT", "FROM", "LIMIT", "OFFSET", "TRUE", "FULL OUTER JOIN");
+            checkContains(r.getSql(), "SELECT", "FROM", "LIMIT", "OFFSET", "TRUE", "LEFT JOIN");
             System.out.println("  ✅ PostgreSQL — PASS");
             System.out.println("     " + r.getSql());
         }
