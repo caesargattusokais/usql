@@ -107,6 +107,70 @@ executeQuery(sql) → compiler.compile(sql, dialect) → 翻译后 SQL
 
 所有连接池统一通过 `USqlDataSource` 包装池化 DataSource，连接池在包装层下方正常工作。
 
+#### HikariCP（Spring Boot 默认，无需额外配置）
+
+```yaml
+# application.yml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/mydb
+    username: user
+    password: pass
+```
+
+#### Druid
+
+```xml
+<!-- pom.xml -->
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid-spring-boot-3-starter</artifactId>
+    <version>1.2.23</version>
+</dependency>
+```
+
+```yaml
+# application.yml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/mydb
+    username: user
+    password: pass
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      initial-size: 2
+      max-active: 5
+      min-idle: 2
+      filters: stat,wall    # SQL 监控 + 防火墙
+```
+
+```java
+// UsqlConfig.java — 同上，BeanPostProcessor 自动包装
+```
+
+#### Tomcat CP
+
+```xml
+<!-- pom.xml -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>
+    <exclusions>
+        <exclusion><groupId>com.zaxxer</groupId><artifactId>HikariCP</artifactId></exclusion>
+    </exclusions>
+</dependency>
+<dependency>
+    <groupId>org.apache.tomcat</groupId>
+    <artifactId>tomcat-jdbc</artifactId>
+    <version>10.1.18</version>
+</dependency>
+```
+
+```yaml
+# application.yml — 同上，无需改
+```
+
 ### 手动创建 DataSource
 
 ```java
