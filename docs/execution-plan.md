@@ -28,7 +28,7 @@
 | 1.8 | 类型映射表 TypeCatalog | OK |
 | 1.9 | 能力检查 + Polyfill | OK |
 | 1.10 | 函数目录补全 35 个函数 | OK |
-| 1.11 | H2 双执行语义验证跑通 | TODO |
+| 1.11 | H2 双执行语义验证 (MySQL+PG 14/14) | OK |
 | 1.12 | compile(String) 文本入口直接走通 | TODO |
 
 ---
