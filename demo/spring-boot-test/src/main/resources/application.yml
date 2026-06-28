@@ -1,0 +1,13 @@
+# Spring Boot 对接 USQL — 只需要改 URL 和 driver-class-name
+spring:
+  datasource:
+    # 原 URL: jdbc:mysql://localhost:3306/login_db
+    # USQL URL: 在 mysql 前加 usql: 即可
+    url: jdbc:usql:mysql://localhost:3306/login_db?useSSL=false&allowPublicKeyRetrieval=true
+    username: login_user
+    password: login123
+    driver-class-name: com.usql.jdbc.USqlDriver
+
+    # 连接池配置（HikariCP 默认）
+    hikari:
+      maximum-pool-size: 5

@@ -84,13 +84,13 @@ public class USqlDriver implements java.sql.Driver {
     static ParsedUrl parseUrl(String url) {
         // url = "jdbc:usql:mysql://host:port/db"
         String rest = url.substring(PREFIX.length());
-        // rest = "mysql://host:port/db"
+        // rest = "mysql://host:port/db"  (this IS the real JDBC URL without the "jdbc:" prefix)
         int colon = rest.indexOf(':');
         if (colon < 0) throw new IllegalArgumentException("Invalid USQL URL: " + url +
-            " — expected jdbc:usql:<dialect>:<real-url>");
+            " — expected jdbc:usql:<dialect>:<real-jdbc-url>");
 
         String dialectName = rest.substring(0, colon).toUpperCase();
-        String realPart = rest.substring(colon + 1);
+        String realPart = rest; // keep the full URL including dialect prefix
 
         Dialect dialect;
         try {
