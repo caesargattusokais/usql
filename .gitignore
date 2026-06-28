@@ -28,3 +28,9 @@ mvnw.cmd
 
 # Test output
 *.log
+
+# Docker data (don't track database files)
+docker/postgres/data/
+docker/mysql/data/
+docker/oracle/data/
+docker/dm8/data/

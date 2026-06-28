@@ -1,0 +1,108 @@
+
+
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: login-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: login_db
+      MYSQL_USER: login_user
+      MYSQL_PASSWORD: login123
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./nacos/nacos-schema.sql:/docker-entrypoint-initdb.d/nacos-schema.sql
+      - mysql-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  postgres:
+    image: postgres:16
+    container_name: pg-db
+    restart: always
+
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      TZ: Asia/Shanghai
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      # 数据持久化
+      - ./postgres/data:/var/lib/postgresql/data
+
+      # （可选）初始化 SQL
+      # - ./postgres/init:/docker-entrypoint-initdb.d
+
+    command:
+      - postgres
+      - -c
+      - max_connections=300
+
+
+  oracle-enterprise:
+    # 使用 Oracle 官方企业版镜像 (21c)
+    # 也可指定具体版本，如 container-registry.oracle.com/database/enterprise:19.3.0.0 [citation:5]
+    image: registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c
+    container_name: oracle_enterprise_19
+    hostname: oracledbhost
+    restart: unless-stopped
+    ports:
+      - "1521:1521"   # 数据库监听端口
+      - "5500:5500"   # OEM Express 企业管理器端口 [citation:5]
+    environment:
+      # 关键：设置 SYS, SYSTEM 等管理员密码
+      ORACLE_PWD: oracle123
+      # 设置 SID (容器数据库名)，默认是 ORCLCDB [citation:5]
+      ORACLE_SID: orcl
+      # 设置 PDB (可插拔数据库名)，默认是 ORCLPDB1 [citation:5]
+      ORACLE_PDB: orclpdb1
+      # 可选：设置字符集
+#      ORACLE_CHARACTERSET: AL32UTF8
+    volumes:
+      - oracle-enterprise-data:/opt/oracle/oradata  # 持久化存储数据
+
+
+
+
+
+  dm8:
+    # 使用阿里云上的第三方镜像
+    image: registry.cn-hangzhou.aliyuncs.com/qiluo-images/dm8_single:dm8_20230808_rev197096_x86_rh6_64
+    container_name: dm8_test
+    privileged: true
+    restart: always
+    ports:
+      - "5236:5236"  # 宿主机端口:容器内端口
+    volumes:
+      - /data/dm8_data:/opt/dmdbms/data  # 数据持久化目录
+    environment:
+      - LD_LIBRARY_PATH=/opt/dmdbms/bin
+      - PAGE_SIZE=16            # 页大小，可选 4/8/16/32 [citation:4]
+      - EXTENT_SIZE=32          # 簇大小，可选 16/32/64 [citation:4]
+      - LOG_SIZE=1024           # 日志文件大小(MB) [citation:4]
+      - UNICODE_FLAG=1          # 字符集：1为UTF-8，0为GB18030 [citation:4]
+      # - CASE_SENSITIVE=1      # 大小写敏感，1敏感/0不敏感，默认1 [citation:4]
+      - INSTANCE_NAME=dm8_test  # 实例名称
+      - SYSDBA_PWD=dm12345678    # 设置密码，长度9-48位，不支持特殊字符。不设置则默认为SYSDBA001 [citation:4][citation:9]
+
+
+
+
+volumes:
+  postgres_data:
+  oracle-enterprise-data:
+  mysql-data:
+    # 这里使用了外部卷，需要提前创建: docker volume create oracledb-volume
+#    external: true

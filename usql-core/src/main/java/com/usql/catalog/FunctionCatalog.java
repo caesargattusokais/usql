@@ -96,111 +96,176 @@ public class FunctionCatalog {
 
     // ── Builder helpers ──
 
-    private static DialectMapping dm(String nativeName, String template) {
-        return new DialectMapping(nativeName, template, false, null);
-    }
-
     private static DialectMapping dm(String nativeName) {
         return new DialectMapping(nativeName, null, false, null);
     }
 
+    /** Map where all 4 dialects use the same native function name */
+    private static Map<Dialect, DialectMapping> allSame(String name) {
+        Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+        for (Dialect d : Dialect.values()) {
+            if (d == Dialect.H2) continue;
+            m.put(d, dm(name));
+        }
+        return m;
+    }
+
+    /** Map with per-dialect overrides */
+    private static Map<Dialect, DialectMapping> dialectMap(
+        String mysql, String pg, String oracle, String dm) {
+        Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+        m.put(Dialect.MYSQL, dm(mysql));
+        m.put(Dialect.POSTGRESQL, dm(pg));
+        m.put(Dialect.ORACLE, dm(oracle));
+        m.put(Dialect.DM, dm(dm));
+        return m;
+    }
+
+    /** Quick register: same name everywhere, no polyfill */
+    private void reg(String uSqlName, String description, DataType returnType) {
+        functions.put(uSqlName, new FunctionDef(uSqlName, description, returnType,
+            allSame(uSqlName), null));
+    }
+
+    /** Quick register: same name everywhere, with polyfill */
+    private void reg(String uSqlName, String description, DataType returnType, PolyfillConfig pf) {
+        functions.put(uSqlName, new FunctionDef(uSqlName, description, returnType,
+            allSame(uSqlName), pf));
+    }
+
+    /** Register with per-dialect names */
+    private void regDialect(String uSqlName, String description, DataType returnType,
+                            String mysql, String pg, String oracle, String dm) {
+        functions.put(uSqlName, new FunctionDef(uSqlName, description, returnType,
+            dialectMap(mysql, pg, oracle, dm), null));
+    }
+
+    /** Register with per-dialect names + polyfill */
+    private void regDialect(String uSqlName, String description, DataType returnType,
+                            String mysql, String pg, String oracle, String dm, PolyfillConfig pf) {
+        functions.put(uSqlName, new FunctionDef(uSqlName, description, returnType,
+            dialectMap(mysql, pg, oracle, dm), pf));
+    }
+
     // ══════════════════════════════════════════════════
-    //  Core function registration
+    //  Core function registration (35 functions)
     // ══════════════════════════════════════════════════
 
     private void registerCoreFunctions() {
-        Map<Dialect, DialectMapping> concatMap = new EnumMap<>(Dialect.class);
-        concatMap.put(Dialect.MYSQL,      dm("CONCAT"));
-        concatMap.put(Dialect.POSTGRESQL, dm("CONCAT"));
-        concatMap.put(Dialect.ORACLE,     dm("CONCAT"));
-        concatMap.put(Dialect.DM,         dm("CONCAT"));
 
-        functions.put("STRING_CONCAT", new FunctionDef(
-            "STRING_CONCAT", "Concatenate strings",
-            new DataType.VarcharType(0),   // length depends on args
-            concatMap,
-            new PolyfillConfig(PolyfillStrategy.EXPRESSION, "COALESCE({0},'') || COALESCE({1},'')")
-        ));
+        // ── String functions ──
 
-        // ── DATE_ADD ──
-        Map<Dialect, DialectMapping> dateAddMap = new EnumMap<>(Dialect.class);
-        dateAddMap.put(Dialect.MYSQL,      dm("DATE_ADD"));
-        dateAddMap.put(Dialect.POSTGRESQL, dm("DATE_ADD"));
-        dateAddMap.put(Dialect.ORACLE,     dm("DATE_ADD"));
-        dateAddMap.put(Dialect.DM,         dm("DATE_ADD"));
+        reg("LENGTH", "String length", DataType.IntType.INT);
+        reg("UPPER", "Convert to uppercase", new DataType.VarcharType(0));
+        reg("LOWER", "Convert to lowercase", new DataType.VarcharType(0));
+        reg("TRIM", "Remove leading and trailing spaces", new DataType.VarcharType(0));
 
-        functions.put("DATE_ADD", new FunctionDef(
-            "DATE_ADD", "Add an interval to a date",
-            new DataType.DatetimeType(0),
-            dateAddMap,
-            null  // not easily polyfillable — use backend-specific logic
-        ));
+        regDialect("SUBSTR", "Extract substring", new DataType.VarcharType(0),
+            "SUBSTR", "SUBSTR", "SUBSTR", "SUBSTR");
 
-        // ── DATE_DIFF ──
-        Map<Dialect, DialectMapping> dateDiffMap = new EnumMap<>(Dialect.class);
-        dateDiffMap.put(Dialect.MYSQL,      dm("TIMESTAMPDIFF"));
-        dateDiffMap.put(Dialect.POSTGRESQL, dm("DATE_DIFF"));
-        dateDiffMap.put(Dialect.DM,         dm("DATEDIFF"));
+        reg("REPLACE", "Replace occurrences of substring", new DataType.VarcharType(0));
 
-        functions.put("DATE_DIFF", new FunctionDef(
-            "DATE_DIFF", "Compute difference between two dates",
-            new DataType.IntType(64),
-            dateDiffMap,
+        regDialect("CONCAT", "Concatenate strings", new DataType.VarcharType(0),
+            "CONCAT", "CONCAT", "CONCAT", "CONCAT",
             new PolyfillConfig(PolyfillStrategy.EXPRESSION,
-                "EXTRACT(epoch FROM {0}::timestamp - {1}::timestamp) / CASE {2} " +
-                "WHEN 'DAY' THEN 86400 WHEN 'HOUR' THEN 3600 WHEN 'MINUTE' THEN 60 ELSE 1 END")
-        ));
+                "COALESCE({0},'') || COALESCE({1},'')"));
 
-        // ── COALESCE ──
-        Map<Dialect, DialectMapping> coalesceMap = new EnumMap<>(Dialect.class);
-        coalesceMap.put(Dialect.MYSQL,      dm("COALESCE"));
-        coalesceMap.put(Dialect.POSTGRESQL, dm("COALESCE"));
-        coalesceMap.put(Dialect.ORACLE,     dm("COALESCE")); // NVL is less general but COALESCE works
-        coalesceMap.put(Dialect.DM,         dm("COALESCE"));
+        regDialect("INSTR", "Position of substring in string", DataType.IntType.INT,
+            "INSTR", "POSITION", "INSTR", "INSTR");
 
-        functions.put("COALESCE", new FunctionDef(
-            "COALESCE", "Return the first non-null value",
-            null,  // depends on args
-            coalesceMap,
+        regDialect("LEFT", "Leftmost n characters", new DataType.VarcharType(0),
+            "LEFT", "LEFT", "LEFT", "LEFT",
             new PolyfillConfig(PolyfillStrategy.EXPRESSION,
-                "CASE WHEN {0} IS NOT NULL THEN {0} WHEN {1} IS NOT NULL THEN {1} ELSE NULL END")
-        ));
+                "SUBSTR({0}, 1, {1})"));
 
-        // ── NULLIF ──
-        Map<Dialect, DialectMapping> nullifMap = new EnumMap<>(Dialect.class);
-        nullifMap.put(Dialect.MYSQL,      dm("NULLIF"));
-        nullifMap.put(Dialect.POSTGRESQL, dm("NULLIF"));
-        nullifMap.put(Dialect.ORACLE,     dm("NULLIF"));
-        nullifMap.put(Dialect.DM,         dm("NULLIF"));
-
-        functions.put("NULLIF", new FunctionDef(
-            "NULLIF", "Return NULL if the two arguments are equal",
-            null,
-            nullifMap,
+        regDialect("RIGHT", "Rightmost n characters", new DataType.VarcharType(0),
+            "RIGHT", "RIGHT", "RIGHT", "RIGHT",
             new PolyfillConfig(PolyfillStrategy.EXPRESSION,
-                "CASE WHEN {0} = {1} THEN NULL ELSE {0} END")
-        ));
+                "SUBSTR({0}, LENGTH({0}) - {1} + 1)"));
 
-        // ── NOW ──
-        Map<Dialect, DialectMapping> nowMap = new EnumMap<>(Dialect.class);
-        nowMap.put(Dialect.MYSQL,      dm("NOW"));
-        nowMap.put(Dialect.POSTGRESQL, dm("NOW"));
-        nowMap.put(Dialect.ORACLE,     dm("SYSDATE"));
-        nowMap.put(Dialect.DM,         dm("SYSDATE"));
+        regDialect("CONCAT_WS", "Concatenate with separator", new DataType.VarcharType(0),
+            "CONCAT_WS", "CONCAT_WS", "CONCAT_WS", "CONCAT_WS");
 
-        functions.put("CURRENT_TIMESTAMP", new FunctionDef(
-            "CURRENT_TIMESTAMP", "Current date and time",
-            new DataType.DatetimeType(3),
-            nowMap,
-            null
-        ));
+        // ── Numeric functions ──
+
+        reg("ABS", "Absolute value", DataType.IntType.INT);
+        reg("ROUND", "Round to n decimal places", DataType.IntType.INT);
+
+        regDialect("CEIL", "Ceiling (round up)", DataType.IntType.INT,
+            "CEIL", "CEIL", "CEIL", "CEIL");
+
+        regDialect("CEILING", "Ceiling (round up)", DataType.IntType.INT,
+            "CEILING", "CEILING", "CEIL", "CEIL");
+
+        reg("FLOOR", "Floor (round down)", DataType.IntType.INT);
+
+        regDialect("MOD", "Modulo (remainder)", DataType.IntType.INT,
+            "MOD", "MOD", "MOD", "MOD",
+            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
+                "({0} - {1} * FLOOR({0} / {1}))"));
+
+        reg("POWER", "Raise to power", DataType.FloatType.DOUBLE);
+        reg("SQRT", "Square root", DataType.FloatType.DOUBLE);
+        reg("SIGN", "Sign of number (-1, 0, 1)", DataType.IntType.INT);
+
+        // ── Date/Time functions ──
+
+        regDialect("CURRENT_TIMESTAMP", "Current date and time", new DataType.DatetimeType(3),
+            "NOW", "NOW", "SYSDATE", "SYSDATE");
+
+        regDialect("CURRENT_DATE", "Current date", new DataType.DateType(),
+            "CURDATE", "CURRENT_DATE", "TRUNC(SYSDATE)", "CURDATE");
+
+        regDialect("CURRENT_TIME", "Current time", new DataType.TimeType(0),
+            "CURTIME", "CURRENT_TIME", "SYSTIMESTAMP", "CURTIME");
+
+        reg("EXTRACT", "Extract date part (YEAR, MONTH, DAY, etc.)", DataType.IntType.INT);
+
+        regDialect("DATE_FORMAT", "Format date to string", new DataType.VarcharType(0),
+            "DATE_FORMAT", "TO_CHAR", "TO_CHAR", "TO_CHAR");
+
+        regDialect("DATE_ADD", "Add interval to date", new DataType.DatetimeType(0),
+            "DATE_ADD", "DATE_ADD", "DATE_ADD", "DATE_ADD");
+
+        regDialect("DATE_DIFF", "Difference between two dates", DataType.IntType.BIGINT,
+            "TIMESTAMPDIFF", "DATE_DIFF", "MONTHS_BETWEEN", "DATEDIFF");
+
+        // ── Conditional / NULL handling ──
+
+        reg("COALESCE", "Return first non-null value", null,
+            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
+                "CASE WHEN {0} IS NOT NULL THEN {0} WHEN {1} IS NOT NULL THEN {1} ELSE NULL END"));
+
+        reg("NULLIF", "Return NULL if args are equal", null,
+            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
+                "CASE WHEN {0} = {1} THEN NULL ELSE {0} END"));
+
+        regDialect("NVL", "Replace NULL with default value", null,
+            "IFNULL", "COALESCE", "NVL", "NVL",
+            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
+                "COALESCE({0}, {1})"));
+
+        regDialect("IFNULL", "Replace NULL with default value", null,
+            "IFNULL", "COALESCE", "NVL", "NVL",
+            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
+                "COALESCE({0}, {1})"));
+
+        regDialect("GREATEST", "Largest of values", null,
+            "GREATEST", "GREATEST", "GREATEST", "GREATEST",
+            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
+                "CASE WHEN {0} > {1} THEN {0} ELSE {1} END"));
+
+        regDialect("LEAST", "Smallest of values", null,
+            "LEAST", "LEAST", "LEAST", "LEAST",
+            new PolyfillConfig(PolyfillStrategy.EXPRESSION,
+                "CASE WHEN {0} < {1} THEN {0} ELSE {1} END"));
+
+        // ── Aggregate functions ──
+
+        reg("COUNT", "Row count", DataType.IntType.BIGINT);
+        reg("SUM", "Sum of values", null);  // return type depends on argument
+        reg("AVG", "Average of values", null);
+        reg("MIN", "Minimum value", null);
+        reg("MAX", "Maximum value", null);
     }
-
-    // ── TODO: Add remaining ~30 core functions ──
-    // LENGTH, UPPER, LOWER, TRIM, SUBSTR, REPLACE,
-    // ABS, ROUND, CEIL, FLOOR, MOD, POWER, SQRT,
-    // GREATEST, LEAST,
-    // CAST,
-    // COUNT, SUM, AVG, MIN, MAX,
-    // ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD
 }
