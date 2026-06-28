@@ -56,7 +56,7 @@ selectItem
 tableRef
     : tableName=identifier (AS? alias=identifier)?                     # SimpleTableRef
     | LPAREN selectStatement RPAREN AS? alias=identifier               # SubqueryTableRef
-    | tableRef (INNER | LEFT | RIGHT | CROSS | FULL) JOIN tableRef
+    | tableRef (INNER | LEFT | RIGHT | CROSS | FULL)? JOIN tableRef
         (ON joinCondition=expr)?                                       # JoinTableRef
     | (LATERAL)? functionCall AS? alias=identifier                     # FunctionTableRef
     ;

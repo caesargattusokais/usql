@@ -194,7 +194,8 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         else if (ctx.LEFT() != null) type = JoinType.LEFT;
         else if (ctx.RIGHT() != null) type = JoinType.RIGHT;
         else if (ctx.FULL() != null) type = JoinType.FULL;
-        else type = JoinType.CROSS;
+        else if (ctx.CROSS() != null) type = JoinType.CROSS;
+        else type = JoinType.INNER; // bare JOIN defaults to INNER
 
         Expression condition = ctx.joinCondition != null ? (Expression) visit(ctx.joinCondition) : null;
 
