@@ -172,7 +172,7 @@ public class SemanticAnalyzer {
     private IRTableRef analyzeTableRef(TableRef ref) {
         return switch (ref) {
             case SimpleTable t -> {
-                // Resolve table schema
+                // Register the table alias in scope always — even without schema info
                 String alias = t.alias() != null ? t.alias() : t.name();
                 var tableDef = schema.getTable(t.name());
                 if (tableDef.isPresent()) {
@@ -182,9 +182,11 @@ public class SemanticAnalyzer {
                     }
                     scopes.peek().put(alias, new ScopeEntry(alias, columns, false));
                 } else {
-                    // Table not in schema — warn but don't fail (user might know better)
+                    // Table not in schema — warn but still register with open scope
+                    // so that qualifier references (e.g., d.name) resolve correctly
                     warnings.add(CompilationResult.Warning.of(0, 0,
                         "Table '" + t.name() + "' not found in schema"));
+                    scopes.peek().put(alias, ScopeEntry.open(alias));
                 }
                 yield new IRTableName(t.name(), t.alias(), null);
             }
@@ -280,7 +282,16 @@ public class SemanticAnalyzer {
             for (var scope : scopes) {
                 var entry = scope.get(qual);
                 if (entry != null) {
-                    return new IRColumnRef(name, qual, entry.columns().getOrDefault(name, new DataType.NullType()));
+                    if (entry.open()) {
+                        // Open scope (table not in schema): accept any column
+                        return new IRColumnRef(name, qual, new DataType.NullType());
+                    }
+                    DataType type = entry.columns().getOrDefault(name, new DataType.NullType());
+                    if (type instanceof DataType.NullType && !entry.columns().containsKey(name)) {
+                        warnings.add(CompilationResult.Warning.of(0, 0,
+                            "Column '" + name + "' not found in table '" + qual + "'"));
+                    }
+                    return new IRColumnRef(name, qual, type);
                 }
             }
             errors.add(CompilationResult.Error.of(0, 0,
@@ -593,5 +604,18 @@ public class SemanticAnalyzer {
     //  Scope entry
     // ══════════════════════════════════════════════════
 
-    record ScopeEntry(String alias, Map<String, DataType> columns, boolean isSubquery) {}
+    record ScopeEntry(String alias, Map<String, DataType> columns, boolean isSubquery, boolean open) {
+        /** Create an open scope entry — accepts any column (table not in schema) */
+        static ScopeEntry open(String alias) {
+            return new ScopeEntry(alias, Map.of(), false, true);
+        }
+        /** Normal scope entry with known columns */
+        ScopeEntry(String alias, Map<String, DataType> columns, boolean isSubquery) {
+            this(alias, columns, isSubquery, false);
+        }
+        /** Check if a column exists in this scope (open scopes accept everything) */
+        boolean hasColumn(String name) {
+            return open || columns.containsKey(name);
+        }
+    }
 }
