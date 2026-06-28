@@ -30,7 +30,7 @@ selectStatement
     : withClause?
       SELECT (DISTINCT | ALL)?
       selectItem (COMMA selectItem)*
-      FROM tableRef (COMMA tableRef)*
+      (FROM tableRef (COMMA tableRef)*)?
       whereClause?
       groupByClause?
       havingClause?

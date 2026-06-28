@@ -1,10 +1,12 @@
 package com.usql.backend;
 
+import com.usql.catalog.FunctionCatalog;
 import com.usql.dialect.Dialect;
 import com.usql.ir.*;
 import com.usql.ir.IRExpr.*;
 import com.usql.ir.IRStatement.*;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -16,6 +18,11 @@ import java.util.stream.Collectors;
  *   - VARCHAR → VARCHAR2
  */
 public class OracleBackend implements DialectBackend {
+
+    private FunctionCatalog functionCatalog;
+
+    @Override
+    public void setFunctionCatalog(FunctionCatalog catalog) { this.functionCatalog = catalog; }
 
     @Override
     public Dialect targetDialect() { return Dialect.ORACLE; }
@@ -126,10 +133,14 @@ public class OracleBackend implements DialectBackend {
             .map(p -> generateSelectItem(p, opt))
             .collect(Collectors.joining(", ")));
 
-        sb.append(" FROM ");
-        sb.append(sel.core().from().stream()
-            .map(f -> generateTableRef(f, opt))
-            .collect(Collectors.joining(", ")));
+        if (sel.core().from() != null && !sel.core().from().isEmpty()) {
+            sb.append(" FROM ");
+            sb.append(sel.core().from().stream()
+                .map(f -> generateTableRef(f, opt))
+                .collect(Collectors.joining(", ")));
+        } else {
+            sb.append(" FROM DUAL");
+        }
 
         if (sel.core().where() != null)
             sb.append(" WHERE ").append(generateExpr(sel.core().where(), opt));
@@ -290,17 +301,29 @@ public class OracleBackend implements DialectBackend {
     }
 
     private String generateFunctionCall(IRFunctionCall fc, GenerateOptions opt) {
-        String args = fc.args().stream().map(a -> generateExpr(a, opt)).collect(Collectors.joining(", "));
-        String name = switch (fc.funcName().toUpperCase()) {
-            case "STRING_CONCAT" -> "";  // Oracle: use || operator
-            case "CURRENT_TIMESTAMP" -> "SYSDATE";
-            case "COALESCE" -> "COALESCE";
-            default -> fc.funcName();
-        };
-        if (name.isEmpty()) {
-            return fc.args().stream().map(a -> generateExpr(a, opt)).collect(Collectors.joining(" || "));
+        List<String> argList = fc.args().stream().map(a -> generateExpr(a, opt))
+            .collect(Collectors.toList());
+        String argsStr = String.join(", ", argList);
+
+        if (functionCatalog != null) {
+            var def = functionCatalog.get(fc.funcName());
+            if (def.isPresent()) {
+                var mapping = def.get().forDialect(Dialect.ORACLE);
+                if (mapping.isPresent()) {
+                    String tpl = mapping.get().renderTemplate();
+                    if (tpl != null) {
+                        String result = tpl;
+                        for (int i = 0; i < argList.size(); i++) {
+                            result = result.replace("{" + i + "}", argList.get(i));
+                        }
+                        return result;
+                    }
+                    return mapping.get().nativeName() + "(" + argsStr + ")";
+                }
+            }
         }
-        return name + "(" + args + ")";
+
+        return fc.funcName() + "(" + argsStr + ")";
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {

@@ -170,8 +170,17 @@ public class FunctionCatalog {
             new PolyfillConfig(PolyfillStrategy.EXPRESSION,
                 "COALESCE({0},'') || COALESCE({1},'')"));
 
-        regDialect("INSTR", "Position of substring in string", DataType.IntType.INT,
-            "INSTR", "POSITION", "INSTR", "INSTR");
+        // INSTR: PG uses POSITION(sub IN str) — different syntax
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, new DialectMapping("INSTR", "INSTR({0}, {1})", false, null));
+            m.put(Dialect.POSTGRESQL, new DialectMapping("POSITION", "POSITION({1} IN {0})", false, null));
+            m.put(Dialect.ORACLE, dm("INSTR"));
+            m.put(Dialect.DM, dm("INSTR"));
+            functions.put("INSTR", new FunctionDef("INSTR", "Position of substring in string",
+                DataType.IntType.INT, m,
+                new PolyfillConfig(PolyfillStrategy.EXPRESSION, "POSITION({1} IN {0})")));
+        }
 
         regDialect("LEFT", "Leftmost n characters", new DataType.VarcharType(0),
             "LEFT", "LEFT", "LEFT", "LEFT",

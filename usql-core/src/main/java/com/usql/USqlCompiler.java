@@ -64,6 +64,11 @@ public class USqlCompiler {
         this.backends.put(Dialect.DM,         new DmBackend());
         this.backends.put(Dialect.H2,         new MySqlBackend()); // H2 ≈ MySQL for now
 
+        // Inject function catalog for name translation
+        for (var backend : this.backends.values()) {
+            backend.setFunctionCatalog(this.functionCatalog);
+        }
+
         this.capabilityChecker = new CapabilityChecker();
         this.polyfillEngine = new PolyfillEngine();
         this.verifier = new SemanticVerifier();

@@ -1,5 +1,6 @@
 package com.usql.backend;
 
+import com.usql.catalog.FunctionCatalog;
 import com.usql.dialect.Dialect;
 import com.usql.ir.*;
 import com.usql.ir.IRExpr.*;
@@ -13,10 +14,13 @@ import java.util.stream.Collectors;
  */
 public class MySqlBackend implements DialectBackend {
 
+    private FunctionCatalog functionCatalog;
+
     @Override
-    public Dialect targetDialect() {
-        return Dialect.MYSQL;
-    }
+    public void setFunctionCatalog(FunctionCatalog catalog) { this.functionCatalog = catalog; }
+
+    @Override
+    public Dialect targetDialect() { return Dialect.MYSQL; }
 
     @Override
     public String generate(IRStatement statement, GenerateOptions options) {
@@ -91,10 +95,12 @@ public class MySqlBackend implements DialectBackend {
             .map(p -> generateSelectItem(p, opt))
             .collect(Collectors.joining(", ")));
 
-        sb.append(" FROM ");
-        sb.append(sel.core().from().stream()
-            .map(f -> generateTableRef(f, opt))
-            .collect(Collectors.joining(", ")));
+        if (sel.core().from() != null && !sel.core().from().isEmpty()) {
+            sb.append(" FROM ");
+            sb.append(sel.core().from().stream()
+                .map(f -> generateTableRef(f, opt))
+                .collect(Collectors.joining(", ")));
+        }
 
         if (sel.core().where() != null) {
             sb.append(" WHERE ").append(generateExpr(sel.core().where(), opt));
@@ -281,18 +287,32 @@ public class MySqlBackend implements DialectBackend {
     }
 
     private String generateFunctionCall(IRFunctionCall fc, GenerateOptions opt) {
-        String args = fc.args().stream()
+        List<String> argList = fc.args().stream()
             .map(a -> generateExpr(a, opt))
-            .collect(Collectors.joining(", "));
+            .collect(Collectors.toList());
+        String argsStr = String.join(", ", argList);
 
-        // Map standard function names
-        String name = switch (fc.funcName().toUpperCase()) {
-            case "STRING_CONCAT" -> "CONCAT";
-            case "CURRENT_TIMESTAMP" -> "NOW";
-            default -> fc.funcName();
-        };
+        // Look up dialect-specific name/template from function catalog
+        if (functionCatalog != null) {
+            var def = functionCatalog.get(fc.funcName());
+            if (def.isPresent()) {
+                var mapping = def.get().forDialect(Dialect.MYSQL);
+                if (mapping.isPresent()) {
+                    String tpl = mapping.get().renderTemplate();
+                    if (tpl != null) {
+                        // Apply template: replace {0}, {1}, ... with args
+                        String result = tpl;
+                        for (int i = 0; i < argList.size(); i++) {
+                            result = result.replace("{" + i + "}", argList.get(i));
+                        }
+                        return result;
+                    }
+                    return mapping.get().nativeName() + "(" + argsStr + ")";
+                }
+            }
+        }
 
-        return name + "(" + args + ")";
+        return fc.funcName() + "(" + argsStr + ")";
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {
