@@ -8,7 +8,7 @@
 ## 进度总览
 
 - Phase 1 MVP: 100%
-- Phase 2 扩展: 70%
+- Phase 2 扩展: 90%
 - Phase 3 交付: 5%
 - Phase 4 高级: 0%
 
@@ -38,7 +38,7 @@
 | # | 任务 | 状态 |
 |---|------|------|
 | 2.1 | Oracle + 达梦 Backend | OK |
-| 2.2 | 函数目录扩展到 100+ | TODO |
+| 2.2 | 函数目录扩展到 103 个 | OK |
 | 2.3 | DDL 全链路测试 (5 tests x 4 DBs = 20/20) | OK |
 | 2.4 | AUTO_INCREMENT → IDENTITY (Oracle/PG/DM) | OK |
 | 2.5 | ENUM 跨库适配 (MySQL原生/PG+Oracle+DM CHECK) | OK |
