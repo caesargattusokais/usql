@@ -242,8 +242,15 @@ public class FunctionCatalog {
 
         // ── Date/Time functions ──
 
-        regDialect("CURRENT_TIMESTAMP", "Current date and time", new DataType.DatetimeType(3),
-            "NOW", "NOW", "SYSDATE", "SYSDATE");
+        {
+            Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
+            m.put(Dialect.MYSQL, new DialectMapping("NOW", "NOW()", false, null));
+            m.put(Dialect.POSTGRESQL, new DialectMapping("NOW", "NOW()", false, null));
+            m.put(Dialect.ORACLE, new DialectMapping("SYSDATE", "SYSDATE", false, null));
+            m.put(Dialect.DM, new DialectMapping("SYSDATE", "SYSDATE", false, null));
+            functions.put("CURRENT_TIMESTAMP", new FunctionDef("CURRENT_TIMESTAMP",
+                "Current date and time", new DataType.DatetimeType(3), m, null));
+        }
 
         regDialect("CURRENT_DATE", "Current date", new DataType.DateType(),
             "CURDATE", "CURRENT_DATE", "TRUNC(SYSDATE)", "CURDATE");
