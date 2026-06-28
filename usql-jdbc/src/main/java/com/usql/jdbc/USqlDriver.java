@@ -8,26 +8,22 @@ import java.util.Properties;
 import java.util.logging.Logger;
 
 /**
- * USQL JDBC Driver.
+ * USQL JDBC Driver — the single entry point for all USQL connections.
  *
- * Wraps a real JDBC driver and transparently compiles U-SQL to the target
- * dialect before execution.
+ * Two URL formats are supported:
  *
- * URL format: jdbc:usql:<dialect>:<real-jdbc-url>
+ * 1. Explicit: jdbc:usql:mysql://host:port/db
+ *    Dialect from the prefix (mysql/postgresql/oracle/dm).
  *
- * Examples:
- *   jdbc:usql:mysql://localhost:3306/mydb
- *   jdbc:usql:postgresql://localhost:5432/mydb
- *   jdbc:usql:oracle:thin:@localhost:1521/orclpdb1
- *   jdbc:usql:dm://localhost:5236
+ * 2. Implicit: jdbc:mysql://host:port/db
+ *    Dialect auto-detected from URL pattern.
  *
- * The driver strips the "jdbc:usql:<dialect>:" prefix and replaces it
- * with "jdbc:" to construct the real JDBC URL, then delegates to the
- * real driver (mysql-connector-j, postgresql, ojdbc, DmJdbcDriver).
+ * USqlDataSource delegates here for both dialect detection and
+ * connection creation.
  */
 public class USqlDriver implements java.sql.Driver {
 
-    private static final String PREFIX = "jdbc:usql:";
+    private static final String USQL_PREFIX = "jdbc:usql:";
     private static final USqlCompiler compiler = USqlCompiler.builder().build();
 
     static {
@@ -45,20 +41,14 @@ public class USqlDriver implements java.sql.Driver {
         ParsedUrl parsed = parseUrl(url);
         String realUrl = "jdbc:" + parsed.realPart();
 
-        // Load the real driver
-        Connection realConn;
-        try {
-            realConn = DriverManager.getConnection(realUrl, info);
-        } catch (SQLException e) {
-            throw new SQLException("Cannot connect to real database: " + realUrl + " — " + e.getMessage(), e);
-        }
-
+        Connection realConn = DriverManager.getConnection(realUrl, info);
         return new USqlConnection(realConn, parsed.dialect(), compiler);
     }
 
+    /** Only accepts jdbc:usql:* URLs. Standard URLs go to real drivers. */
     @Override
     public boolean acceptsURL(String url) {
-        return url != null && url.startsWith(PREFIX);
+        return url != null && url.startsWith(USQL_PREFIX);
     }
 
     @Override
@@ -66,41 +56,51 @@ public class USqlDriver implements java.sql.Driver {
         return new DriverPropertyInfo[0];
     }
 
-    @Override
-    public int getMajorVersion() { return 1; }
+    @Override public int getMajorVersion() { return 1; }
+    @Override public int getMinorVersion() { return 0; }
+    @Override public boolean jdbcCompliant() { return false; }
+    @Override public Logger getParentLogger() { return Logger.getLogger("com.usql.jdbc"); }
 
-    @Override
-    public int getMinorVersion() { return 0; }
+    // ══════════════════════════════════════════════════
+    //  URL parsing — shared by Driver and DataSource
+    // ══════════════════════════════════════════════════
 
-    @Override
-    public boolean jdbcCompliant() { return false; }
-
-    @Override
-    public Logger getParentLogger() {
-        return Logger.getLogger("com.usql.jdbc");
+    /**
+     * Detect dialect from JDBC URL.
+     * Public so USqlDataSource can use it too.
+     */
+    public static Dialect detectDialect(String jdbcUrl) {
+        // If usql: prefix, extract from there
+        if (jdbcUrl.startsWith(USQL_PREFIX)) {
+            String rest = jdbcUrl.substring(USQL_PREFIX.length());
+            int colon = rest.indexOf(':');
+            if (colon > 0) {
+                return Dialect.valueOf(rest.substring(0, colon).toUpperCase());
+            }
+        }
+        // Otherwise detect from URL pattern
+        String url = jdbcUrl.toLowerCase();
+        if (url.contains(":mysql:") || url.contains(":mariadb:")) return Dialect.MYSQL;
+        if (url.contains(":postgresql:") || url.contains(":pgsql:")) return Dialect.POSTGRESQL;
+        if (url.contains(":oracle:")) return Dialect.ORACLE;
+        if (url.contains(":dm:")) return Dialect.DM;
+        throw new IllegalArgumentException("Cannot detect dialect from: " + jdbcUrl);
     }
 
-    /** Parse jdbc:usql:<dialect>:<rest> into dialect + real JDBC URL part. */
+    /** Parse URL into dialect + real JDBC URL part (without jdbc: prefix). */
     static ParsedUrl parseUrl(String url) {
-        // url = "jdbc:usql:mysql://host:port/db"
-        String rest = url.substring(PREFIX.length());
-        // rest = "mysql://host:port/db"  (this IS the real JDBC URL without the "jdbc:" prefix)
-        int colon = rest.indexOf(':');
-        if (colon < 0) throw new IllegalArgumentException("Invalid USQL URL: " + url +
-            " — expected jdbc:usql:<dialect>:<real-jdbc-url>");
-
-        String dialectName = rest.substring(0, colon).toUpperCase();
-        String realPart = rest; // keep the full URL including dialect prefix
-
-        Dialect dialect;
-        try {
-            dialect = Dialect.valueOf(dialectName);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown dialect: " + dialectName +
-                ". Supported: MYSQL, POSTGRESQL, ORACLE, DM");
+        if (url.startsWith(USQL_PREFIX)) {
+            // jdbc:usql:mysql://host/db → rest = mysql://host/db
+            String rest = url.substring(USQL_PREFIX.length());
+            int colon = rest.indexOf(':');
+            String dialectName = rest.substring(0, colon).toUpperCase();
+            Dialect dialect = Dialect.valueOf(dialectName);
+            return new ParsedUrl(dialect, rest);
         }
-
-        return new ParsedUrl(dialect, realPart);
+        // Standard JDBC URL: jdbc:mysql://host/db → rest = mysql://host/db
+        String rest = url.substring("jdbc:".length());
+        Dialect dialect = detectDialect(url);
+        return new ParsedUrl(dialect, rest);
     }
 
     record ParsedUrl(Dialect dialect, String realPart) {}

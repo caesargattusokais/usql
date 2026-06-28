@@ -57,29 +57,14 @@ public class USqlDataSource implements DataSource {
     }
 
     /**
-     * Factory: create from JDBC URL, auto-detect dialect from URL.
+     * Factory: create from JDBC URL. Dialect auto-detected via USqlDriver.
      * jdbc:mysql://... → MYSQL
-     * jdbc:postgresql://... → POSTGRESQL
-     * jdbc:oracle:thin:@... → ORACLE
-     * jdbc:dm://... → DM
+     * jdbc:usql:oracle://... → ORACLE
      */
     public static USqlDataSource create(String jdbcUrl, String user, String password) throws SQLException {
-        Dialect dialect = detectDialect(jdbcUrl);
+        Dialect dialect = USqlDriver.detectDialect(jdbcUrl);
         var ds = new SimpleDriverDataSource(jdbcUrl, user, password);
         return new USqlDataSource(ds, dialect);
-    }
-
-    /**
-     * Detect database dialect from JDBC URL.
-     */
-    public static Dialect detectDialect(String jdbcUrl) {
-        String url = jdbcUrl.toLowerCase();
-        if (url.contains(":mysql:") || url.contains(":mariadb:") || url.contains(":mysql-")) return Dialect.MYSQL;
-        if (url.contains(":postgresql:") || url.contains(":pgsql:")) return Dialect.POSTGRESQL;
-        if (url.contains(":oracle:")) return Dialect.ORACLE;
-        if (url.contains(":dm:")) return Dialect.DM;
-        throw new IllegalArgumentException("Cannot detect dialect from JDBC URL: " + jdbcUrl +
-            ". Supported: mysql, postgresql, oracle, dm");
     }
 
     public Dialect dialect() { return dialect; }
