@@ -348,6 +348,11 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
     }
 
     @Override
+    public Expression visitExistsExpr(USqlParser.ExistsExprContext ctx) {
+        return new UnaryOp(UnOp.EXISTS, new SubqueryExpr(visitSelectStatement(ctx.selectStatement())));
+    }
+
+    @Override
     public Expression visitMulDivExpr(USqlParser.MulDivExprContext ctx) {
         Expression left = (Expression) visit(ctx.expr(0));
         Expression right = (Expression) visit(ctx.expr(1));

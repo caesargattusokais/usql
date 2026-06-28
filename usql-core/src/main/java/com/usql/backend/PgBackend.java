@@ -233,8 +233,12 @@ public class PgBackend implements DialectBackend {
             case IRSubquery sq -> "(" + generateSelect(sq.query(), opt) + ")";
             case IRBetween btw -> generateExpr(btw.expr(), opt) + (btw.not() ? " NOT BETWEEN " : " BETWEEN ") +
                                   generateExpr(btw.low(), opt) + " AND " + generateExpr(btw.high(), opt);
-            case IRInList in -> generateExpr(in.expr(), opt) + (in.not() ? " NOT IN (" : " IN (") +
-                                in.values().stream().map(v -> generateExpr(v, opt)).collect(Collectors.joining(", ")) + ")";
+            case IRInList in -> {
+                String r = generateExpr(in.expr(), opt) + (in.not() ? " NOT IN (" : " IN (");
+                if (in.subquery() != null) r += generateSelect(in.subquery(), opt);
+                else r += in.values().stream().map(v -> generateExpr(v, opt)).collect(Collectors.joining(", "));
+                yield r + ")";
+            }
             case IRIsNull isn -> generateExpr(isn.expr(), opt) + (isn.not() ? " IS NOT NULL" : " IS NULL");
             default -> throw new UnsupportedOperationException("Unknown: " + expr.getClass().getSimpleName());
         };

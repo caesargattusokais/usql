@@ -244,6 +244,7 @@ expr
     | LPAREN selectStatement RPAREN                   # SubqueryExpr
     | op=(MINUS | PLUS) expr                          # UnaryOpExpr
     | NOT expr                                        # NotExpr
+    | EXISTS LPAREN selectStatement RPAREN            # ExistsExpr
     | expr op=(STAR | DIV | MOD) expr                 # MulDivExpr
     | expr op=(PLUS | MINUS) expr                     # AddSubExpr
     | expr CONCAT expr                                # ConcatExpr

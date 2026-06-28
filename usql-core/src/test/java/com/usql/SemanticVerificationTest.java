@@ -55,15 +55,33 @@ public class SemanticVerificationTest {
             return;
         }
 
-        // Test queries
+        // Test queries — comprehensive coverage
         Map<String, String> queries = new LinkedHashMap<>();
-        queries.put("Simple SELECT",   "SELECT id, name FROM departments ORDER BY id");
-        queries.put("SELECT with WHERE", "SELECT name, salary FROM employees WHERE salary > 50000 ORDER BY name");
-        queries.put("COUNT aggregate", "SELECT dept_id, COUNT(*) AS cnt FROM employees GROUP BY dept_id ORDER BY dept_id");
-        queries.put("AVG aggregate",   "SELECT dept_id, AVG(salary) AS avg_sal FROM employees GROUP BY dept_id ORDER BY dept_id");
-        queries.put("JOIN query",      "SELECT d.name, e.name FROM departments d JOIN employees e ON d.id = e.dept_id ORDER BY d.name, e.name");
-        queries.put("LEFT JOIN",       "SELECT d.name, COUNT(e.id) AS emp_count FROM departments d LEFT JOIN employees e ON d.id = e.dept_id GROUP BY d.name ORDER BY d.name");
-        queries.put("LIMIT OFFSET",    "SELECT name FROM employees ORDER BY name LIMIT 3 OFFSET 1");
+        queries.put("1. Simple SELECT",       "SELECT id, name FROM departments ORDER BY id");
+        queries.put("2. WHERE filter",        "SELECT name, salary FROM employees WHERE salary > 50000 ORDER BY name");
+        queries.put("3. COUNT aggregate",     "SELECT dept_id, COUNT(*) AS cnt FROM employees GROUP BY dept_id ORDER BY dept_id");
+        queries.put("4. AVG aggregate",       "SELECT dept_id, AVG(salary) AS avg_sal FROM employees GROUP BY dept_id ORDER BY dept_id");
+        queries.put("5. SUM aggregate",       "SELECT dept_id, SUM(salary) AS total FROM employees GROUP BY dept_id ORDER BY dept_id");
+        queries.put("6. MIN/MAX aggregate",   "SELECT dept_id, MIN(salary) AS lo, MAX(salary) AS hi FROM employees GROUP BY dept_id ORDER BY dept_id");
+        queries.put("7. INNER JOIN",          "SELECT d.name, e.name FROM departments d JOIN employees e ON d.id = e.dept_id ORDER BY d.name, e.name");
+        queries.put("8. LEFT JOIN",           "SELECT d.name, COUNT(e.id) AS cnt FROM departments d LEFT JOIN employees e ON d.id = e.dept_id GROUP BY d.name ORDER BY d.name");
+        queries.put("9. Three-table JOIN",    "SELECT d.name, e1.name AS emp1, e2.name AS emp2 FROM departments d JOIN employees e1 ON d.id = e1.dept_id JOIN employees e2 ON d.id = e2.dept_id WHERE e1.id < e2.id ORDER BY d.name");
+        queries.put("10. LIMIT OFFSET",       "SELECT name FROM employees ORDER BY name LIMIT 3 OFFSET 1");
+        queries.put("11. DISTINCT",           "SELECT DISTINCT dept_id FROM employees ORDER BY dept_id");
+        queries.put("12. ORDER BY DESC",      "SELECT name, salary FROM employees ORDER BY salary DESC, name ASC");
+        queries.put("13. IS NULL filter",     "SELECT name FROM employees WHERE dept_id IS NULL ORDER BY name");
+        queries.put("14. IS NOT NULL",        "SELECT name FROM employees WHERE dept_id IS NOT NULL ORDER BY name");
+        queries.put("15. BETWEEN",            "SELECT name, salary FROM employees WHERE salary BETWEEN 50000 AND 80000 ORDER BY salary");
+        queries.put("16. LIKE pattern",       "SELECT name FROM employees WHERE name LIKE 'A%' ORDER BY name");
+        queries.put("17. IN subquery",        "SELECT name FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE name = 'Engineering') ORDER BY name");
+        queries.put("18. NOT IN subquery",    "SELECT name FROM employees WHERE dept_id NOT IN (SELECT id FROM departments WHERE name = 'HR') ORDER BY name");
+        queries.put("19. EXISTS subquery",    "SELECT d.name FROM departments d WHERE EXISTS (SELECT 1 FROM employees e WHERE e.dept_id = d.id) ORDER BY d.name");
+        queries.put("20. Scalar subquery",    "SELECT name, salary, (SELECT AVG(salary) FROM employees) AS avg_all FROM employees ORDER BY name");
+        queries.put("21. UNION ALL",          "SELECT name FROM employees WHERE dept_id = 1 UNION ALL SELECT name FROM employees WHERE dept_id = 2 ORDER BY name");
+        queries.put("22. CASE expression",    "SELECT name, CASE WHEN salary > 70000 THEN 'High' WHEN salary > 50000 THEN 'Medium' ELSE 'Low' END AS level FROM employees ORDER BY name");
+        queries.put("23. Expression no FROM", "SELECT 1 + 2 AS sum, LENGTH('hello') AS len, UPPER('test') AS up");
+        queries.put("24. COALESCE",           "SELECT name, COALESCE(dept_id, 0) AS dept FROM employees ORDER BY name");
+        queries.put("25. Double aggregate",   "SELECT COUNT(*) AS cnt, AVG(salary) AS avg_sal, SUM(salary) AS total, MIN(salary) AS min_sal, MAX(salary) AS max_sal FROM employees WHERE dept_id IS NOT NULL");
 
         // Run against each available target
         for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE, Dialect.DM)) {
