@@ -399,12 +399,13 @@ public class OracleBackend implements DialectBackend {
     // ══════════════════════════════════════════════════
 
     private String generateCreateTable(IRCreateTable ct, GenerateOptions opt) {
-        var sb = new StringBuilder("CREATE TABLE ");
-        sb.append(generateTableRef(ct.name(), opt)).append(" (\n");
+        var sb = new StringBuilder();
+        sb.append("CREATE TABLE ");
+        sb.append(generateTableRef(ct.name(), opt));
+        sb.append(" (\n");
         sb.append(ct.columns().stream()
             .map(col -> generateColumnDef(col, opt))
             .collect(Collectors.joining(",\n")));
-        // Add ENUM CHECK constraints at table level
         for (var col : ct.columns()) {
             for (var check : generateEnumChecks(col)) {
                 sb.append(",\n").append(check);
@@ -417,7 +418,12 @@ public class OracleBackend implements DialectBackend {
                 .collect(Collectors.joining(",\n")));
         }
         sb.append("\n)");
-        return sb.toString();
+        if (!ct.ifNotExists()) return sb.toString();
+
+        // Oracle doesn't support IF NOT EXISTS — PL/SQL wrapper
+        String ddl = sb.toString().replace("'", "''");
+        return "BEGIN EXECUTE IMMEDIATE '" + ddl + "'; " +
+               "EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF; END;";
     }
 
     private String generateColumnDef(IRColumnDef col, GenerateOptions opt) {
