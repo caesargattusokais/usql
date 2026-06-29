@@ -213,7 +213,7 @@ public class MySqlBackend implements DialectBackend {
                     yield quoteIdentifier(wc.qualifier()) + ".*";
                 yield "*";
             }
-            case IRParameter p   -> ":" + p.name();
+            case IRParameter p   -> "?";  // JDBC standard positional parameter
             case IRBinaryOp bo   -> generateBinaryOp(bo, opt);
             case IRUnaryOp uo    -> generateUnaryOp(uo, opt);
             case IRFunctionCall fc -> generateFunctionCall(fc, opt);
