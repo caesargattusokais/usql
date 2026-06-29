@@ -570,7 +570,7 @@ public class SemanticAnalyzer {
             case "DOUBLE"    -> DataType.FloatType.DOUBLE;
             case "CHAR"      -> new DataType.CharType(precision > 0 ? precision : 1);
             case "VARCHAR"   -> new DataType.VarcharType(precision > 0 ? precision : 255);
-            case "TEXT", "CLOB" -> new DataType.TextType();
+            case "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT", "CLOB" -> new DataType.TextType();
             case "BOOLEAN"   -> new DataType.BooleanType();
             case "DATE"      -> new DataType.DateType();
             case "TIME"      -> new DataType.TimeType(Math.max(scale, 0));
