@@ -147,9 +147,17 @@ public class SemanticAnalyzer {
 
         popScope();
 
+        List<IRStatement.IRCommonTable> withClause = null;
+        if (s.withClause() != null && !s.withClause().isEmpty()) {
+            withClause = s.withClause().stream()
+                .map(cte -> new IRStatement.IRCommonTable(cte.name(), cte.columns(),
+                    analyzeSelect(cte.query()), cte.recursive()))
+                .collect(Collectors.toList());
+        }
+
         SelectCore core = new SelectCore(
             projections, from, where, groupBy, having,
-            null, // withClause — TODO
+            withClause,
             s.setOp() != null ? mapSetOp(s.setOp()) : null,
             s.setOperand() != null ? analyzeSelect(s.setOperand()) : null,
             s.distinct()
@@ -368,12 +376,25 @@ public class SemanticAnalyzer {
             args = List.of(new IRWildcard(null));
         }
 
-        // Look up return type from function catalog
         DataType returnType = functions.get(fc.name())
             .map(fd -> fd.returnType)
             .orElse(new DataType.NullType());
 
-        return new IRFunctionCall(fc.name(), args, returnType);
+        IRWindowOver over = null;
+        if (fc.over() != null) {
+            List<IRExpr> partitionBy = fc.over().partitionBy() != null
+                ? fc.over().partitionBy().stream().map(this::analyzeExpr).collect(Collectors.toList())
+                : null;
+            List<IRStatement.OrderBy> orderBy = fc.over().orderBy() != null
+                ? fc.over().orderBy().stream().map(o -> new IRStatement.OrderBy(
+                    analyzeExpr(o.expr()), o.desc() ? IRStatement.OrderDir.DESC : IRStatement.OrderDir.ASC,
+                    o.nullsFirst() ? IRStatement.NullsOrder.FIRST : IRStatement.NullsOrder.LAST))
+                    .collect(Collectors.toList())
+                : null;
+            over = new IRWindowOver(partitionBy, orderBy);
+        }
+
+        return new IRFunctionCall(fc.name(), args, returnType, over);
     }
 
     private IRExpr analyzeCase(CaseExpr cs) {

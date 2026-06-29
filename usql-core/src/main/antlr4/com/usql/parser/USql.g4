@@ -267,6 +267,14 @@ whenClause
 functionCall
     : funcName=identifier LPAREN (DISTINCT | ALL)?
       (exprList | STAR)? RPAREN
+      overClause?
+    ;
+
+overClause
+    : OVER LPAREN
+        (PARTITION BY expr (COMMA expr)*)?
+        orderByClause?
+      RPAREN
     ;
 
 literal
@@ -356,6 +364,7 @@ keyword
     | BETWEEN | LIKE | CASE | WHEN | THEN | ELSE | END | CAST
     | UNION | INTERSECT | EXCEPT
     | ROLLUP | CUBE | GROUPING | SETS
+    | OVER | PARTITION
     | DATE | TIMESTAMP | INTERVAL | TIME | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND
     | TINYINT | SMALLINT | INT | INTEGER | BIGINT | DECIMAL | NUMERIC
     | FLOAT | REAL | DOUBLE | PRECISION | CHAR | VARCHAR | TINYTEXT | TEXT | MEDIUMTEXT | LONGTEXT
@@ -474,6 +483,8 @@ NUMERIC:      N U M E R I C;
 FLOAT:        F L O A T;
 REAL:         R E A L;
 DOUBLE:       D O U B L E;
+OVER:         O V E R;
+PARTITION:    P A R T I T I O N;
 PRECISION:    P R E C I S I O N;
 CHAR:         C H A R;
 VARCHAR:      V A R C H A R;

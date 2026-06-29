@@ -472,7 +472,22 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         String name = getIdentifier(ctx.funcName);
         boolean star = ctx.STAR() != null;
         List<Expression> args = ctx.exprList() != null ? getExprList(ctx.exprList()) : List.of();
-        return new FunctionCall(name, args, star);
+        WindowOver over = null;
+        if (ctx.overClause() != null) {
+            var oc = ctx.overClause();
+            List<Expression> partitionBy = null;
+            if (oc.PARTITION() != null) {
+                partitionBy = oc.expr().stream()
+                    .map(e -> (Expression) visit(e))
+                    .collect(Collectors.toList());
+            }
+            List<OrderByItem> orderBy = null;
+            if (oc.orderByClause() != null) {
+                orderBy = visitOrderByClause(oc.orderByClause());
+            }
+            over = new WindowOver(partitionBy, orderBy);
+        }
+        return new FunctionCall(name, args, star, over);
     }
 
     // ══════════════════════════════════════════════════
@@ -813,7 +828,7 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
     public static ExprItem col(String name) { return new ExprItem(new ColumnRef(List.of(), name), null); }
     public static ExprItem col(String qual, String name) { return new ExprItem(new ColumnRef(List.of(qual), name), null); }
     public static ExprItem col(String qual, String name, String alias) { return new ExprItem(new ColumnRef(List.of(qual), name), alias); }
-    public static ExprItem func(String name, List<Expression> args, String alias) { return new ExprItem(new FunctionCall(name, args, false), alias); }
+    public static ExprItem func(String name, List<Expression> args, String alias) { return new ExprItem(new FunctionCall(name, args, false, null), alias); }
     public static StarItem star() { return new StarItem(null); }
     public static SimpleTable table(String name) { return new SimpleTable(name, null); }
     public static SimpleTable table(String name, String alias) { return new SimpleTable(name, alias); }

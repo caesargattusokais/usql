@@ -196,7 +196,11 @@ public final class USqlAst {
     }
 
     // Function call
-    public record FunctionCall(String name, List<Expression> args, boolean star) implements Expression {}
+    public record FunctionCall(String name, List<Expression> args, boolean star,
+                                WindowOver over) implements Expression {}
+
+    public record WindowOver(List<Expression> partitionBy,
+                              List<OrderByItem> orderBy) {}
 
     // CASE
     public record CaseExpr(List<WhenClause> whens, Expression elseExpr) implements Expression {}

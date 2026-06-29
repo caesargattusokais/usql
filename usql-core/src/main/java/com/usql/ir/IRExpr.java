@@ -72,9 +72,14 @@ public sealed interface IRExpr {
     // ── Function ──
 
     /** Function call: COUNT(*), UPPER(name), COALESCE(a, b) */
-    record IRFunctionCall(String funcName, List<IRExpr> args, DataType type) implements IRExpr {
+    record IRFunctionCall(String funcName, List<IRExpr> args, DataType type,
+                          IRWindowOver over) implements IRExpr {
         public DataType getType() { return type; }
     }
+
+    /** OVER clause for window functions */
+    record IRWindowOver(List<IRExpr> partitionBy,
+                        List<IRStatement.OrderBy> orderBy) {}
 
     // ── CASE ──
 

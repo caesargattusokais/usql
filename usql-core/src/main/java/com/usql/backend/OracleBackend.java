@@ -310,6 +310,7 @@ public class OracleBackend implements DialectBackend {
             .collect(Collectors.toList());
         String argsStr = String.join(", ", argList);
 
+        String result;
         if (functionCatalog != null) {
             var def = functionCatalog.get(fc.funcName());
             if (def.isPresent()) {
@@ -317,18 +318,31 @@ public class OracleBackend implements DialectBackend {
                 if (mapping.isPresent()) {
                     String tpl = mapping.get().renderTemplate();
                     if (tpl != null) {
-                        String result = tpl;
-                        for (int i = 0; i < argList.size(); i++) {
+                        result = tpl;
+                        for (int i = 0; i < argList.size(); i++)
                             result = result.replace("{" + i + "}", argList.get(i));
-                        }
-                        return result;
+                    } else {
+                        result = mapping.get().nativeName() + "(" + argsStr + ")";
                     }
-                    return mapping.get().nativeName() + "(" + argsStr + ")";
-                }
-            }
-        }
+                } else { result = fc.funcName() + "(" + argsStr + ")"; }
+            } else { result = fc.funcName() + "(" + argsStr + ")"; }
+        } else { result = fc.funcName() + "(" + argsStr + ")"; }
 
-        return fc.funcName() + "(" + argsStr + ")";
+        if (fc.over() != null) {
+            result += " OVER (";
+            var over = fc.over();
+            if (over.partitionBy() != null && !over.partitionBy().isEmpty())
+                result += "PARTITION BY " + over.partitionBy().stream()
+                    .map(e -> generateExpr(e, opt)).collect(Collectors.joining(", "));
+            if (over.orderBy() != null && !over.orderBy().isEmpty()) {
+                if (over.partitionBy() != null && !over.partitionBy().isEmpty()) result += " ";
+                result += "ORDER BY " + over.orderBy().stream()
+                    .map(o -> generateExpr(o.expr(), opt) + (o.dir() == IRStatement.OrderDir.DESC ? " DESC" : " ASC"))
+                    .collect(Collectors.joining(", "));
+            }
+            result += ")";
+        }
+        return result;
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {
