@@ -36,6 +36,7 @@ public class DmBackend implements DialectBackend {
             case IRInsert ins    -> generateInsert(ins, options);
             case IRUpdate upd    -> generateUpdate(upd, options);
             case IRDelete del    -> generateDelete(del, options);
+            case IRMerge merge   -> generateMerge(merge, options);
             case IRCreateTable ct -> generateCreateTable(ct, options);
             case IRCreateIndex ci  -> generateCreateIndex(ci, options);
             default ->
@@ -351,6 +352,34 @@ public class DmBackend implements DialectBackend {
         var sb = new StringBuilder("DELETE FROM ");
         sb.append(generateTableRef(del.table(), opt));
         if (del.where() != null) sb.append(" WHERE ").append(generateExpr(del.where(), opt));
+        return sb.toString();
+    }
+
+    // ══════════════════════════════════════════════════
+    //  MERGE — DM native (Oracle-compatible)
+    // ══════════════════════════════════════════════════
+
+    private String generateMerge(IRMerge merge, GenerateOptions opt) {
+        var sb = new StringBuilder("MERGE INTO ");
+        sb.append(generateTableRef(merge.target(), opt));
+        sb.append(" USING ").append(generateTableRef(merge.source(), opt));
+        sb.append(" ON (").append(generateExpr(merge.onCondition(), opt)).append(")");
+        for (var action : merge.actions()) {
+            if (action instanceof IRMerge.MergeUpdate upd) {
+                sb.append(" WHEN MATCHED THEN UPDATE SET ");
+                sb.append(upd.sets().stream()
+                    .map(s -> quoteIdentifier(s.column()) + " = " + generateExpr(s.value(), opt))
+                    .collect(Collectors.joining(", ")));
+            } else if (action instanceof IRMerge.MergeInsert ins) {
+                sb.append(" WHEN NOT MATCHED THEN INSERT (");
+                sb.append(ins.columns().stream().map(this::quoteIdentifier)
+                    .collect(Collectors.joining(", ")));
+                sb.append(") VALUES (");
+                sb.append(ins.values().stream().map(v -> generateExpr(v, opt))
+                    .collect(Collectors.joining(", ")));
+                sb.append(")");
+            }
+        }
         return sb.toString();
     }
 

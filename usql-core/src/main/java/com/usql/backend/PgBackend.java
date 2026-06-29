@@ -29,6 +29,7 @@ public class PgBackend implements DialectBackend {
             case IRInsert ins    -> generateInsert(ins, options);
             case IRUpdate upd    -> generateUpdate(upd, options);
             case IRDelete del    -> generateDelete(del, options);
+            case IRMerge merge   -> generateMerge(merge, options);
             case IRCreateTable ct -> generateCreateTable(ct, options);
             case IRCreateIndex ci  -> generateCreateIndex(ci, options);
             default ->
@@ -376,6 +377,38 @@ public class PgBackend implements DialectBackend {
         var sb = new StringBuilder("DELETE FROM ");
         sb.append(generateTableRef(del.table(), opt));
         if (del.where() != null) sb.append(" WHERE ").append(generateExpr(del.where(), opt));
+        return sb.toString();
+    }
+
+    // ══════════════════════════════════════════════════
+    //  MERGE → INSERT ON CONFLICT
+    // ══════════════════════════════════════════════════
+
+    private String generateMerge(IRMerge merge, GenerateOptions opt) {
+        IRMerge.MergeInsert ins = null;
+        IRMerge.MergeUpdate upd = null;
+        for (var a : merge.actions()) {
+            if (a instanceof IRMerge.MergeInsert i) ins = i;
+            if (a instanceof IRMerge.MergeUpdate u) upd = u;
+        }
+        var sb = new StringBuilder("INSERT INTO ");
+        sb.append(generateTableRef(merge.target(), opt));
+        if (ins != null) {
+            sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
+                .collect(Collectors.joining(", "))).append(") VALUES (");
+            sb.append(ins.values().stream().map(v -> generateExpr(v, opt))
+                .collect(Collectors.joining(", "))).append(")");
+        }
+        if (upd != null) {
+            sb.append(" ON CONFLICT (");
+            // Use first column as conflict target (simplified)
+            if (ins != null && !ins.columns().isEmpty())
+                sb.append(quoteIdentifier(ins.columns().get(0)));
+            sb.append(") DO UPDATE SET ");
+            sb.append(upd.sets().stream()
+                .map(s -> quoteIdentifier(s.column()) + " = " + generateExpr(s.value(), opt))
+                .collect(Collectors.joining(", ")));
+        }
         return sb.toString();
     }
 

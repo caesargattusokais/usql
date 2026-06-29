@@ -74,6 +74,7 @@ public class SemanticAnalyzer {
             case DeleteStmt s      -> analyzeDelete(s);
             case CreateTableStmt s -> analyzeCreateTable(s);
             case CreateIndexStmt s -> analyzeCreateIndex(s);
+            case MergeStmt s      -> analyzeMerge(s);
             default -> throw new UnsupportedOperationException(
                 "Analysis not implemented for: " + stmt.getClass().getSimpleName());
         };
@@ -460,6 +461,31 @@ public class SemanticAnalyzer {
         IRTableRef table = analyzeTableRef(del.table());
         IRExpr where = del.where() != null ? analyzeExpr(del.where()) : null;
         return new IRDelete(table, where, new LinkedHashSet<>());
+    }
+
+    private IRMerge analyzeMerge(MergeStmt merge) {
+        IRTableRef target = analyzeTableRef(merge.target());
+        IRTableRef source = analyzeTableRef(merge.source());
+        IRExpr onCondition = analyzeExpr(merge.onCondition());
+        List<IRMerge.IRMergeAction> actions = new ArrayList<>();
+        if (merge.actions() != null) {
+            for (var action : merge.actions()) {
+                if (action instanceof com.usql.ast.USqlAst.MergeInsert ins) {
+                    List<IRExpr> values = ins.values().stream().map(this::analyzeExpr).collect(Collectors.toList());
+                    actions.add(new IRMerge.MergeInsert(ins.columns(), values));
+                } else if (action instanceof com.usql.ast.USqlAst.MergeUpdate upd) {
+                    List<IRStatement.SetClause> sets = upd.sets().stream()
+                        .map(s -> new IRStatement.SetClause(s.column(), analyzeExpr(s.value())))
+                        .collect(Collectors.toList());
+                    actions.add(new IRMerge.MergeUpdate(sets));
+                } else if (action instanceof com.usql.ast.USqlAst.MergeDelete) {
+                    actions.add(new IRMerge.MergeDelete());
+                }
+            }
+        }
+        Set<Capability> caps = new LinkedHashSet<>();
+        caps.add(Capability.MERGE_INTO);
+        return new IRMerge(target, source, onCondition, actions, caps);
     }
 
     // ══════════════════════════════════════════════════
