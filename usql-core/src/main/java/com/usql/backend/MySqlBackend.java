@@ -412,37 +412,28 @@ public class MySqlBackend implements DialectBackend {
     // ══════════════════════════════════════════════════
 
     private String generateMerge(IRMerge merge, GenerateOptions opt) {
-        // MySQL doesn't support MERGE INTO — convert to INSERT ... ON DUPLICATE KEY UPDATE
+        // MySQL: INSERT ... SELECT FROM source ... ON DUPLICATE KEY UPDATE
+        IRMerge.MergeInsert ins = null;
+        IRMerge.MergeUpdate upd = null;
+        for (var a : merge.actions()) {
+            if (a instanceof IRMerge.MergeInsert i) ins = i;
+            if (a instanceof IRMerge.MergeUpdate u) upd = u;
+        }
         var sb = new StringBuilder("INSERT INTO ");
-        sb.append(generateTableRef(merge.target(), opt));
-
-        // Collect insert columns and values from MergeInsert action
-        IRMerge.MergeInsert insertAction = null;
-        IRMerge.MergeUpdate updateAction = null;
-
-        for (var action : merge.actions()) {
-            if (action instanceof IRMerge.MergeInsert ins) insertAction = ins;
-            if (action instanceof IRMerge.MergeUpdate upd) updateAction = upd;
+        sb.append(tableName(merge.target()));
+        if (ins != null) {
+            sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
+                .collect(Collectors.joining(", "))).append(") ");
+            sb.append("SELECT ").append(ins.values().stream()
+                .map(v -> generateExpr(v, opt)).collect(Collectors.joining(", ")));
+            sb.append(" FROM ").append(generateTableRef(merge.source(), opt));
         }
-
-        if (insertAction != null) {
-            sb.append(" (");
-            sb.append(insertAction.columns().stream().map(this::quoteIdentifier)
-                .collect(Collectors.joining(", ")));
-            sb.append(") VALUES (");
-            sb.append(insertAction.values().stream()
-                .map(v -> generateExpr(v, opt))
-                .collect(Collectors.joining(", ")));
-            sb.append(")");
-        }
-
-        if (updateAction != null) {
+        if (upd != null) {
             sb.append(" ON DUPLICATE KEY UPDATE ");
-            sb.append(updateAction.sets().stream()
-                .map(s -> quoteIdentifier(s.column()) + " = " + generateExpr(s.value(), opt))
+            sb.append(upd.sets().stream()
+                .map(s -> quoteIdentifier(s.column()) + " = VALUES(" + quoteIdentifier(s.column()) + ")")
                 .collect(Collectors.joining(", ")));
         }
-
         return sb.toString();
     }
 
@@ -576,6 +567,11 @@ public class MySqlBackend implements DialectBackend {
     // ══════════════════════════════════════════════════
     //  Helpers
     // ══════════════════════════════════════════════════
+
+    private String tableName(IRTableRef ref) {
+        if (ref instanceof IRStatement.IRTableName tn) return quoteIdentifier(tn.name());
+        return generateTableRef(ref, GenerateOptions.MINIMAL);
+    }
 
     private String escapeString(String s) {
         return s.replace("'", "''").replace("\\", "\\\\");

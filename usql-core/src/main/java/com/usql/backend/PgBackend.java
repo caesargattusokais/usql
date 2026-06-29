@@ -392,21 +392,21 @@ public class PgBackend implements DialectBackend {
             if (a instanceof IRMerge.MergeUpdate u) upd = u;
         }
         var sb = new StringBuilder("INSERT INTO ");
-        sb.append(generateTableRef(merge.target(), opt));
+        sb.append(tableName(merge.target()));
         if (ins != null) {
             sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
-                .collect(Collectors.joining(", "))).append(") VALUES (");
-            sb.append(ins.values().stream().map(v -> generateExpr(v, opt))
-                .collect(Collectors.joining(", "))).append(")");
+                .collect(Collectors.joining(", "))).append(") ");
+            sb.append("SELECT ").append(ins.values().stream()
+                .map(v -> generateExpr(v, opt)).collect(Collectors.joining(", ")));
+            sb.append(" FROM ").append(generateTableRef(merge.source(), opt));
         }
         if (upd != null) {
             sb.append(" ON CONFLICT (");
-            // Use first column as conflict target (simplified)
             if (ins != null && !ins.columns().isEmpty())
                 sb.append(quoteIdentifier(ins.columns().get(0)));
             sb.append(") DO UPDATE SET ");
             sb.append(upd.sets().stream()
-                .map(s -> quoteIdentifier(s.column()) + " = " + generateExpr(s.value(), opt))
+                .map(s -> quoteIdentifier(s.column()) + " = EXCLUDED." + quoteIdentifier(s.column()))
                 .collect(Collectors.joining(", ")));
         }
         return sb.toString();
@@ -509,6 +509,11 @@ public class PgBackend implements DialectBackend {
         if (idx.whereClause() != null)
             sb.append(" WHERE ").append(generateExpr(idx.whereClause(), opt));
         return sb.toString();
+    }
+
+    private String tableName(IRTableRef ref) {
+        if (ref instanceof IRStatement.IRTableName tn) return quoteIdentifier(tn.name());
+        return generateTableRef(ref, GenerateOptions.MINIMAL);
     }
 
     private String escapeString(String s) {
