@@ -98,11 +98,22 @@ services:
       - SYSDBA_PWD=dm12345678    # 设置密码，长度9-48位，不支持特殊字符。不设置则默认为SYSDBA001 [citation:4][citation:9]
 
 
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver2022
+    restart: unless-stopped
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "SqlServer123!"
+      MSSQL_PID: Developer
+    volumes:
+      - sqlserver-data:/var/opt/mssql
 
 
 volumes:
   postgres_data:
   oracle-enterprise-data:
   mysql-data:
-    # 这里使用了外部卷，需要提前创建: docker volume create oracledb-volume
-#    external: true
+  sqlserver-data:
