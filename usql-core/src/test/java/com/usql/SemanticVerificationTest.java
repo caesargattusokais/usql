@@ -100,6 +100,13 @@ public class SemanticVerificationTest {
                     String label = entry.getKey();
                     String usql = entry.getValue();
 
+                    // KEEP is Oracle-specific — skip for other dialects
+                    if (usql.contains("KEEP") && target != Dialect.ORACLE) {
+                        System.out.println("  SKIP: " + label + " (Oracle-only)");
+                        skipped++;
+                        continue;
+                    }
+
                     try {
                         VerificationReport report = test.verify(usql, target, targetConn);
                         if (report.passed()) {

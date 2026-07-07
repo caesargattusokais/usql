@@ -311,21 +311,11 @@ public class DmBackend implements DialectBackend {
         return result;
     }
 
-    /** Polyfill KEEP clause as FIRST_VALUE window function for 达梦 DM */
+    /** KEEP clause is Oracle-specific — throw a clear error for 达梦 DM */
     private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
-        boolean isLast = fc.keep() instanceof KeepSpec.Last;
-        var keepOrderBy = fc.keep().orderBy();
-        StringBuilder sb = new StringBuilder("FIRST_VALUE(").append(argsStr)
-            .append(") OVER (ORDER BY ");
-        for (int i = 0; i < keepOrderBy.size(); i++) {
-            if (i > 0) sb.append(", ");
-            var o = keepOrderBy.get(i);
-            sb.append(generateExpr(o.expr(), opt));
-            boolean desc = isLast ? (o.dir() != IRStatement.OrderDir.DESC) : (o.dir() == IRStatement.OrderDir.DESC);
-            if (desc) sb.append(" DESC");
-        }
-        sb.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
-        return sb.toString();
+        throw new UnsupportedOperationException(
+            "KEEP (DENSE_RANK FIRST|LAST) is Oracle-specific. " +
+            "Use window functions (FIRST_VALUE, LAST_VALUE, ROW_NUMBER) for cross-database compatibility.");
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {
