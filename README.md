@@ -486,6 +486,7 @@ status ENUM('active','inactive','pending')
 5. **日期函数用标准名**：`CURRENT_DATE`、`CURRENT_TIMESTAMP()`、`DATE_ADD`、`DATE_DIFF`
 6. **不写 `FROM DUAL`**，编译器自动补
 7. **标识符大小写不敏感**，编译器使用正确的引号风格
+8. **KEEP 聚合使用标准语法**：`AGG(x) KEEP (DENSE_RANK FIRST|LAST ORDER BY y)`，Oracle 原生支持，MySQL/PG/DM 自动翻译为子查询 + DENSE_RANK
 
 ---
 
@@ -520,13 +521,13 @@ mvn package -pl usql-cli,usql-proxy -am -DskipTests
 
 ## 测试覆盖
 
-| 测试套件 | 内容 | 数据库 |
+| 测试套件 | 内容 | 测试数 |
 |----------|------|--------|
-| SemanticVerification | 25 种查询 × 4 库 | 100 |
+| SemanticVerification | 28 种查询（含 KEEP） × 4 库 | 112 |
 | FunctionVerification | 50 个函数 × 4 库 | 200 |
 | DdlVerification | DDL/DML 操作 × 4 库 | 20 |
 | EnumTest | ENUM 约束验证 | 4 |
 | CompilerE2E / TextInput | 编译器单元 | 32 |
-| **总计** | | **356** |
+| **总计** | | **368** |
 
 全部在 MySQL 8.0 / PostgreSQL 16 / Oracle 19c / 达梦 DM8 Docker 容器上真实执行验证。
