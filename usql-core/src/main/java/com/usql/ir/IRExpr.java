@@ -79,6 +79,7 @@ public sealed interface IRExpr {
 
     /** KEEP (DENSE_RANK FIRST|LAST ORDER BY ...) — Oracle aggregate extension */
     public sealed interface KeepSpec {
+        List<IRStatement.OrderBy> orderBy();
         record First(List<IRStatement.OrderBy> orderBy) implements KeepSpec {}
         record Last(List<IRStatement.OrderBy> orderBy) implements KeepSpec {}
     }
