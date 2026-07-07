@@ -340,11 +340,23 @@ public class MySqlBackend implements DialectBackend {
         return result;
     }
 
-    /** KEEP clause is Oracle-specific — throw a clear error for MySQL */
+    /** Polyfill KEEP with CASE + MIN/MAX OVER window function */
     private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
-        throw new UnsupportedOperationException(
-            "KEEP (DENSE_RANK FIRST|LAST) is Oracle-specific. " +
-            "Use window functions (FIRST_VALUE, LAST_VALUE, ROW_NUMBER) for cross-database compatibility.");
+        var keepOrderBy = fc.keep().orderBy();
+        if (keepOrderBy.size() != 1)
+            throw new UnsupportedOperationException(
+                "KEEP with multiple ORDER BY columns is not yet supported on this dialect. " +
+                "Target Oracle for native KEEP support.");
+
+        var o = keepOrderBy.get(0);
+        String sortCol = generateExpr(o.expr(), opt);
+        // FIRST+ASC or LAST+DESC → need MIN(sortCol) as the reference
+        boolean firstAsc = !(fc.keep() instanceof KeepSpec.Last) && o.dir() != IRStatement.OrderDir.DESC;
+        boolean lastDesc = fc.keep() instanceof KeepSpec.Last && o.dir() == IRStatement.OrderDir.DESC;
+        String windowFunc = (firstAsc || lastDesc) ? "MIN" : "MAX";
+
+        return fc.funcName() + "(CASE WHEN " + sortCol + " = "
+            + windowFunc + "(" + sortCol + ") OVER () THEN " + argsStr + " END)";
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {

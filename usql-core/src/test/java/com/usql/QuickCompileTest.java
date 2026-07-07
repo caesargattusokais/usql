@@ -24,14 +24,8 @@ public class QuickCompileTest {
 
         for (String usql : tests) {
             System.out.println("U-SQL: " + usql);
-            boolean isKeep = usql.contains("KEEP");
             for (Dialect target : Dialect.values()) {
                 if (target == Dialect.H2) continue;
-                // KEEP is Oracle-specific
-                if (isKeep && target != Dialect.ORACLE) {
-                    System.out.println("  " + target.name() + ": SKIP (Oracle-only)");
-                    continue;
-                }
                 var r = compiler.compile(usql, target);
                 if (r.isSuccess()) {
                     System.out.println("  " + target.name() + ": " + r.getSql());
