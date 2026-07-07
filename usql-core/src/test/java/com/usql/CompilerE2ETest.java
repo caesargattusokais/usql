@@ -96,10 +96,10 @@ public class CompilerE2ETest {
             new SelectCore(
                 List.of(
                     new IRExprSelect(new IRColumnRef("name", "d", new DataType.VarcharType(100)), null),
-                    new IRExprSelect(new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), DataType.IntType.BIGINT), "cnt"),
+                    new IRExprSelect(new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), DataType.IntType.BIGINT, null), "cnt"),
                     new IRExprSelect(new IRFunctionCall("AVG", List.of(
                         new IRColumnRef("salary", "e", new DataType.DecimalType(10, 2))
-                    ), new DataType.DecimalType(14, 4)), "avg_sal")
+                    ), new DataType.DecimalType(14, 4), null), "avg_sal")
                 ),
                 List.of(new IRJoin(
                     new IRTableName("departments", "d", null),
@@ -114,13 +114,13 @@ public class CompilerE2ETest {
                     IRBinaryOp.BinaryOp.EQ, new IRLiteral(true, new DataType.BooleanType()),
                     new DataType.BooleanType()),
                 List.of(new IRGroupBy(new IRColumnRef("name", "d", new DataType.VarcharType(100)), GroupByKind.PLAIN)),
-                new IRBinaryOp(new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), DataType.IntType.BIGINT),
+                new IRBinaryOp(new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), DataType.IntType.BIGINT, null),
                     IRBinaryOp.BinaryOp.GT, new IRLiteral(3, DataType.IntType.INT), new DataType.BooleanType()),
                 null, null, null, false
             ),
             List.of(new OrderBy(new IRFunctionCall("AVG", List.of(
                 new IRColumnRef("salary", "e", new DataType.DecimalType(10, 2))
-            ), new DataType.DecimalType(14, 4)), OrderDir.DESC, NullsOrder.LAST)),
+            ), new DataType.DecimalType(14, 4), null), OrderDir.DESC, NullsOrder.LAST)),
             new FetchClause(new IRLiteral(10, DataType.IntType.INT), new IRLiteral(0, DataType.IntType.INT)),
             Set.of(Capability.LIMIT_OFFSET, Capability.AGGREGATE, Capability.HAVING)
         );
