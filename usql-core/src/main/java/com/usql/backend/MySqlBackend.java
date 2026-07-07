@@ -299,6 +299,11 @@ public class MySqlBackend implements DialectBackend {
             .collect(Collectors.toList());
         String argsStr = String.join(", ", argList);
 
+        // KEEP polyfill — use FIRST_VALUE/LAST_VALUE window function
+        if (fc.keep() != null) {
+            return generateKeepPolyfill(fc, argsStr, opt);
+        }
+
         String result;
         if (functionCatalog != null) {
             var def = functionCatalog.get(fc.funcName());
@@ -333,6 +338,26 @@ public class MySqlBackend implements DialectBackend {
             result += ")";
         }
         return result;
+    }
+
+    /** Polyfill KEEP clause as FIRST_VALUE window function for MySQL */
+    private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
+        boolean isLast = fc.keep() instanceof KeepSpec.Last;
+        var keepOrderBy = fc.keep().orderBy();
+        String funcName = isLast ? "FIRST_VALUE" : "FIRST_VALUE";
+        // For LAST: we reverse the sort direction and use FIRST_VALUE
+        // For FIRST: we use FIRST_VALUE with the original sort direction
+        StringBuilder sb = new StringBuilder(funcName).append("(").append(argsStr)
+            .append(") OVER (ORDER BY ");
+        for (int i = 0; i < keepOrderBy.size(); i++) {
+            if (i > 0) sb.append(", ");
+            var o = keepOrderBy.get(i);
+            sb.append(generateExpr(o.expr(), opt));
+            boolean desc = isLast ? (o.dir() != IRStatement.OrderDir.DESC) : (o.dir() == IRStatement.OrderDir.DESC);
+            if (desc) sb.append(" DESC");
+        }
+        sb.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
+        return sb.toString();
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {

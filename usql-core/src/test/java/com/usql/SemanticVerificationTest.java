@@ -82,6 +82,9 @@ public class SemanticVerificationTest {
         queries.put("23. Expression no FROM", "SELECT 1 + 2 AS sum, LENGTH('hello') AS len, UPPER('test') AS up");
         queries.put("24. COALESCE",           "SELECT name, COALESCE(dept_id, 0) AS dept FROM employees ORDER BY name");
         queries.put("25. Double aggregate",   "SELECT COUNT(*) AS cnt, AVG(salary) AS avg_sal, SUM(salary) AS total, MIN(salary) AS min_sal, MAX(salary) AS max_sal FROM employees WHERE dept_id IS NOT NULL");
+        queries.put("26. KEEP LAST",           "SELECT dept_id, MAX(salary) KEEP (DENSE_RANK LAST ORDER BY hire_date) AS last_salary FROM employees GROUP BY dept_id ORDER BY dept_id");
+        queries.put("27. KEEP FIRST",          "SELECT dept_id, MIN(salary) KEEP (DENSE_RANK FIRST ORDER BY hire_date) AS first_salary FROM employees GROUP BY dept_id ORDER BY dept_id");
+        queries.put("28. KEEP DESC order",     "SELECT MAX(name) KEEP (DENSE_RANK LAST ORDER BY salary DESC) AS top_paid FROM employees");
 
         // Run against each available target
         for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE, Dialect.DM)) {
@@ -140,21 +143,21 @@ public class SemanticVerificationTest {
             stmt.execute("CREATE TABLE departments (id INT PRIMARY KEY, name VARCHAR(100))");
             stmt.execute("CREATE TABLE employees (" +
                 "id INT PRIMARY KEY, name VARCHAR(100), dept_id INT, " +
-                "salary DECIMAL(10,2), active BOOLEAN)");
+                "salary DECIMAL(10,2), hire_date DATE, active BOOLEAN)");
 
             stmt.execute("INSERT INTO departments VALUES (1, 'Engineering')");
             stmt.execute("INSERT INTO departments VALUES (2, 'Sales')");
             stmt.execute("INSERT INTO departments VALUES (3, 'Marketing')");
             stmt.execute("INSERT INTO departments VALUES (4, 'HR')");
 
-            stmt.execute("INSERT INTO employees VALUES (1, 'Alice', 1, 80000.00, TRUE)");
-            stmt.execute("INSERT INTO employees VALUES (2, 'Bob', 1, 75000.00, TRUE)");
-            stmt.execute("INSERT INTO employees VALUES (3, 'Charlie', 2, 60000.00, TRUE)");
-            stmt.execute("INSERT INTO employees VALUES (4, 'Diana', 2, 55000.00, FALSE)");
-            stmt.execute("INSERT INTO employees VALUES (5, 'Eve', 1, 90000.00, TRUE)");
-            stmt.execute("INSERT INTO employees VALUES (6, 'Frank', 3, 45000.00, TRUE)");
-            stmt.execute("INSERT INTO employees VALUES (7, 'Grace', NULL, 50000.00, TRUE)");
-            stmt.execute("INSERT INTO employees VALUES (8, 'Henry', 3, 48000.00, FALSE)");
+            stmt.execute("INSERT INTO employees VALUES (1, 'Alice', 1, 80000.00, DATE '2020-01-15', TRUE)");
+            stmt.execute("INSERT INTO employees VALUES (2, 'Bob', 1, 75000.00, DATE '2021-06-01', TRUE)");
+            stmt.execute("INSERT INTO employees VALUES (3, 'Charlie', 2, 60000.00, DATE '2019-03-20', TRUE)");
+            stmt.execute("INSERT INTO employees VALUES (4, 'Diana', 2, 55000.00, DATE '2022-09-10', FALSE)");
+            stmt.execute("INSERT INTO employees VALUES (5, 'Eve', 1, 90000.00, DATE '2018-11-30', TRUE)");
+            stmt.execute("INSERT INTO employees VALUES (6, 'Frank', 3, 45000.00, DATE '2023-02-14', TRUE)");
+            stmt.execute("INSERT INTO employees VALUES (7, 'Grace', NULL, 50000.00, DATE '2021-08-05', TRUE)");
+            stmt.execute("INSERT INTO employees VALUES (8, 'Henry', 3, 48000.00, DATE '2022-12-01', FALSE)");
         }
     }
 
@@ -173,7 +176,7 @@ public class SemanticVerificationTest {
         // Create via compiler
         for (String ddl : List.of(
             "CREATE TABLE departments (id INT PRIMARY KEY, name VARCHAR(100))",
-            "CREATE TABLE employees (id INT PRIMARY KEY, name VARCHAR(100), dept_id INT, salary DECIMAL(10,2), active BOOLEAN)"
+            "CREATE TABLE employees (id INT PRIMARY KEY, name VARCHAR(100), dept_id INT, salary DECIMAL(10,2), hire_date DATE, active BOOLEAN)"
         )) {
             var ast = com.usql.parser.AstBuilder.buildSingle(ddl);
             var result = compiler.compileFromAst(ast, dialect);
@@ -188,20 +191,22 @@ public class SemanticVerificationTest {
         String emp = quoted ? "\"employees\"" : "employees";
         String bt = dialect == Dialect.POSTGRESQL ? "TRUE" : "1";
         String bf = dialect == Dialect.POSTGRESQL ? "FALSE" : "0";
+        // Oracle/DM use DATE '...', MySQL/PG accept bare 'YYYY-MM-DD'
+        String dt = (dialect == Dialect.ORACLE || dialect == Dialect.DM) ? "DATE " : "";
 
         try (java.sql.Statement stmt = conn.createStatement()) {
             stmt.execute("INSERT INTO " + dep + " VALUES (1, 'Engineering')");
             stmt.execute("INSERT INTO " + dep + " VALUES (2, 'Sales')");
             stmt.execute("INSERT INTO " + dep + " VALUES (3, 'Marketing')");
             stmt.execute("INSERT INTO " + dep + " VALUES (4, 'HR')");
-            stmt.execute("INSERT INTO " + emp + " VALUES (1, 'Alice', 1, 80000.00, " + bt + ")");
-            stmt.execute("INSERT INTO " + emp + " VALUES (2, 'Bob', 1, 75000.00, " + bt + ")");
-            stmt.execute("INSERT INTO " + emp + " VALUES (3, 'Charlie', 2, 60000.00, " + bt + ")");
-            stmt.execute("INSERT INTO " + emp + " VALUES (4, 'Diana', 2, 55000.00, " + bf + ")");
-            stmt.execute("INSERT INTO " + emp + " VALUES (5, 'Eve', 1, 90000.00, " + bt + ")");
-            stmt.execute("INSERT INTO " + emp + " VALUES (6, 'Frank', 3, 45000.00, " + bt + ")");
-            stmt.execute("INSERT INTO " + emp + " VALUES (7, 'Grace', NULL, 50000.00, " + bt + ")");
-            stmt.execute("INSERT INTO " + emp + " VALUES (8, 'Henry', 3, 48000.00, " + bf + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (1, 'Alice', 1, 80000.00, " + dt + "'2020-01-15', " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (2, 'Bob', 1, 75000.00, " + dt + "'2021-06-01', " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (3, 'Charlie', 2, 60000.00, " + dt + "'2019-03-20', " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (4, 'Diana', 2, 55000.00, " + dt + "'2022-09-10', " + bf + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (5, 'Eve', 1, 90000.00, " + dt + "'2018-11-30', " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (6, 'Frank', 3, 45000.00, " + dt + "'2023-02-14', " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (7, 'Grace', NULL, 50000.00, " + dt + "'2021-08-05', " + bt + ")");
+            stmt.execute("INSERT INTO " + emp + " VALUES (8, 'Henry', 3, 48000.00, " + dt + "'2022-12-01', " + bf + ")");
         }
     }
 

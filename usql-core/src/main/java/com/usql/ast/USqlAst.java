@@ -197,7 +197,9 @@ public final class USqlAst {
 
     // Function call
     public record FunctionCall(String name, List<Expression> args, boolean star,
-                                WindowOver over) implements Expression {}
+                                KeepClause keep, WindowOver over) implements Expression {}
+
+    public record KeepClause(boolean last, List<OrderByItem> orderBy) {}
 
     public record WindowOver(List<Expression> partitionBy,
                               List<OrderByItem> orderBy) {}

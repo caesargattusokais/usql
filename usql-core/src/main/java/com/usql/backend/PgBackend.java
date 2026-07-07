@@ -295,6 +295,11 @@ public class PgBackend implements DialectBackend {
             .collect(Collectors.toList());
         String argsStr = String.join(", ", argList);
 
+        // KEEP polyfill — use FIRST_VALUE window function
+        if (fc.keep() != null) {
+            return generateKeepPolyfill(fc, argsStr, opt);
+        }
+
         String result;
         if (functionCatalog != null) {
             var def = functionCatalog.get(fc.funcName());
@@ -328,6 +333,23 @@ public class PgBackend implements DialectBackend {
             result += ")";
         }
         return result;
+    }
+
+    /** Polyfill KEEP clause as FIRST_VALUE window function for PostgreSQL */
+    private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
+        boolean isLast = fc.keep() instanceof KeepSpec.Last;
+        var keepOrderBy = fc.keep().orderBy();
+        StringBuilder sb = new StringBuilder("FIRST_VALUE(").append(argsStr)
+            .append(") OVER (ORDER BY ");
+        for (int i = 0; i < keepOrderBy.size(); i++) {
+            if (i > 0) sb.append(", ");
+            var o = keepOrderBy.get(i);
+            sb.append(generateExpr(o.expr(), opt));
+            boolean desc = isLast ? (o.dir() != IRStatement.OrderDir.DESC) : (o.dir() == IRStatement.OrderDir.DESC);
+            if (desc) sb.append(" DESC");
+        }
+        sb.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
+        return sb.toString();
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {

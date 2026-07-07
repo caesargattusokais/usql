@@ -71,10 +71,16 @@ public sealed interface IRExpr {
 
     // ── Function ──
 
-    /** Function call: COUNT(*), UPPER(name), COALESCE(a, b) */
+    /** Function call: COUNT(*), UPPER(name), COALESCE(a, b), MAX(x) KEEP (DENSE_RANK LAST ...) */
     record IRFunctionCall(String funcName, List<IRExpr> args, DataType type,
-                          IRWindowOver over) implements IRExpr {
+                          IRWindowOver over, KeepSpec keep) implements IRExpr {
         public DataType getType() { return type; }
+    }
+
+    /** KEEP (DENSE_RANK FIRST|LAST ORDER BY ...) — Oracle aggregate extension */
+    public sealed interface KeepSpec {
+        record First(List<IRStatement.OrderBy> orderBy) implements KeepSpec {}
+        record Last(List<IRStatement.OrderBy> orderBy) implements KeepSpec {}
     }
 
     /** OVER clause for window functions */

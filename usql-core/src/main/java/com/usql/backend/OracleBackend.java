@@ -329,6 +329,16 @@ public class OracleBackend implements DialectBackend {
             } else { result = fc.funcName() + "(" + argsStr + ")"; }
         } else { result = fc.funcName() + "(" + argsStr + ")"; }
 
+        // Oracle KEEP clause — native support
+        if (fc.keep() != null) {
+            result += " KEEP (DENSE_RANK ";
+            result += (fc.keep() instanceof KeepSpec.Last) ? "LAST" : "FIRST";
+            result += " ORDER BY " + fc.keep().orderBy().stream()
+                .map(o -> generateExpr(o.expr(), opt) + (o.dir() == IRStatement.OrderDir.DESC ? " DESC" : ""))
+                .collect(Collectors.joining(", "));
+            result += ")";
+        }
+
         if (fc.over() != null) {
             result += " OVER (";
             var over = fc.over();

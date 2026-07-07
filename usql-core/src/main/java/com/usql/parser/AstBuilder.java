@@ -472,6 +472,15 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         String name = getIdentifier(ctx.funcName);
         boolean star = ctx.STAR() != null;
         List<Expression> args = ctx.exprList() != null ? getExprList(ctx.exprList()) : List.of();
+        // KEEP clause
+        KeepClause keep = null;
+        if (ctx.keepClause() != null) {
+            var kc = ctx.keepClause();
+            boolean last = kc.LAST() != null;
+            List<OrderByItem> orderBy = visitOrderByClause(kc.orderByClause());
+            keep = new KeepClause(last, orderBy);
+        }
+        // OVER clause
         WindowOver over = null;
         if (ctx.overClause() != null) {
             var oc = ctx.overClause();
@@ -487,7 +496,7 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
             }
             over = new WindowOver(partitionBy, orderBy);
         }
-        return new FunctionCall(name, args, star, over);
+        return new FunctionCall(name, args, star, keep, over);
     }
 
     // ══════════════════════════════════════════════════
@@ -828,7 +837,7 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
     public static ExprItem col(String name) { return new ExprItem(new ColumnRef(List.of(), name), null); }
     public static ExprItem col(String qual, String name) { return new ExprItem(new ColumnRef(List.of(qual), name), null); }
     public static ExprItem col(String qual, String name, String alias) { return new ExprItem(new ColumnRef(List.of(qual), name), alias); }
-    public static ExprItem func(String name, List<Expression> args, String alias) { return new ExprItem(new FunctionCall(name, args, false, null), alias); }
+    public static ExprItem func(String name, List<Expression> args, String alias) { return new ExprItem(new FunctionCall(name, args, false, null, null), alias); }
     public static StarItem star() { return new StarItem(null); }
     public static SimpleTable table(String name) { return new SimpleTable(name, null); }
     public static SimpleTable table(String name, String alias) { return new SimpleTable(name, alias); }

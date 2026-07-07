@@ -267,7 +267,12 @@ whenClause
 functionCall
     : funcName=identifier LPAREN (DISTINCT | ALL)?
       (exprList | STAR)? RPAREN
+      keepClause?
       overClause?
+    ;
+
+keepClause
+    : KEEP LPAREN DENSE_RANK (FIRST | LAST) orderByClause RPAREN
     ;
 
 overClause
@@ -365,6 +370,7 @@ keyword
     | UNION | INTERSECT | EXCEPT
     | ROLLUP | CUBE | GROUPING | SETS
     | OVER | PARTITION
+    | KEEP | DENSE_RANK | RANK
     | DATE | TIMESTAMP | INTERVAL | TIME | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND
     | TINYINT | SMALLINT | INT | INTEGER | BIGINT | DECIMAL | NUMERIC
     | FLOAT | REAL | DOUBLE | PRECISION | CHAR | VARCHAR | TINYTEXT | TEXT | MEDIUMTEXT | LONGTEXT
@@ -485,6 +491,9 @@ REAL:         R E A L;
 DOUBLE:       D O U B L E;
 OVER:         O V E R;
 PARTITION:    P A R T I T I O N;
+KEEP:         K E E P;
+DENSE_RANK:   D E N S E '_' R A N K;
+RANK:         R A N K;
 PRECISION:    P R E C I S I O N;
 CHAR:         C H A R;
 VARCHAR:      V A R C H A R;

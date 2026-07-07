@@ -381,6 +381,20 @@ public class SemanticAnalyzer {
             .map(fd -> fd.returnType)
             .orElse(new DataType.NullType());
 
+        // KEEP clause
+        KeepSpec keep = null;
+        if (fc.keep() != null) {
+            var orderBy = fc.keep().orderBy().stream()
+                .map(o -> new IRStatement.OrderBy(
+                    analyzeExpr(o.expr()),
+                    o.desc() ? IRStatement.OrderDir.DESC : IRStatement.OrderDir.ASC,
+                    o.nullsFirst() ? IRStatement.NullsOrder.FIRST : IRStatement.NullsOrder.LAST))
+                .collect(Collectors.toList());
+            keep = fc.keep().last()
+                ? new KeepSpec.Last(orderBy)
+                : new KeepSpec.First(orderBy);
+        }
+
         IRWindowOver over = null;
         if (fc.over() != null) {
             List<IRExpr> partitionBy = fc.over().partitionBy() != null
@@ -395,7 +409,7 @@ public class SemanticAnalyzer {
             over = new IRWindowOver(partitionBy, orderBy);
         }
 
-        return new IRFunctionCall(fc.name(), args, returnType, over);
+        return new IRFunctionCall(fc.name(), args, returnType, over, keep);
     }
 
     private IRExpr analyzeCase(CaseExpr cs) {
