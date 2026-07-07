@@ -117,6 +117,30 @@ public enum Dialect {
         // RETURNING_CLAUSE, TEMPORARY_TABLE
     ),
 
+    SQLSERVER("SQL Server", false,
+        // SQL Server 2017+
+        Capability.LIMIT_OFFSET,             // 2012+ OFFSET/FETCH
+        Capability.WINDOW_FUNCTION,
+        Capability.RECURSIVE_CTE,
+        Capability.AGGREGATE,
+        Capability.HAVING,
+        Capability.DISTINCT,
+        Capability.FULL_OUTER_JOIN,
+        Capability.LATERAL_JOIN,             // CROSS/OUTER APPLY
+        Capability.CHECK_CONSTRAINT,
+        Capability.CTAS,                     // SELECT ... INTO
+        Capability.TEMPORARY_TABLE,          // #temp tables
+        Capability.TRUNCATE_TABLE,
+        Capability.RETURNING_CLAUSE,         // OUTPUT clause
+        Capability.SELECT_WITHOUT_FROM,
+        Capability.OBJECT_COMMENT
+        // Missing: BOOLEAN_TYPE (BIT), AUTO_INCREMENT (IDENTITY),
+        // CONCAT_WITH_NULL, INTERVAL_ARITHMETIC, MERGE_INTO (2008+),
+        // ARRAY_TYPE, PARTIAL_INDEX, ENUM_TYPE,
+        // DEFERRABLE_FK, SEQUENCE (2012+),
+        // REPLACE_INTO, ON_DUPLICATE_KEY_UPDATE (use MERGE)
+    ),
+
     /** Reference dialect for semantic verification */
     H2("H2", false,
         // H2 — used as reference implementation; very standards-compliant

@@ -113,11 +113,17 @@ public class FunctionCatalog {
     /** Map with per-dialect overrides */
     private static Map<Dialect, DialectMapping> dialectMap(
         String mysql, String pg, String oracle, String dm) {
+        return dialectMap(mysql, pg, oracle, dm, mysql); // SQL Server defaults to MySQL name
+    }
+
+    private static Map<Dialect, DialectMapping> dialectMap(
+        String mysql, String pg, String oracle, String dm, String sqlserver) {
         Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
         m.put(Dialect.MYSQL, dm(mysql));
         m.put(Dialect.POSTGRESQL, dm(pg));
         m.put(Dialect.ORACLE, dm(oracle));
         m.put(Dialect.DM, dm(dm));
+        m.put(Dialect.SQLSERVER, dm(sqlserver));
         return m;
     }
 
@@ -145,6 +151,20 @@ public class FunctionCatalog {
                             String mysql, String pg, String oracle, String dm, PolyfillConfig pf) {
         functions.put(uSqlName, new FunctionDef(uSqlName, description, returnType,
             dialectMap(mysql, pg, oracle, dm), pf));
+    }
+
+    /** Register with per-dialect names including SQL Server (no polyfill) */
+    private void regDialect(String uSqlName, String description, DataType returnType,
+                            String mysql, String pg, String oracle, String dm, String sqlserver) {
+        functions.put(uSqlName, new FunctionDef(uSqlName, description, returnType,
+            dialectMap(mysql, pg, oracle, dm, sqlserver), null));
+    }
+
+    /** Register with per-dialect names including SQL Server + polyfill */
+    private void regDialect(String uSqlName, String description, DataType returnType,
+                            String mysql, String pg, String oracle, String dm, String sqlserver, PolyfillConfig pf) {
+        functions.put(uSqlName, new FunctionDef(uSqlName, description, returnType,
+            dialectMap(mysql, pg, oracle, dm, sqlserver), pf));
     }
 
     // ══════════════════════════════════════════════════
@@ -482,5 +502,43 @@ public class FunctionCatalog {
         }
         regDialect("NVL2", "NVL2(expr, notNull, isNull)", null,
             "IF", "CASE WHEN", "NVL2", "NVL2");
+
+        // ── SQL Server function name overrides ──
+        // Standard functions that differ: use regDialect 5-param overload
+
+        // NVL → ISNULL in SQL Server
+        regDialect("NVL", "Return first non-null value", null,
+            "IFNULL", "COALESCE", "NVL", "NVL", "ISNULL",
+            new PolyfillConfig(PolyfillStrategy.EXPRESSION, "COALESCE({0}, {1})"));
+
+        // NOW → GETDATE in SQL Server
+        regDialect("NOW", "Current date+time", new DataType.DatetimeType(3),
+            "NOW", "NOW", "SYSDATE", "SYSDATE", "GETDATE");
+
+        // CURRENT_DATE → CAST(GETDATE() AS DATE) in SQL Server (no bare date function)
+        regDialect("CURRENT_DATE", "Current date", new DataType.DateType(),
+            "CURDATE", "CURRENT_DATE", "TRUNC(SYSDATE)", "CURDATE", "CAST(GETDATE() AS DATE)");
+
+        // SYSDATE → GETDATE in SQL Server
+        regDialect("SYSDATE", "Server date+time", new DataType.DatetimeType(0),
+            "NOW", "NOW", "SYSDATE", "SYSDATE", "GETDATE");
+
+        // DATE_ADD → DATEADD in SQL Server
+        regDialect("DATE_ADD", "Add interval to date", null,
+            "DATE_ADD", "DATE_ADD", "DATE_ADD", "DATE_ADD", "DATEADD");
+
+        // DATE_DIFF → DATEDIFF in SQL Server
+        regDialect("DATE_DIFF", "Difference between dates", DataType.IntType.INT,
+            "TIMESTAMPDIFF", "DATE_DIFF", "MONTHS_BETWEEN", "DATEDIFF", "DATEDIFF");
+
+        // GROUP_CONCAT → STRING_AGG in SQL Server
+        regDialect("GROUP_CONCAT", "Concatenate grouped values", new DataType.VarcharType(0),
+            "GROUP_CONCAT", "STRING_AGG", "LISTAGG", "LISTAGG", "STRING_AGG");
+
+        // GREATEST / LEAST — SQL Server 2022 supports, older use CASE
+        regDialect("GREATEST", "Greatest of values", null,
+            "GREATEST", "GREATEST", "GREATEST", "GREATEST", "IIF");
+        regDialect("LEAST", "Least of values", null,
+            "LEAST", "LEAST", "LEAST", "LEAST", "IIF");
     }
 }

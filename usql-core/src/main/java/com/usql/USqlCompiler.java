@@ -62,6 +62,7 @@ public class USqlCompiler {
         this.backends.put(Dialect.POSTGRESQL, new PgBackend());
         this.backends.put(Dialect.ORACLE,     new OracleBackend());
         this.backends.put(Dialect.DM,         new DmBackend());
+        this.backends.put(Dialect.SQLSERVER,  new com.usql.backend.SqlServerBackend());
         this.backends.put(Dialect.H2,         new MySqlBackend()); // H2 ≈ MySQL for now
 
         // Inject function catalog for name translation

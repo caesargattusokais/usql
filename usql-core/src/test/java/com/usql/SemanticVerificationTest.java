@@ -38,7 +38,10 @@ public class SemanticVerificationTest {
             "system", "oracle123", "oracle.jdbc.OracleDriver"),
         Dialect.DM, new DbConfig(
             "jdbc:dm://localhost:5236",
-            "SYSDBA", "dm12345678", "dm.jdbc.driver.DmDriver")
+            "SYSDBA", "dm12345678", "dm.jdbc.driver.DmDriver"),
+        Dialect.SQLSERVER, new DbConfig(
+            "jdbc:sqlserver://localhost:1433;databaseName=testdb;encrypt=false",
+            "sa", "SqlServer123!", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
     );
 
     private USqlCompiler compiler;
@@ -88,7 +91,7 @@ public class SemanticVerificationTest {
         queries.put("28. KEEP DESC (no GROUP BY)", "SELECT MAX(name) KEEP (DENSE_RANK LAST ORDER BY salary DESC) AS top_paid FROM employees");
 
         // Run against each available target
-        for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE, Dialect.DM)) {
+        for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE, Dialect.DM, Dialect.SQLSERVER)) {
             System.out.println("\n=== " + target.displayName() + " ===");
             try (Connection targetConn = test.connect(target)) {
                 if (targetConn == null) {

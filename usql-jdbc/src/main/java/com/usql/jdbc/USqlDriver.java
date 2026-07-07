@@ -84,6 +84,7 @@ public class USqlDriver implements java.sql.Driver {
         if (url.contains(":postgresql:") || url.contains(":pgsql:")) return Dialect.POSTGRESQL;
         if (url.contains(":oracle:")) return Dialect.ORACLE;
         if (url.contains(":dm:")) return Dialect.DM;
+        if (url.contains(":sqlserver:")) return Dialect.SQLSERVER;
         throw new IllegalArgumentException("Cannot detect dialect from: " + jdbcUrl);
     }
 
