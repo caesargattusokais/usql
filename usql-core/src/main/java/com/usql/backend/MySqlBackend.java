@@ -6,6 +6,7 @@ import com.usql.ir.*;
 import com.usql.ir.IRExpr.*;
 import com.usql.ir.IRStatement.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -15,6 +16,10 @@ import java.util.stream.Collectors;
 public class MySqlBackend implements DialectBackend {
 
     private FunctionCatalog functionCatalog;
+    private List<KeepCol> keepCols; // sort info collected in scan pass
+    private int keepIdx;            // counter during SELECT item generation
+
+    private record KeepCol(String sortExpr, boolean desc) {}
 
     @Override
     public void setFunctionCatalog(FunctionCatalog catalog) { this.functionCatalog = catalog; }
@@ -79,6 +84,23 @@ public class MySqlBackend implements DialectBackend {
     // ══════════════════════════════════════════════════
 
     private String generateSelect(IRSelect sel, GenerateOptions opt) {
+        // ── Pass 1: scan for KEEP aggregates, collect sort column/direction ──
+        keepCols = new ArrayList<>();
+        if (sel.core().projections() != null)
+            sel.core().projections().forEach(p -> { if (p instanceof IRExprSelect es) scanKeep(es.expr()); });
+        if (sel.core().having() != null) scanKeep(sel.core().having());
+        if (sel.orderBy() != null) sel.orderBy().forEach(o -> scanKeep(o.expr()));
+        boolean hasKeep = !keepCols.isEmpty();
+
+        // Pre-render GROUP BY for PARTITION BY
+        String partitionBy = "";
+        if (sel.core().groupBy() != null && !sel.core().groupBy().isEmpty()) {
+            partitionBy = "PARTITION BY " + sel.core().groupBy().stream()
+                .filter(g -> g.kind() == GroupByKind.PLAIN)
+                .map(g -> generateExpr(g.expr(), opt))
+                .collect(Collectors.joining(", ")) + " ";
+        }
+
         var sb = new StringBuilder();
 
         // CTE
@@ -94,47 +116,47 @@ public class MySqlBackend implements DialectBackend {
         sb.append("SELECT ");
         if (sel.core().distinct()) sb.append("DISTINCT ");
 
+        // Pass 2: generate SELECT items (keepIdx tracks which KEEP _keep_N to reference)
+        keepIdx = 0;
         sb.append(sel.core().projections().stream()
             .map(p -> generateSelectItem(p, opt))
             .collect(Collectors.joining(", ")));
 
+        // FROM — wrap in subquery with DENSE_RANK columns if KEEP exists
         if (sel.core().from() != null && !sel.core().from().isEmpty()) {
-            sb.append(" FROM ");
-            sb.append(sel.core().from().stream()
-                .map(f -> generateTableRef(f, opt))
-                .collect(Collectors.joining(", ")));
+            if (hasKeep) {
+                sb.append(" FROM (SELECT " + quoteIdentifier("_t") + ".*");
+                for (int i = 0; i < keepCols.size(); i++) {
+                    var kc = keepCols.get(i);
+                    sb.append(", DENSE_RANK() OVER (").append(partitionBy)
+                      .append("ORDER BY ").append(kc.sortExpr());
+                    if (kc.desc()) sb.append(" DESC");
+                    sb.append(") AS ").append(quoteIdentifier("_keep_" + i));
+                }
+                sb.append(" FROM ");
+                sb.append(sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", ")));
+                sb.append(" " + quoteIdentifier("_t") + ") " + quoteIdentifier("_src"));
+            } else {
+                sb.append(" FROM ");
+                sb.append(sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", ")));
+            }
         }
 
-        if (sel.core().where() != null) {
-            sb.append(" WHERE ").append(generateExpr(sel.core().where(), opt));
-        }
-
+        if (sel.core().where() != null) sb.append(" WHERE ").append(generateExpr(sel.core().where(), opt));
         if (sel.core().groupBy() != null && !sel.core().groupBy().isEmpty()) {
             sb.append(" GROUP BY ");
-            sb.append(sel.core().groupBy().stream()
-                .map(g -> generateExpr(g.expr(), opt))
-                .collect(Collectors.joining(", ")));
+            sb.append(sel.core().groupBy().stream().map(g -> generateExpr(g.expr(), opt)).collect(Collectors.joining(", ")));
         }
-
-        if (sel.core().having() != null) {
-            sb.append(" HAVING ").append(generateExpr(sel.core().having(), opt));
-        }
-
+        if (sel.core().having() != null) sb.append(" HAVING ").append(generateExpr(sel.core().having(), opt));
         if (sel.orderBy() != null && !sel.orderBy().isEmpty()) {
             sb.append(" ORDER BY ");
             sb.append(sel.orderBy().stream()
                 .map(o -> generateExpr(o.expr(), opt) + (o.dir() == OrderDir.DESC ? " DESC" : " ASC"))
                 .collect(Collectors.joining(", ")));
         }
-
-        // MySQL supports LIMIT/OFFSET natively
         if (sel.fetch() != null) {
-            if (sel.fetch().limit() != null) {
-                sb.append(" LIMIT ").append(generateExpr(sel.fetch().limit(), opt));
-            }
-            if (sel.fetch().offset() != null) {
-                sb.append(" OFFSET ").append(generateExpr(sel.fetch().offset(), opt));
-            }
+            if (sel.fetch().limit() != null) sb.append(" LIMIT ").append(generateExpr(sel.fetch().limit(), opt));
+            if (sel.fetch().offset() != null) sb.append(" OFFSET ").append(generateExpr(sel.fetch().offset(), opt));
         }
 
         // Set operations
@@ -340,13 +362,27 @@ public class MySqlBackend implements DialectBackend {
         return result;
     }
 
-    /** KEEP (DENSE_RANK) is Oracle-specific — MySQL/PG/DM do not allow
-     *  window functions inside aggregate functions. */
+    private void scanKeep(IRExpr expr) {
+        if (expr == null) return;
+        if (expr instanceof IRFunctionCall fc && fc.keep() != null) {
+            var o = fc.keep().orderBy().get(0);
+            boolean isFirst = fc.keep() instanceof KeepSpec.First;
+            boolean desc = (isFirst && o.dir() == OrderDir.DESC) || (!isFirst && o.dir() == OrderDir.ASC);
+            keepCols.add(new KeepCol(generateExpr(o.expr(), GenerateOptions.MINIMAL), desc));
+            return;
+        }
+        if (expr instanceof IRFunctionCall fc) fc.args().forEach(this::scanKeep);
+        else if (expr instanceof IRBinaryOp bo) { scanKeep(bo.left()); scanKeep(bo.right()); }
+        else if (expr instanceof IRUnaryOp uo) scanKeep(uo.operand());
+        else if (expr instanceof IRCase cs) { cs.whens().forEach(w -> { scanKeep(w.condition()); scanKeep(w.result()); }); if (cs.elseExpr() != null) scanKeep(cs.elseExpr()); }
+        else if (expr instanceof IRCast ct) scanKeep(ct.expr());
+        else if (expr instanceof IRBetween bt) { scanKeep(bt.expr()); scanKeep(bt.low()); scanKeep(bt.high()); }
+        else if (expr instanceof IRInList il) { scanKeep(il.expr()); il.values().forEach(this::scanKeep); }
+        else if (expr instanceof IRIsNull isn) scanKeep(isn.expr());
+    }
+
     private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
-        throw new UnsupportedOperationException(
-            "KEEP (DENSE_RANK FIRST|LAST) is Oracle-specific and cannot be polyfilled. " +
-            "MySQL/PG/DM do not support window functions nested inside aggregate functions. " +
-            "Rewrite using a subquery with DENSE_RANK() OVER (...) or target Oracle for native KEEP.");
+        return fc.funcName() + "(CASE WHEN " + quoteIdentifier("_keep_" + keepIdx++) + " = 1 THEN " + argsStr + " END)";
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {
