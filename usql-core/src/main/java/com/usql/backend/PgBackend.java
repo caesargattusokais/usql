@@ -335,7 +335,9 @@ public class PgBackend implements DialectBackend {
         return result;
     }
 
-    /** Polyfill KEEP with CASE + MIN/MAX OVER window function */
+    /** Polyfill KEEP with CASE + MIN/MAX OVER window function.
+     *  Correct for queries without GROUP BY.
+     *  For GROUP BY queries, Oracle native KEEP is recommended. */
     private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
         var keepOrderBy = fc.keep().orderBy();
         if (keepOrderBy.size() != 1)

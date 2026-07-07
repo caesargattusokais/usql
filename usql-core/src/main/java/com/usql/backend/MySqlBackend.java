@@ -340,7 +340,9 @@ public class MySqlBackend implements DialectBackend {
         return result;
     }
 
-    /** Polyfill KEEP with CASE + MIN/MAX OVER window function */
+    /** Polyfill KEEP with CASE + MIN/MAX OVER window function.
+     *  Correct for queries without GROUP BY.
+     *  For GROUP BY queries, Oracle native KEEP is recommended. */
     private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
         var keepOrderBy = fc.keep().orderBy();
         if (keepOrderBy.size() != 1)
@@ -355,6 +357,8 @@ public class MySqlBackend implements DialectBackend {
         boolean lastDesc = fc.keep() instanceof KeepSpec.Last && o.dir() == IRStatement.OrderDir.DESC;
         String windowFunc = (firstAsc || lastDesc) ? "MIN" : "MAX";
 
+        // OVER () covers all rows — correct for non-GROUP BY queries.
+        // For GROUP BY, PARTITION BY groupCols would be needed (not available here).
         return fc.funcName() + "(CASE WHEN " + sortCol + " = "
             + windowFunc + "(" + sortCol + ") OVER () THEN " + argsStr + " END)";
     }
