@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 public class PgBackend implements DialectBackend {
 
     private FunctionCatalog functionCatalog;
+    private List<String> currentGroupBy;
 
     @Override
     public void setFunctionCatalog(FunctionCatalog catalog) { this.functionCatalog = catalog; }
@@ -80,6 +81,14 @@ public class PgBackend implements DialectBackend {
     // ══════════════════════════════════════════════════
 
     private String generateSelect(IRSelect sel, GenerateOptions opt) {
+        // Pre-render GROUP BY columns for KEEP polyfill PARTITION BY
+        currentGroupBy = sel.core().groupBy() != null
+            ? sel.core().groupBy().stream()
+                .filter(g -> g.kind() == GroupByKind.PLAIN)
+                .map(g -> generateExpr(g.expr(), opt))
+                .collect(Collectors.toList())
+            : List.of();
+
         var sb = new StringBuilder();
 
         // WITH clause
@@ -336,8 +345,7 @@ public class PgBackend implements DialectBackend {
     }
 
     /** Polyfill KEEP with CASE + MIN/MAX OVER window function.
-     *  Correct for queries without GROUP BY.
-     *  For GROUP BY queries, Oracle native KEEP is recommended. */
+     *  Uses currentGroupBy for PARTITION BY when GROUP BY exists. */
     private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
         var keepOrderBy = fc.keep().orderBy();
         if (keepOrderBy.size() != 1)
@@ -351,8 +359,13 @@ public class PgBackend implements DialectBackend {
         boolean lastDesc = fc.keep() instanceof KeepSpec.Last && o.dir() == IRStatement.OrderDir.DESC;
         String windowFunc = (firstAsc || lastDesc) ? "MIN" : "MAX";
 
+        String partition = "";
+        if (currentGroupBy != null && !currentGroupBy.isEmpty()) {
+            partition = "PARTITION BY " + String.join(", ", currentGroupBy) + " ";
+        }
+
         return fc.funcName() + "(CASE WHEN " + sortCol + " = "
-            + windowFunc + "(" + sortCol + ") OVER () THEN " + argsStr + " END)";
+            + windowFunc + "(" + sortCol + ") OVER (" + partition + ") THEN " + argsStr + " END)";
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {

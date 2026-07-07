@@ -83,12 +83,9 @@ public class SemanticVerificationTest {
         queries.put("24. COALESCE",           "SELECT name, COALESCE(dept_id, 0) AS dept FROM employees ORDER BY name");
         queries.put("25. Double aggregate",   "SELECT COUNT(*) AS cnt, AVG(salary) AS avg_sal, SUM(salary) AS total, MIN(salary) AS min_sal, MAX(salary) AS max_sal FROM employees WHERE dept_id IS NOT NULL");
         // KEEP — Oracle native; non-Oracle polyfill requires no GROUP BY (OVER() has no PARTITION BY)
-        queries.put("26. KEEP LAST (GROUP BY)",  "SELECT dept_id, MAX(salary) KEEP (DENSE_RANK LAST ORDER BY hire_date) AS last_salary FROM employees GROUP BY dept_id ORDER BY dept_id");
-        queries.put("27. KEEP FIRST (GROUP BY)", "SELECT dept_id, MIN(salary) KEEP (DENSE_RANK FIRST ORDER BY hire_date) AS first_salary FROM employees GROUP BY dept_id ORDER BY dept_id");
-        queries.put("28. KEEP (no GROUP BY)",    "SELECT MAX(name) KEEP (DENSE_RANK LAST ORDER BY salary DESC) AS top_paid FROM employees");
-
-        // KEEP with GROUP BY is Oracle-only (polyfill needs PARTITION BY matching GROUP BY cols)
-        Set<String> oracleOnly = Set.of("26. KEEP LAST (GROUP BY)", "27. KEEP FIRST (GROUP BY)");
+        queries.put("26. KEEP LAST + GROUP BY",  "SELECT dept_id, MAX(salary) KEEP (DENSE_RANK LAST ORDER BY hire_date) AS last_salary FROM employees GROUP BY dept_id ORDER BY dept_id");
+        queries.put("27. KEEP FIRST + GROUP BY", "SELECT dept_id, MIN(salary) KEEP (DENSE_RANK FIRST ORDER BY hire_date) AS first_salary FROM employees GROUP BY dept_id ORDER BY dept_id");
+        queries.put("28. KEEP DESC (no GROUP BY)", "SELECT MAX(name) KEEP (DENSE_RANK LAST ORDER BY salary DESC) AS top_paid FROM employees");
 
         // Run against each available target
         for (Dialect target : List.of(Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE, Dialect.DM)) {
@@ -103,12 +100,6 @@ public class SemanticVerificationTest {
                 for (var entry : queries.entrySet()) {
                     String label = entry.getKey();
                     String usql = entry.getValue();
-
-                    if (oracleOnly.contains(label) && target != Dialect.ORACLE) {
-                        System.out.println("  SKIP: " + label + " (Oracle-only — polyfill needs PARTITION BY)");
-                        skipped++;
-                        continue;
-                    }
 
                     try {
                         VerificationReport report = test.verify(usql, target, targetConn);
