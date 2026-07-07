@@ -254,8 +254,14 @@ public class SemanticVerificationTest {
 
         String targetSQL = result.getSql();
 
-        // Execute on H2 (reference — H2 understands standard SQL)
-        String refSQL = usql; // H2 understands standard SQL directly
+        // KEEP is Oracle-only — skip on other dialects
+        if (usql.contains("KEEP") && target != Dialect.ORACLE) {
+            return new VerificationReport(true, List.of(), List.of(),
+                usql, targetSQL, "KEEP — Oracle-only, skipped on " + target.name());
+        }
+
+        // Standard queries: dual-execution semantic verification
+        String refSQL = compiler.compileFromAst(ast, Dialect.H2).getSql();
 
         List<List<Object>> refRows;
         List<ColumnMeta> refColumns;

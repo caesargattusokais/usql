@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 public class MySqlBackend implements DialectBackend {
 
     private FunctionCatalog functionCatalog;
-    private List<String> currentGroupBy; // set for KEEP polyfill during SELECT generation
 
     @Override
     public void setFunctionCatalog(FunctionCatalog catalog) { this.functionCatalog = catalog; }
@@ -80,14 +79,6 @@ public class MySqlBackend implements DialectBackend {
     // ══════════════════════════════════════════════════
 
     private String generateSelect(IRSelect sel, GenerateOptions opt) {
-        // Pre-render GROUP BY columns for KEEP polyfill PARTITION BY
-        currentGroupBy = sel.core().groupBy() != null
-            ? sel.core().groupBy().stream()
-                .filter(g -> g.kind() == GroupByKind.PLAIN)
-                .map(g -> generateExpr(g.expr(), opt))
-                .collect(Collectors.toList())
-            : List.of();
-
         var sb = new StringBuilder();
 
         // CTE
@@ -349,30 +340,13 @@ public class MySqlBackend implements DialectBackend {
         return result;
     }
 
-    /** Polyfill KEEP with CASE + MIN/MAX OVER window function.
-     *  Uses currentGroupBy for PARTITION BY when GROUP BY exists. */
+    /** KEEP (DENSE_RANK) is Oracle-specific — MySQL/PG/DM do not allow
+     *  window functions inside aggregate functions. */
     private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
-        var keepOrderBy = fc.keep().orderBy();
-        if (keepOrderBy.size() != 1)
-            throw new UnsupportedOperationException(
-                "KEEP with multiple ORDER BY columns is not yet supported on this dialect. " +
-                "Target Oracle for native KEEP support.");
-
-        var o = keepOrderBy.get(0);
-        String sortCol = generateExpr(o.expr(), opt);
-        // FIRST+ASC or LAST+DESC → need MIN(sortCol) as the reference
-        boolean firstAsc = !(fc.keep() instanceof KeepSpec.Last) && o.dir() != IRStatement.OrderDir.DESC;
-        boolean lastDesc = fc.keep() instanceof KeepSpec.Last && o.dir() == IRStatement.OrderDir.DESC;
-        String windowFunc = (firstAsc || lastDesc) ? "MIN" : "MAX";
-
-        // PARTITION BY for GROUP BY compatibility
-        String partition = "";
-        if (currentGroupBy != null && !currentGroupBy.isEmpty()) {
-            partition = "PARTITION BY " + String.join(", ", currentGroupBy) + " ";
-        }
-
-        return fc.funcName() + "(CASE WHEN " + sortCol + " = "
-            + windowFunc + "(" + sortCol + ") OVER (" + partition + ") THEN " + argsStr + " END)";
+        throw new UnsupportedOperationException(
+            "KEEP (DENSE_RANK FIRST|LAST) is Oracle-specific and cannot be polyfilled. " +
+            "MySQL/PG/DM do not support window functions nested inside aggregate functions. " +
+            "Rewrite using a subquery with DENSE_RANK() OVER (...) or target Oracle for native KEEP.");
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {
