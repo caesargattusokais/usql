@@ -494,7 +494,11 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
             if (oc.orderByClause() != null) {
                 orderBy = visitOrderByClause(oc.orderByClause());
             }
-            over = new WindowOver(partitionBy, orderBy);
+            String frame = null;
+            if (oc.frameClause() != null) {
+                frame = oc.frameClause().getText();
+            }
+            over = new WindowOver(partitionBy, orderBy, frame);
         }
         return new FunctionCall(name, args, star, keep, over);
     }

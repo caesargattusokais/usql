@@ -406,7 +406,7 @@ public class SemanticAnalyzer {
                     o.nullsFirst() ? IRStatement.NullsOrder.FIRST : IRStatement.NullsOrder.LAST))
                     .collect(Collectors.toList())
                 : null;
-            over = new IRWindowOver(partitionBy, orderBy);
+            over = new IRWindowOver(partitionBy, orderBy, fc.over().frame());
         }
 
         return new IRFunctionCall(fc.name(), args, returnType, over, keep);

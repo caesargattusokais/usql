@@ -279,7 +279,21 @@ overClause
     : OVER LPAREN
         (PARTITION BY expr (COMMA expr)*)?
         orderByClause?
+        frameClause?
       RPAREN
+    ;
+
+frameClause
+    : ROWS frameBound
+    | RANGE frameBound
+    ;
+
+frameBound
+    : BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    | BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    | BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+    | UNBOUNDED PRECEDING
+    | CURRENT ROW
     ;
 
 literal
@@ -371,6 +385,7 @@ keyword
     | ROLLUP | CUBE | GROUPING | SETS
     | OVER | PARTITION
     | KEEP | DENSE_RANK | RANK
+    | PRECEDING | FOLLOWING | UNBOUNDED | CURRENT
     | DATE | TIMESTAMP | INTERVAL | TIME | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND
     | TINYINT | SMALLINT | INT | INTEGER | BIGINT | DECIMAL | NUMERIC
     | FLOAT | REAL | DOUBLE | PRECISION | CHAR | VARCHAR | TINYTEXT | TEXT | MEDIUMTEXT | LONGTEXT
@@ -416,7 +431,12 @@ OFFSET:       O F F S E T;
 FETCH:        F E T C H;
 NEXT:         N E X T;
 ROWS:         R O W S;
+RANGE:        R A N G E;
 ONLY:         O N L Y;
+PRECEDING:    P R E C E D I N G;
+FOLLOWING:    F O L L O W I N G;
+UNBOUNDED:    U N B O U N D E D;
+CURRENT:      C U R R E N T;
 INSERT:       I N S E R T;
 INTO:         I N T O;
 VALUES:       V A L U E S;

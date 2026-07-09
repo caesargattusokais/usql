@@ -202,7 +202,8 @@ public final class USqlAst {
     public record KeepClause(boolean last, List<OrderByItem> orderBy) {}
 
     public record WindowOver(List<Expression> partitionBy,
-                              List<OrderByItem> orderBy) {}
+                              List<OrderByItem> orderBy,
+                              String frame) {}
 
     // CASE
     public record CaseExpr(List<WhenClause> whens, Expression elseExpr) implements Expression {}

@@ -1,6 +1,7 @@
 package com.usql;
 
 import com.usql.dialect.Dialect;
+import java.util.List;
 
 /**
  * Quick smoke test: compile(String) end-to-end.
@@ -36,8 +37,28 @@ public class QuickCompileTest {
             System.out.println();
         }
 
+        // Window functions
+        System.out.println("\n=== Window Functions ===");
+        String[] windowTests = {
+            "SELECT name, ROW_NUMBER() OVER (ORDER BY salary DESC) AS rn FROM employees",
+            "SELECT name, RANK() OVER (ORDER BY salary DESC) AS rk FROM employees",
+            "SELECT name, DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS dr FROM employees",
+            "SELECT name, LAG(salary) OVER (ORDER BY hire_date) AS prev_salary FROM employees",
+            "SELECT name, LEAD(salary) OVER (ORDER BY hire_date) AS next_salary FROM employees",
+            "SELECT name, FIRST_VALUE(salary) OVER (PARTITION BY dept_id ORDER BY hire_date) AS first_sal FROM employees",
+            "SELECT name, LAST_VALUE(salary) OVER (PARTITION BY dept_id ORDER BY hire_date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_sal FROM employees",
+            "SELECT name, NTILE(4) OVER (ORDER BY salary) AS quartile FROM employees"
+        };
+        for (String usql : windowTests) {
+            System.out.println("U-SQL: " + usql.substring(0, Math.min(usql.length(), 80)) + "...");
+            for (Dialect target : List.of(Dialect.SQLSERVER, Dialect.MYSQL, Dialect.ORACLE)) {
+                var r = compiler.compile(usql, target);
+                System.out.println("  " + target.name() + ": " + (r.isSuccess() ? r.getSql().substring(0, Math.min(r.getSql().length(), 100)) + "..." : "FAIL: " + r.report()));
+            }
+        }
+
         // Test error handling
-        System.out.println("Error test:");
+        System.out.println("\nError test:");
         var bad = compiler.compile("SELECTT bad syntax!!!", Dialect.MYSQL);
         System.out.println("  " + (bad.isSuccess() ? "UNEXPECTED PASS" : "Expected fail: OK"));
     }

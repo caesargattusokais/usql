@@ -365,6 +365,7 @@ public class PgBackend implements DialectBackend {
                     .map(o -> generateExpr(o.expr(), opt) + (o.dir() == IRStatement.OrderDir.DESC ? " DESC" : " ASC"))
                     .collect(Collectors.joining(", "));
             }
+            if (over.frame() != null) result += " " + over.frame();
             result += ")";
         }
         return result;

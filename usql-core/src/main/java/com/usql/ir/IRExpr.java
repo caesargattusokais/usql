@@ -86,7 +86,8 @@ public sealed interface IRExpr {
 
     /** OVER clause for window functions */
     record IRWindowOver(List<IRExpr> partitionBy,
-                        List<IRStatement.OrderBy> orderBy) {}
+                        List<IRStatement.OrderBy> orderBy,
+                        String frame) {}
 
     // ── CASE ──
 
