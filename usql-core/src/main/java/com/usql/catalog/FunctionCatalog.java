@@ -175,13 +175,14 @@ public class FunctionCatalog {
 
         // ── String functions ──
 
-        reg("LENGTH", "String length", DataType.IntType.INT);
+        regDialect("LENGTH", "String length", DataType.IntType.INT,
+            "LENGTH", "LENGTH", "LENGTH", "LENGTH", "LEN"); // SQL Server: LEN
         reg("UPPER", "Convert to uppercase", new DataType.VarcharType(0));
         reg("LOWER", "Convert to lowercase", new DataType.VarcharType(0));
         reg("TRIM", "Remove leading and trailing spaces", new DataType.VarcharType(0));
 
         regDialect("SUBSTR", "Extract substring", new DataType.VarcharType(0),
-            "SUBSTR", "SUBSTR", "SUBSTR", "SUBSTR");
+            "SUBSTR", "SUBSTR", "SUBSTR", "SUBSTR", "SUBSTRING"); // SQL Server: SUBSTRING
 
         reg("REPLACE", "Replace occurrences of substring", new DataType.VarcharType(0));
 
@@ -244,7 +245,7 @@ public class FunctionCatalog {
         reg("ROUND", "Round to n decimal places", DataType.IntType.INT);
 
         regDialect("CEIL", "Ceiling (round up)", DataType.IntType.INT,
-            "CEIL", "CEIL", "CEIL", "CEIL");
+            "CEIL", "CEIL", "CEIL", "CEIL", "CEILING"); // SQL Server: CEILING
 
         regDialect("CEILING", "Ceiling (round up)", DataType.IntType.INT,
             "CEILING", "CEILING", "CEIL", "CEIL");
@@ -331,7 +332,7 @@ public class FunctionCatalog {
         reg("LTRIM", "Remove leading spaces", new DataType.VarcharType(0));
         reg("RTRIM", "Remove trailing spaces", new DataType.VarcharType(0));
         regDialect("CHAR_LENGTH", "Character length", DataType.IntType.INT,
-            "CHAR_LENGTH", "CHAR_LENGTH", "LENGTH", "CHAR_LENGTH");
+            "CHAR_LENGTH", "CHAR_LENGTH", "LENGTH", "CHAR_LENGTH", "LEN"); // SQL Server: LEN
         {
             Map<Dialect, DialectMapping> m = new EnumMap<>(Dialect.class);
             m.put(Dialect.MYSQL, dm("REPEAT"));

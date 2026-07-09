@@ -40,7 +40,7 @@ public class SemanticVerificationTest {
             "jdbc:dm://localhost:5236",
             "SYSDBA", "dm12345678", "dm.jdbc.driver.DmDriver"),
         Dialect.SQLSERVER, new DbConfig(
-            "jdbc:sqlserver://localhost:1433;databaseName=testdb;encrypt=false;trustServerCertificate=true",
+            "jdbc:sqlserver://localhost:1433;databaseName=master;encrypt=false;trustServerCertificate=true",
             "sa", "SqlServer123!", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
     );
 
