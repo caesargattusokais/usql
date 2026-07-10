@@ -395,6 +395,7 @@ keyword
     | BOOLEAN | DATETIME | JSON | XML | UUID | BINARY | VARBINARY | BLOB | CLOB | BIT | ENUM
     | LATERAL | IGNORE | ENGINE | TABLESPACE | CHARACTER | COLLATE | COMMENT
     | WITH | TIME | ZONE
+    | PROCEDURE | FUNCTION | CALL | REPLACE | OUT | INOUT | RETURNS | LANGUAGE
     ;
 
 // ══════════════════════════════════════════════════
@@ -539,7 +540,6 @@ PROCEDURE:    P R O C E D U R E;
 FUNCTION:     F U N C T I O N;
 CALL:         C A L L;
 REPLACE:      R E P L A C E;
-IN:           I N;
 OUT:          O U T;
 INOUT:        I N O U T;
 RETURNS:      R E T U R N S;
