@@ -17,7 +17,7 @@
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 100% ✅
 - Phase 5 优化: 100% ✅
-- Phase 6 收尾: 0% (0/5)
+- Phase 6 收尾: 20% (1/5)
 
 ---
 
@@ -25,7 +25,7 @@
 
 | # | 任务 | 状态 |
 |---|------|------|
-| 6.1 | 存储过程方言语法补全（Oracle/PG/SQL Server/DM 覆写） | TODO |
+| 6.1 | 存储过程方言语法补全（Oracle/PG/SQL Server/DM 覆写） | ✅ |
 | 6.2 | 存储过程语法解析（grammar + AstBuilder） | TODO |
 | 6.3 | 存储过程 SemanticAnalyzer + Capability 标记 | TODO |
 | 6.4 | IRCall 无参括号修复 | TODO |
@@ -105,20 +105,19 @@
 - `SelectCore.withClause` 承载 WITH 子句
 - 5 方言均声明 `RECURSIVE_CTE` 能力
 
-### 4.6 存储过程 IR (733a2f8) — 基础完成，方言语法待补
+### 4.6 存储过程 IR (733a2f8, c5a0280)
 
 - IR 新增: `IRCreateProcedure`, `IRCreateFunction`, `IRCall`, `ProcedureParam`, `ParamMode`
 - 支持 IN/OUT/INOUT 参数, `OR REPLACE`, raw body 直传
-- 5 方言 Backend 全部接入 switch 分发
-- ⚠️ 共享实现只对 MySQL 大体正确，其他方言需覆写:
+- 5 方言 Backend 全部接入，各有方言特定覆写:
 
-| 方言 | 问题 | 正确语法 |
-|------|------|---------|
-| Oracle | 缺少 `AS` 关键字 | `CREATE ... PROCEDURE name(params) AS body;` |
-| PostgreSQL | 缺少 `$$` 和 `LANGUAGE` | `CREATE ... FUNCTION name() RETURNS type AS $$ body $$ LANGUAGE plpgsql;` |
-| SQL Server | 缺少 `AS BEGIN/END` | `CREATE PROCEDURE name(params) AS BEGIN body END` |
-| DM | 同 Oracle | `CREATE ... PROCEDURE name(params) AS body;` |
-| IRCall | 无参时空括号 | 应省略 `()` |
+| 方言 | 语法风格 |
+|------|---------|
+| MySQL | 基类默认: `CREATE PROCEDURE name(params) body` |
+| Oracle | `AS body;` / `RETURN type` / `IN OUT` / `BEGIN...END` 调用 |
+| PostgreSQL | `$$ body $$ LANGUAGE plpgsql` / `RETURNS type` |
+| SQL Server | `CREATE OR ALTER` / `@param` / `OUTPUT` / `EXEC name args` |
+| DM | Oracle 兼容: `AS body;` / `RETURN type` / `IN OUT` |
 
 - ❌ 缺失: 语法解析（不能从文本 CREATE PROCEDURE 编译）
 - ❌ 缺失: SemanticAnalyzer 处理
