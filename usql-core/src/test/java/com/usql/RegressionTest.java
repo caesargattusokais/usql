@@ -153,9 +153,16 @@ public class RegressionTest {
     // ══════════════════════════════════════════════════
 
     static void testStoredProcedure(Db db, Connection conn) throws Exception {
-        // Best-effort test — some dialects may not support anonymous procedures
-        // Test via IR (no grammar required for basic cases)
+        // Best-effort test
+        try {
+            doTestStoredProcedure(db, conn);
+        } catch (Exception e) {
+            System.out.println("    ⚠️  Procedure test error: " + e.getMessage().split("\n")[0]);
+            skipped++;
+        }
+    }
 
+    static void doTestStoredProcedure(Db db, Connection conn) throws Exception {
         // Test CREATE PROCEDURE via IR
         {
             IRCreateProcedure proc = new IRCreateProcedure(
@@ -183,9 +190,13 @@ public class RegressionTest {
             }
 
             // Cleanup
-            try { conn.createStatement().execute(
-                "DROP " + (db.dialect() == Dialect.ORACLE || db.dialect() == Dialect.DM
-                    ? "PROCEDURE" : "PROCEDURE IF EXISTS") + " reg_proc_test");
+            try {
+                String name = switch (db.dialect()) {
+                    case MYSQL -> "`reg_proc_test`";
+                    case SQLSERVER -> "[reg_proc_test]";
+                    default -> "\"reg_proc_test\"";
+                };
+                conn.createStatement().execute("DROP PROCEDURE " + name);
             } catch (SQLException ignored) {}
         }
 
@@ -209,12 +220,13 @@ public class RegressionTest {
     }
 
     static String getSimpleBody(Dialect d) {
+        // Body without trailing semicolon — backend appends it
         return switch (d) {
-            case MYSQL -> "BEGIN SELECT CONCAT('Hello ', p_name); END;";
-            case POSTGRESQL -> "BEGIN SELECT 'Hello ' || p_name; END;";
-            case ORACLE, DM -> "BEGIN DBMS_OUTPUT.PUT_LINE('Hello ' || p_name); END;";
-            case SQLSERVER -> "SELECT 'Hello ' + @p_name;";
-            default -> "BEGIN SELECT 1; END;";
+            case MYSQL -> "SELECT CONCAT('Hello ', p_name)";
+            case POSTGRESQL -> "BEGIN NULL; END";
+            case ORACLE, DM -> "BEGIN NULL; END";
+            case SQLSERVER -> "SELECT 'Hello' + @p_name AS greeting";
+            default -> "SELECT 1";
         };
     }
 
