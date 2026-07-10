@@ -462,6 +462,41 @@ public class DmBackend extends AbstractDialectBackend {
                "EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF; END;";
     }
 
+    // ══════════════════════════════════════════════════
+    //  Stored procedures — DM (Oracle-compatible) syntax
+    // ══════════════════════════════════════════════════
+
+    @Override
+    protected String generateCreateProcedure(IRCreateProcedure cp, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cp.orReplace()) sb.append("OR REPLACE ");
+        sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
+        sb.append(paramsDecl(cp.params(), opt));
+        sb.append(" AS\n").append(cp.body()).append(";");
+        return sb.toString();
+    }
+
+    @Override
+    protected String generateCreateFunction(IRCreateFunction cf, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cf.orReplace()) sb.append("OR REPLACE ");
+        sb.append("FUNCTION ").append(quoteIdentifier(cf.name()));
+        sb.append(paramsDecl(cf.params(), opt));
+        sb.append(" RETURN ").append(mapType(cf.returnType()));
+        sb.append(" AS\n").append(cf.body()).append(";");
+        return sb.toString();
+    }
+
+    @Override
+    protected String paramDecl(ProcedureParam p, GenerateOptions opt) {
+        String mode = switch (p.mode()) {
+            case IN -> "";
+            case OUT -> "OUT ";
+            case INOUT -> "IN OUT ";
+        };
+        return quoteIdentifier(p.name()) + " " + mode + mapType(p.type());
+    }
+
     private String escapeString(String s) {
         return s.replace("'", "''");
     }

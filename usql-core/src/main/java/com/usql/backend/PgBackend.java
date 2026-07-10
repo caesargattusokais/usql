@@ -491,6 +491,41 @@ public class PgBackend extends AbstractDialectBackend {
         return generateTableRef(ref, GenerateOptions.MINIMAL);
     }
 
+    // ══════════════════════════════════════════════════
+    //  Stored procedures — PostgreSQL-specific syntax
+    // ══════════════════════════════════════════════════
+
+    @Override
+    protected String generateCreateProcedure(IRCreateProcedure cp, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cp.orReplace()) sb.append("OR REPLACE ");
+        sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
+        sb.append(paramsDecl(cp.params(), opt));
+        sb.append(" LANGUAGE plpgsql AS \$\$\n").append(cp.body()).append("\n\$\$;");
+        return sb.toString();
+    }
+
+    @Override
+    protected String generateCreateFunction(IRCreateFunction cf, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cf.orReplace()) sb.append("OR REPLACE ");
+        sb.append("FUNCTION ").append(quoteIdentifier(cf.name()));
+        sb.append(paramsDecl(cf.params(), opt));
+        sb.append(" RETURNS ").append(mapType(cf.returnType()));
+        sb.append(" LANGUAGE plpgsql AS \$\$\n").append(cf.body()).append("\n\$\$;");
+        return sb.toString();
+    }
+
+    @Override
+    protected String paramDecl(ProcedureParam p, GenerateOptions opt) {
+        String mode = switch (p.mode()) {
+            case IN -> "IN ";
+            case OUT -> "OUT ";
+            case INOUT -> "INOUT ";
+        };
+        return mode + quoteIdentifier(p.name()) + " " + mapType(p.type());
+    }
+
     private String escapeString(String s) {
         return s.replace("'", "''").replace("\\", "\\\\");
     }

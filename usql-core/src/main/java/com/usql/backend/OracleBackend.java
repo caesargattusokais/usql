@@ -543,6 +543,51 @@ public class OracleBackend implements DialectBackend {
     //  Helpers
     // ══════════════════════════════════════════════════
 
+    // ══════════════════════════════════════════════════
+    //  Stored procedures — Oracle-specific syntax
+    // ══════════════════════════════════════════════════
+
+    @Override
+    protected String generateCreateProcedure(IRCreateProcedure cp, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cp.orReplace()) sb.append("OR REPLACE ");
+        sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
+        sb.append(paramsDecl(cp.params(), opt));
+        sb.append(" AS\n").append(cp.body()).append(";");
+        return sb.toString();
+    }
+
+    @Override
+    protected String generateCreateFunction(IRCreateFunction cf, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cf.orReplace()) sb.append("OR REPLACE ");
+        sb.append("FUNCTION ").append(quoteIdentifier(cf.name()));
+        sb.append(paramsDecl(cf.params(), opt));
+        sb.append(" RETURN ").append(mapType(cf.returnType()));
+        sb.append(" AS\n").append(cf.body()).append(";");
+        return sb.toString();
+    }
+
+    @Override
+    protected String generateCall(IRCall call, GenerateOptions opt) {
+        String args = call.args() != null
+            ? call.args().stream().map(a -> generateExpr(a, opt))
+                .collect(Collectors.joining(", "))
+            : "";
+        return "BEGIN " + quoteIdentifier(call.procedureName())
+            + (args.isEmpty() ? "" : "(" + args + ")") + "; END;";
+    }
+
+    @Override
+    protected String paramDecl(ProcedureParam p, GenerateOptions opt) {
+        String mode = switch (p.mode()) {
+            case IN -> "";
+            case OUT -> "OUT ";
+            case INOUT -> "IN OUT ";
+        };
+        return quoteIdentifier(p.name()) + " " + mode + mapType(p.type());
+    }
+
     private String escapeString(String s) {
         return s.replace("'", "''");
     }

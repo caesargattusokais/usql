@@ -462,4 +462,56 @@ public class SqlServerBackend extends AbstractDialectBackend {
         }
         return sb.toString();
     }
+
+    // ══════════════════════════════════════════════════
+    //  Stored procedures — SQL Server (T-SQL) syntax
+    // ══════════════════════════════════════════════════
+
+    @Override
+    protected String generateCreateProcedure(IRCreateProcedure cp, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cp.orReplace()) sb.append("OR ALTER ");
+        sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
+        sb.append(tsqlParams(cp.params(), opt));
+        sb.append(" AS\nBEGIN\n").append(cp.body()).append("\nEND;");
+        return sb.toString();
+    }
+
+    @Override
+    protected String generateCreateFunction(IRCreateFunction cf, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cf.orReplace()) sb.append("OR ALTER ");
+        sb.append("FUNCTION ").append(quoteIdentifier(cf.name()));
+        sb.append(tsqlParams(cf.params(), opt));
+        sb.append(" RETURNS ").append(mapType(cf.returnType()));
+        sb.append(" AS\nBEGIN\nRETURN (\n").append(cf.body()).append("\n)\nEND;");
+        return sb.toString();
+    }
+
+    @Override
+    protected String generateCall(IRCall call, GenerateOptions opt) {
+        String args = call.args() != null
+            ? call.args().stream().map(a -> generateExpr(a, opt))
+                .collect(Collectors.joining(", "))
+            : "";
+        return "EXEC " + quoteIdentifier(call.procedureName())
+            + (args.isEmpty() ? "" : " " + args);
+    }
+
+    @Override
+    protected String paramDecl(ProcedureParam p, GenerateOptions opt) {
+        String dir = switch (p.mode()) {
+            case IN -> "";
+            case OUT -> " OUTPUT";
+            case INOUT -> " OUTPUT";
+        };
+        return "@" + p.name() + " " + mapType(p.type()) + dir;
+    }
+
+    private String tsqlParams(List<ProcedureParam> params, GenerateOptions opt) {
+        if (params == null || params.isEmpty()) return "";
+        return "\n  " + params.stream()
+            .map(p -> paramDecl(p, opt))
+            .collect(Collectors.joining(",\n  ")) + "\n";
+    }
 }
