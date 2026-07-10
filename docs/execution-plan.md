@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 44% (4/9)
+- Phase 5 优化: 29% (4/14)
 
 ---
 
@@ -106,11 +106,16 @@
 | 5.2 | USqlCompiler 单例共享（消除重复实例） | ✅ |
 | 5.3 | WindowFrame 结构化（sealed interface → toSql） | ✅ |
 | 5.4 | `generateFunctionCall` 提取到 AbstractDialectBackend | ✅ |
-| 5.5 | IROptimizer 常量折叠 Level 1 实现 | TODO |
-| 5.6 | PolyfillEngine 补全 IR rewrite 逻辑 | TODO |
-| 5.7 | SemanticVerifier 集成到 CI/编译流程 | TODO |
-| 5.8 | CapabilityChecker 补全 27 能力分级 | TODO |
-| 5.9 | SemanticAnalyzer 职责拆分 | TODO |
+| 5.5 | FunctionCatalog YAML 化 | TODO |
+| 5.6 | 错误信息优化 | TODO |
+| 5.7 | 单元测试补全 | TODO |
+| 5.8 | `IF NOT EXISTS` 跨库一致 | TODO |
+| 5.9 | 类型推导缺失修复 | TODO |
+| 5.10 | IROptimizer 常量折叠 Level 1 实现 | TODO |
+| 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | TODO |
+| 5.12 | SemanticVerifier 集成到 CI/编译流程 | TODO |
+| 5.13 | CapabilityChecker 补全 27 能力分级 | TODO |
+| 5.14 | SemanticAnalyzer 职责拆分 | TODO |
 
 ### 5.1 KEEP polyfill 提取 (53ee6ba)
 
