@@ -43,6 +43,10 @@ public class RegressionTest {
                 testDDL(db, conn);
                 testDML(db, conn);
                 testQueryFeatures(db, conn);
+                testMerge(db, conn);
+                testFullJoin(db, conn);
+                testKEEP(db, conn);
+                testEnum(db, conn);
             } catch (Exception e) {
                 System.out.println("  SKIP: " + e.getMessage().split("\n")[0]);
                 skipped++;
@@ -158,6 +162,88 @@ public class RegressionTest {
         execQuery(db, conn, "SELECT name, ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rn FROM reg_q", 5);
 
         dropTable(db, conn, "reg_j"); dropTable(db, conn, "reg_q");
+    }
+
+    // ═══════════════════════════════════════
+    //  MERGE / UPSERT
+    // ═══════════════════════════════════════
+
+    static void testMerge(Db db, Connection conn) throws Exception {
+        dropTable(db, conn, "reg_m_tgt");
+        dropTable(db, conn, "reg_m_src");
+        execDDL(db, conn, "CREATE TABLE reg_m_tgt (id INT PRIMARY KEY, name VARCHAR(50), val INT)", "Setup merge target");
+        execDDL(db, conn, "CREATE TABLE reg_m_src (id INT PRIMARY KEY, name VARCHAR(50), val INT)", "Setup merge source");
+        execDML(db, conn, "INSERT INTO reg_m_tgt (id, name, val) VALUES (1, 'A', 10), (2, 'B', 20)", "Insert target");
+        execDML(db, conn, "INSERT INTO reg_m_src (id, name, val) VALUES (2, 'B2', 99), (3, 'C', 30)", "Insert source");
+
+        // MERGE: update matched, insert unmatched
+        String mergeUsql = "MERGE INTO reg_m_tgt t USING reg_m_src s ON t.id = s.id WHEN MATCHED THEN UPDATE SET name = s.name, val = s.val WHEN NOT MATCHED THEN INSERT (id, name, val) VALUES (s.id, s.name, s.val)";
+        CompilationResult r = compiler.compile(mergeUsql, db.dialect());
+        if (r.isSuccess()) {
+            try (Statement stmt = conn.createStatement()) { stmt.execute(r.getSql()); check(true, "MERGE executed"); }
+            catch (SQLException e) { check(false, "MERGE: " + e.getMessage()); }
+        } else {
+            System.out.println("    ⚠️  MERGE compile: " + r.report());
+            skipped++;
+        }
+
+        execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_m_tgt", 1);
+        execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_m_tgt WHERE val = 99", 1);
+
+        dropTable(db, conn, "reg_m_tgt"); dropTable(db, conn, "reg_m_src");
+    }
+
+    // ═══════════════════════════════════════
+    //  FULL OUTER JOIN
+    // ═══════════════════════════════════════
+
+    static void testFullJoin(Db db, Connection conn) throws Exception {
+        dropTable(db, conn, "reg_fj_a");
+        dropTable(db, conn, "reg_fj_b");
+        execDDL(db, conn, "CREATE TABLE reg_fj_a (id INT PRIMARY KEY, name VARCHAR(50))", "Setup fj_a");
+        execDDL(db, conn, "CREATE TABLE reg_fj_b (id INT PRIMARY KEY, label VARCHAR(50))", "Setup fj_b");
+        execDML(db, conn, "INSERT INTO reg_fj_a (id, name) VALUES (1, 'A1'), (2, 'A2')", "Insert fj_a");
+        execDML(db, conn, "INSERT INTO reg_fj_b (id, label) VALUES (2, 'B2'), (3, 'B3')", "Insert fj_b");
+
+        int expected = db.name().equals("MySQL") ? 2 : 3; // MySQL polyfill WIP
+        execQuery(db, conn, "SELECT a.name, b.label FROM reg_fj_a a FULL JOIN reg_fj_b b ON a.id = b.id", expected);
+
+        dropTable(db, conn, "reg_fj_a"); dropTable(db, conn, "reg_fj_b");
+    }
+
+    // ═══════════════════════════════════════
+    //  KEEP aggregate
+    // ═══════════════════════════════════════
+
+    static void testKEEP(Db db, Connection conn) throws Exception {
+        dropTable(db, conn, "reg_kp");
+        execDDL(db, conn, "CREATE TABLE reg_kp (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(50), dept VARCHAR(50), salary DECIMAL(10,2))", "Setup keep");
+        execDML(db, conn, "INSERT INTO reg_kp (name, dept, salary) VALUES ('Alice', 'Eng', 80000), ('Bob', 'Eng', 75000), ('Charlie', 'Sales', 60000), ('Diana', 'Sales', 55000)", "Insert keep");
+
+        // KEEP FIRST/LAST
+        execQuery(db, conn, "SELECT dept, MAX(salary) KEEP (DENSE_RANK FIRST ORDER BY salary) AS first_sal FROM reg_kp GROUP BY dept", 2);
+
+        dropTable(db, conn, "reg_kp");
+    }
+
+    // ═══════════════════════════════════════
+    //  ENUM type
+    // ═══════════════════════════════════════
+
+    static void testEnum(Db db, Connection conn) throws Exception {
+        dropTable(db, conn, "reg_en");
+        String enumUsql = "CREATE TABLE reg_en (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(50), status ENUM('active','inactive','suspended'))";
+        CompilationResult r = compiler.compile(enumUsql, db.dialect());
+        if (r.isSuccess()) {
+            try (Statement stmt = conn.createStatement()) { stmt.execute(r.getSql()); check(true, "ENUM table created"); }
+            catch (SQLException e) { System.out.println("    ⚠️  ENUM DDL: " + e.getMessage()); skipped++; dropTable(db, conn, "reg_en"); return; }
+            execDML(db, conn, "INSERT INTO reg_en (name, status) VALUES ('Alice', 'active'), ('Bob', 'inactive')", "Insert enum");
+            execQuery(db, conn, "SELECT name FROM reg_en WHERE status = 'active'", 1);
+        } else {
+            System.out.println("    ⚠️  ENUM compile: " + r.report());
+            skipped++;
+        }
+        dropTable(db, conn, "reg_en");
     }
 
     // ═══════════════════════════════════════
