@@ -78,11 +78,71 @@ public class PolyfillEngine {
         };
     }
 
-    /** Convert FULL OUTER JOIN to LEFT JOIN UNION RIGHT JOIN (flag mode). */
+    /** Convert FULL OUTER JOIN to LEFT JOIN UNION RIGHT JOIN. */
     private IRStatement polyfillFullOuterJoin(IRStatement statement) {
-        // Full implementation requires IR tree rewrite with union generation.
-        // Currently flagged — backends handle this at generation time.
-        return statement;
+        if (!(statement instanceof IRSelect sel)) return statement;
+        if (sel.core().from() == null) return statement;
+
+        // Check if any join is FULL
+        boolean hasFullJoin = false;
+        for (var ref : sel.core().from()) {
+            if (ref instanceof IRJoin jn && jn.type() == JoinType.FULL) {
+                hasFullJoin = true;
+                break;
+            }
+        }
+        if (!hasFullJoin) return statement;
+
+        // Build LEFT JOIN side: FULL → LEFT
+        IRSelect leftSide = replaceJoinType(sel, JoinType.FULL, JoinType.LEFT);
+
+        // Build RIGHT JOIN side: FULL → RIGHT
+        IRSelect rightSide = replaceJoinType(sel, JoinType.FULL, JoinType.RIGHT);
+
+        // Combine with UNION
+        SelectCore unionCore = new SelectCore(
+            leftSide.core().projections(),
+            leftSide.core().from(),
+            leftSide.core().where(),
+            leftSide.core().groupBy(),
+            leftSide.core().having(),
+            leftSide.core().withClause(),
+            SetOp.UNION,
+            rightSide,
+            leftSide.core().distinct()
+        );
+        return new IRSelect(unionCore, leftSide.orderBy(), leftSide.fetch(), sel.capabilities());
+    }
+
+    /** Replace all occurrences of a JOIN type in the FROM tree. */
+    private IRSelect replaceJoinType(IRSelect sel, JoinType from, JoinType to) {
+        List<IRTableRef> newFrom = null;
+        if (sel.core().from() != null) {
+            newFrom = new ArrayList<>();
+            for (var ref : sel.core().from()) {
+                newFrom.add(replaceJoinTypeInRef(ref, from, to));
+            }
+        }
+        SelectCore core = new SelectCore(
+            sel.core().projections(), newFrom,
+            sel.core().where(), sel.core().groupBy(), sel.core().having(),
+            sel.core().withClause(), null, null, sel.core().distinct()
+        );
+        return new IRSelect(core, sel.orderBy(), sel.fetch(), sel.capabilities());
+    }
+
+    private IRTableRef replaceJoinTypeInRef(IRTableRef ref, JoinType from, JoinType to) {
+        return switch (ref) {
+            case IRJoin jn -> {
+                IRTableRef left = replaceJoinTypeInRef(jn.left(), from, to);
+                IRTableRef right = replaceJoinTypeInRef(jn.right(), from, to);
+                JoinType newType = jn.type() == from ? to : jn.type();
+                yield new IRJoin(left, newType, right, jn.onCondition());
+            }
+            case IRSubqueryTable sq -> new IRSubqueryTable(
+                replaceJoinType(sq.query(), from, to), sq.alias());
+            default -> ref;
+        };
     }
 
     /** Convert BOOLEAN references for dialects without native boolean. */
