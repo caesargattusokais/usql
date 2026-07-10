@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 29% (4/14)
+- Phase 5 优化: 36% (5/14)
 
 ---
 
@@ -106,7 +106,7 @@
 | 5.2 | USqlCompiler 单例共享（消除重复实例） | ✅ |
 | 5.3 | WindowFrame 结构化（sealed interface → toSql） | ✅ |
 | 5.4 | `generateFunctionCall` 提取到 AbstractDialectBackend | ✅ |
-| 5.5 | FunctionCatalog YAML 化 | TODO |
+| 5.5 | FunctionCatalog YAML 化 | ✅ |
 | 5.6 | 错误信息优化 | TODO |
 | 5.7 | 单元测试补全 | TODO |
 | 5.8 | `IF NOT EXISTS` 跨库一致 | TODO |
@@ -136,6 +136,15 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.5 FunctionCatalog YAML 化 (59771a9)
+
+- ~110 函数定义从 Java 硬编码迁移到 `functions.yaml`
+- `FunctionCatalog` 构造函数改为 `loadFromYaml()`，用 SnakeYAML 解析
+- 新增 `parseReturnType()` 支持 `INT`/`VARCHAR`/`DATETIME`/`VARCHAR(N)` 等格式
+- 删除 `registerCoreFunctions()` 及所有 helper 方法（`reg`, `regDialect`, `dm`, `allSame`, `dialectMap`）
+- 保留 `FunctionDef`、`DialectMapping`、`PolyfillConfig` 不变
+- Java: 545→117 行（-428），YAML: +646 行
 
 ### 5.4 generateFunctionCall 提取 — 详情
 
