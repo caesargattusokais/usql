@@ -235,7 +235,7 @@ public class SemanticAnalyzer {
         for (var item : subquery.projections()) {
             if (item instanceof ExprItem e) {
                 String name = e.alias() != null ? e.alias() : extractColumnName(e.expr());
-                cols.put(name, inferExpressionType(e.expr()));
+                cols.put(name, TypeInferrer.inferExpressionType(e.expr()));
             }
         }
         return cols;
@@ -333,7 +333,7 @@ public class SemanticAnalyzer {
         IRExpr left = analyzeExpr(bo.left());
         IRExpr right = analyzeExpr(bo.right());
 
-        DataType resultType = inferBinaryResultType(left.getType(), right.getType(), bo.op());
+        DataType resultType = TypeInferrer.inferBinaryResultType(left.getType(), right.getType(), bo.op());
 
         IRBinaryOp.BinaryOp irOp = switch (bo.op()) {
             case ADD  -> IRBinaryOp.BinaryOp.ADD;
@@ -384,7 +384,7 @@ public class SemanticAnalyzer {
 
         DataType returnType = functions.get(fc.name())
             .map(fd -> fd.returnType)
-            .orElseGet(() -> inferFunctionReturnType(fc.name(), args));
+            .orElseGet(() -> TypeInferrer.inferFunctionReturnType(fc.name(), args));
 
         // KEEP clause
         KeepSpec keep = null;
@@ -417,36 +417,6 @@ public class SemanticAnalyzer {
         return new IRFunctionCall(fc.name(), args, returnType, over, keep);
     }
 
-    /**
-     * Infer return type for functions where the catalog has no fixed returnType.
-     */
-    private DataType inferFunctionReturnType(String funcName, List<IRExpr> args) {
-        DataType argType = args.isEmpty() ? new DataType.NullType() : args.get(0).getType();
-        return switch (funcName.toUpperCase()) {
-            // Aggregates
-            case "SUM" -> {
-                if (argType instanceof DataType.FloatType) yield DataType.FloatType.DOUBLE;
-                yield DataType.IntType.BIGINT;
-            }
-            case "AVG", "STDDEV", "VARIANCE" -> DataType.FloatType.DOUBLE;
-            case "COUNT" -> DataType.IntType.BIGINT;
-            case "MIN", "MAX" -> argType instanceof DataType.NullType
-                ? new DataType.NullType() : argType;
-            // String functions
-            case "UPPER", "LOWER", "TRIM", "LTRIM", "RTRIM", "REVERSE",
-                 "LPAD", "RPAD", "REPEAT", "INITCAP", "TRANSLATE" ->
-                new DataType.VarcharType(0);
-            case "CONCAT", "CONCAT_WS" -> new DataType.VarcharType(0);
-            case "SUBSTR", "REPLACE", "SPACE" -> new DataType.VarcharType(0);
-            // Coalesce / NULL handling
-            case "COALESCE", "IFNULL", "NVL", "NULLIF", "IF",
-                 "NVL2", "GREATEST", "LEAST" ->
-                argType instanceof DataType.NullType ? new DataType.NullType() : argType;
-            // Default
-            default -> new DataType.NullType();
-        };
-    }
-
     private IRExpr analyzeCase(CaseExpr cs) {
         List<IRCase.WhenClause> whens = cs.whens().stream()
             .map(w -> new IRCase.WhenClause(analyzeExpr(w.condition()), analyzeExpr(w.result())))
@@ -470,7 +440,7 @@ public class SemanticAnalyzer {
     }
 
     private IRExpr analyzeCast(CastExpr ct) {
-        DataType targetType = parseTypeName(ct.typeName(), ct.precision(), ct.scale());
+        DataType targetType = TypeInferrer.parseTypeName(ct.typeName(), ct.precision(), ct.scale());
         return new IRCast(analyzeExpr(ct.expr()), targetType);
     }
 
@@ -576,7 +546,7 @@ public class SemanticAnalyzer {
         if ("ENUM".equalsIgnoreCase(c.typeName()) && c.enumValues() != null && !c.enumValues().isEmpty()) {
             type = new DataType.EnumType(c.enumValues());
         } else {
-            type = parseTypeName(c.typeName(), c.typePrecision(), c.typeScale());
+            type = TypeInferrer.parseTypeName(c.typeName(), c.typePrecision(), c.typeScale());
         }
         List<IRColumnConstraint> constraints = new ArrayList<>();
         if (c.constraints() != null) {
@@ -632,39 +602,6 @@ public class SemanticAnalyzer {
     // ══════════════════════════════════════════════════
     //  Type inference
     // ══════════════════════════════════════════════════
-
-    private DataType inferExpressionType(Expression expr) {
-        return switch (expr) {
-            case IntLiteral i      -> DataType.IntType.INT;
-            case FloatLiteral f    -> DataType.FloatType.DOUBLE;
-            case StringLiteral s   -> new DataType.VarcharType(s.value().length());
-            case BoolLiteral b     -> new DataType.BooleanType();
-            case NullLiteral n     -> new DataType.NullType();
-            case ColumnRef c       -> new DataType.NullType(); // would need scope lookup
-            case FunctionCall fc   -> new DataType.NullType(); // would need catalog lookup
-            default -> new DataType.NullType();
-        };
-    }
-
-    private DataType inferBinaryResultType(DataType left, DataType right, BinOp op) {
-        // Comparison operations → Boolean
-        return switch (op) {
-            case EQ, NEQ, LT, GT, LTE, GTE, AND, OR, LIKE, NOT_LIKE -> new DataType.BooleanType();
-            // String concat → VARCHAR
-            case CONCAT -> new DataType.VarcharType(0);
-            // Arithmetic → widen to larger type
-            case ADD, SUB, MUL, DIV, MOD -> {
-                if (left instanceof DataType.FloatType || right instanceof DataType.FloatType)
-                    yield DataType.FloatType.DOUBLE;
-                if (left instanceof DataType.DecimalType || right instanceof DataType.DecimalType)
-                    yield new DataType.DecimalType(20, 4);
-                if (left instanceof DataType.IntType li && right instanceof DataType.IntType ri)
-                    yield (li.bits() >= 64 || ri.bits() >= 64)
-                        ? DataType.IntType.BIGINT : DataType.IntType.INT;
-                yield DataType.IntType.INT;
-            }
-        };
-    }
 
     private DataType parseTypeName(String name, int precision, int scale) {
         return switch (name.toUpperCase()) {
