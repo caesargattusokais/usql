@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 86% (12/14)
+- Phase 5 优化: 93% (13/14)
 
 ---
 
@@ -114,7 +114,7 @@
 | 5.10 | IROptimizer 常量折叠 Level 1 实现 | ✅ |
 | 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | ✅ |
 | 5.12 | SemanticVerifier 集成到 CI/编译流程 | ✅ |
-| 5.13 | CapabilityChecker 补全 27 能力分级 | TODO |
+| 5.13 | CapabilityChecker 补全 27 能力分级 | ✅ |
 | 5.14 | SemanticAnalyzer 职责拆分 | TODO |
 
 ### 5.1 KEEP polyfill 提取 (53ee6ba)
@@ -136,6 +136,14 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.13 CapabilityChecker 补全 (a22c86b)
+
+- 27 个能力完整分级: ERROR(1) / WARNING(5) / INFO(14)
+- ERROR: RECURSIVE_CTE（真正无法翻译）
+- WARNING: ARRAY_TYPE, DEFERRABLE_FK, GENERATED_COLUMN, FULL_OUTER_JOIN, WINDOW_FUNCTION
+- INFO: LIMIT_OFFSET, BOOLEAN_TYPE, MERGE_INTO 等 — clean polyfill
+- PolyfillEngine: WINDOW_FUNCTION 标记为 polyfillable
 
 ### 5.12 SemanticVerifier 集成 (979e68b)
 
