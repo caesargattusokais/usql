@@ -169,7 +169,74 @@ public class FunctionCatalogTest {
             pass++;
         }
 
-        System.out.println("\n=== Result: " + pass + "/14 passed ===");
+        // ── 15. All date functions registered ──
+        {
+            for (String fn : new String[]{"CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP",
+                "EXTRACT", "DATE_FORMAT", "DATE_ADD", "DATE_SUB", "DATE_DIFF", "DATEDIFF",
+                "DAY", "MONTH", "YEAR", "QUARTER", "HOUR", "MINUTE", "SECOND",
+                "DAYOFWEEK", "DAYOFMONTH", "DAYOFYEAR", "WEEK", "LAST_DAY", "TO_DATE", "UNIX_TIMESTAMP"}) {
+                check(catalog.get(fn).isPresent(), fn + " is registered");
+            }
+            System.out.println("  ✅ 15. Date functions: 23/23 registered");
+            pass++;
+        }
+
+        // ── 16. All string functions registered ──
+        {
+            for (String fn : new String[]{"UPPER", "LOWER", "TRIM", "LTRIM", "RTRIM",
+                "SUBSTR", "REPLACE", "CONCAT", "LENGTH", "CHAR_LENGTH", "INSTR",
+                "LEFT", "RIGHT", "CONCAT_WS", "REPEAT", "REVERSE", "LPAD", "RPAD",
+                "ASCII", "LOCATE", "TRANSLATE", "CHAR", "SPACE", "INITCAP"}) {
+                check(catalog.get(fn).isPresent(), fn + " is registered");
+            }
+            System.out.println("  ✅ 16. String functions: 24/24 registered");
+            pass++;
+        }
+
+        // ── 17. All numeric functions registered ──
+        {
+            for (String fn : new String[]{"ABS", "ROUND", "CEIL", "CEILING", "FLOOR",
+                "MOD", "POWER", "SQRT", "SIGN", "EXP", "LN", "LOG", "TRUNC", "RAND",
+                "COS", "SIN", "TAN", "ACOS", "ASIN", "ATAN", "ATAN2", "PI",
+                "DEGREES", "RADIANS", "STDDEV", "VARIANCE"}) {
+                check(catalog.get(fn).isPresent(), fn + " is registered");
+            }
+            System.out.println("  ✅ 17. Numeric functions: 26/26 registered");
+            pass++;
+        }
+
+        // ── 18. All conditional functions registered ──
+        {
+            for (String fn : new String[]{"COALESCE", "NULLIF", "NVL", "IFNULL",
+                "GREATEST", "LEAST", "IF", "ISNULL", "NVL2"}) {
+                check(catalog.get(fn).isPresent(), fn + " is registered");
+            }
+            System.out.println("  ✅ 18. Conditional functions: 9/9 registered");
+            pass++;
+        }
+
+        // ── 19. All utility functions registered ──
+        {
+            for (String fn : new String[]{"MD5", "RANDOM", "NOW", "CURDATE", "SYSDATE"}) {
+                check(catalog.get(fn).isPresent(), fn + " is registered");
+            }
+            System.out.println("  ✅ 19. Utility functions: 5/5 registered");
+            pass++;
+        }
+
+        // ── 20. SQL Server overrides present ──
+        {
+            check(catalog.get("LENGTH").get().forDialect(Dialect.SQLSERVER).get()
+                .nativeName().equals("LEN"), "LENGTH→LEN for SQL Server");
+            check(catalog.get("SUBSTR").get().forDialect(Dialect.SQLSERVER).get()
+                .nativeName().equals("SUBSTRING"), "SUBSTR→SUBSTRING for SQL Server");
+            check(catalog.get("NOW").get().forDialect(Dialect.SQLSERVER).get()
+                .nativeName().equals("GETDATE"), "NOW→GETDATE for SQL Server");
+            System.out.println("  ✅ 20. SQL Server overrides verified");
+            pass++;
+        }
+
+        System.out.println("\n=== Result: " + pass + "/20 passed ===");
     }
 
     private static void check(boolean condition, String message) {

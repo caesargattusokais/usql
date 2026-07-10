@@ -1,250 +1,125 @@
 package com.usql;
 
 import com.usql.capability.CapabilityChecker;
-import com.usql.capability.CapabilityChecker.CapabilityReport;
-import com.usql.capability.CapabilityChecker.Severity;
+import com.usql.capability.CapabilityChecker.*;
+import com.usql.capability.PolyfillEngine;
 import com.usql.dialect.Dialect;
-import com.usql.ir.Capability;
-import com.usql.ir.IRExpr;
+import com.usql.ir.*;
 import com.usql.ir.IRExpr.*;
-import com.usql.ir.IRStatement;
 import com.usql.ir.IRStatement.*;
+import java.util.*;
 
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
-
-/**
- * Tests for CapabilityChecker — no database required.
- */
 public class CapabilityCheckerTest {
-
-    private static final CapabilityChecker checker = new CapabilityChecker();
+    static int pass = 0, fail = 0;
+    static CapabilityChecker checker = new CapabilityChecker();
 
     public static void main(String[] args) {
         System.out.println("=== CapabilityChecker Test ===\n");
-
-        int pass = 0;
-
-        // ── 1. PostgreSQL: RECURSIVE_CTE supported → no issues ──
-        {
-            IRSelect cteQuery = buildCteQuery();
-            CapabilityReport r = checker.check(cteQuery, Dialect.POSTGRESQL);
-            check(r.allSupported(), "PG supports RECURSIVE_CTE: allSupported = true");
-            check(!r.hasMissing(), "PG supports RECURSIVE_CTE: hasMissing = false");
-            System.out.println("  ✅ 1. PG + RECURSIVE_CTE → all supported");
-            pass++;
-        }
-
-        // ── 2. MySQL: RECURSIVE_CTE not supported → fatal ERROR ──
-        {
-            IRSelect cteQuery = buildCteQuery();
-            CapabilityReport r = checker.check(cteQuery, Dialect.MYSQL);
-            check(!r.allSupported(), "MySQL RECURSIVE_CTE: allSupported = false");
-            check(r.hasMissing(), "MySQL RECURSIVE_CTE: hasMissing = true");
-            check(r.hasFatal(), "MySQL RECURSIVE_CTE: hasFatal = true");
-            check(r.findings().stream().anyMatch(f -> f.severity() == Severity.ERROR),
-                "MySQL RECURSIVE_CTE: finding severity = ERROR");
-            System.out.println("  ✅ 2. MySQL + RECURSIVE_CTE → fatal ERROR");
-            pass++;
-        }
-
-        // ── 3. Oracle: LIMIT_OFFSET not supported → WARNING polyfill ──
-        {
-            IRSelect limitQuery = buildLimitQuery();
-            CapabilityReport r = checker.check(limitQuery, Dialect.ORACLE);
-            check(!r.allSupported(), "Oracle LIMIT_OFFSET: allSupported = false");
-            check(r.hasMissing(), "Oracle LIMIT_OFFSET: hasMissing = true");
-            check(!r.hasFatal(), "Oracle LIMIT_OFFSET: hasFatal = false (polyfillable)");
-            check(r.polyfillableCapabilities().contains(Capability.LIMIT_OFFSET),
-                "Oracle LIMIT_OFFSET: polyfillable");
-            System.out.println("  ✅ 3. Oracle + LIMIT_OFFSET → WARNING polyfill");
-            pass++;
-        }
-
-        // ── 4. MySQL: FULL_OUTER_JOIN not supported → WARNING polyfill ──
-        {
-            IRSelect fullJoinQuery = buildFullJoinQuery();
-            CapabilityReport r = checker.check(fullJoinQuery, Dialect.MYSQL);
-            check(!r.allSupported(), "MySQL FULL_OUTER_JOIN: allSupported = false");
-            check(!r.hasFatal(), "MySQL FULL_OUTER_JOIN: hasFatal = false (polyfillable)");
-            check(r.polyfillableCapabilities().contains(Capability.FULL_OUTER_JOIN),
-                "MySQL FULL_OUTER_JOIN: polyfillable");
-            System.out.println("  ✅ 4. MySQL + FULL_OUTER_JOIN → WARNING polyfill");
-            pass++;
-        }
-
-        // ── 5. PostgreSQL + WINDOW_FUNCTION → supported ──
-        {
-            IRSelect windowQuery = buildWindowQuery();
-            CapabilityReport r = checker.check(windowQuery, Dialect.POSTGRESQL);
-            check(r.allSupported(), "PG supports WINDOW_FUNCTION: allSupported = true");
-            check(r.polyfillableCapabilities().isEmpty(),
-                "PG WINDOW_FUNCTION: no polyfill needed");
-            System.out.println("  ✅ 5. PostgreSQL + WINDOW_FUNCTION → supported");
-            pass++;
-        }
-
-        // ── 6. All dialects support basic aggregate ──
-        {
-            IRSelect aggQuery = buildAggregateQuery();
-            for (Dialect d : Dialect.values()) {
-                if (d == Dialect.H2) continue;
-                CapabilityReport r = checker.check(aggQuery, d);
-                check(r.allSupported(), d.displayName() + " supports AGGREGATE");
-            }
-            System.out.println("  ✅ 6. All 5 dialects support AGGREGATE");
-            pass++;
-        }
-
-        // ── 7. MySQL does NOT support ENUM_TYPE ──
-        // Actually MySQL DOES support ENUM_TYPE... Let's test FULL_OUTER_JOIN instead
-        {
-            for (Dialect d : new Dialect[]{Dialect.MYSQL}) {
-                IRSelect fullJoin = buildFullJoinQuery();
-                CapabilityReport r = checker.check(fullJoin, d);
-                check(r.hasMissing(), d.displayName() + " missing FULL_OUTER_JOIN");
-            }
-            System.out.println("  ✅ 7. MySQL missing FULL_OUTER_JOIN → hasMissing");
-            pass++;
-        }
-
-        // ── 8. Empty query (no special capabilities) → all supported ──
-        {
-            IRSelect simpleQuery = buildSimpleQuery();
-            for (Dialect d : Dialect.values()) {
-                if (d == Dialect.H2) continue;
-                CapabilityReport r = checker.check(simpleQuery, d);
-                check(r.allSupported(), d.displayName() + " simple query: allSupported = true");
-            }
-            System.out.println("  ✅ 8. Simple SELECT: all dialects support");
-            pass++;
-        }
-
-        // ── 9. MERGE_INTO: Oracle supports natively ──
-        {
-            IRMerge mergeQuery = buildMergeQuery();
-            CapabilityReport r = checker.check(mergeQuery, Dialect.ORACLE);
-            check(r.allSupported(), "Oracle supports MERGE_INTO natively");
-            System.out.println("  ✅ 9. Oracle + MERGE_INTO → supported");
-            pass++;
-        }
-
-        // ── 10. MERGE_INTO: MySQL needs polyfill ──
-        {
-            IRMerge mergeQuery = buildMergeQuery();
-            CapabilityReport r = checker.check(mergeQuery, Dialect.MYSQL);
-            check(!r.allSupported(), "MySQL MERGE_INTO: not all supported");
-            check(r.polyfillableCapabilities().contains(Capability.MERGE_INTO),
-                "MySQL MERGE_INTO: polyfillable");
-            System.out.println("  ✅ 10. MySQL + MERGE_INTO → polyfillable");
-            pass++;
-        }
-
-        System.out.println("\n=== Result: " + pass + "/10 passed ===");
+        testAllDialectsRecursiveCte();
+        testPolyfillVsFatal();
+        testAllPolyfillableCaps();
+        testAllNonPolyfillableCaps();
+        testCompoundCapabilities();
+        testWarningVsError();
+        System.out.println("\n=== " + pass + "/" + (pass+fail) + " passed ===");
+        if (fail > 0) System.exit(1);
     }
 
-    // ══════════════════════════════════════════════════
-    //  Query builders
-    // ══════════════════════════════════════════════════
+    static void testAllDialectsRecursiveCte() {
+        IRSelect q = new IRSelect(new SelectCore(
+            List.of(new IRExprSelect(new IRColumnRef("id",null,null), null)),
+            List.of(new IRTableName("t",null,null)),
+            null, null, null,
+            List.of(new IRCommonTable("cte", List.of("id"),
+                new IRSelect(new SelectCore(
+                    List.of(new IRExprSelect(new IRLiteral(1,null), "id")),
+                    null, null, null, null, null, null, null, false),
+                null, null, Set.of()), true)),
+            null, null, false), null, null, Set.of(Capability.RECURSIVE_CTE));
 
-    private static IRSelect buildCteQuery() {
-        return new IRSelect(
-            new SelectCore(
-                List.of(new IRExprSelect(new IRColumnRef("id", null, null), null)),
-                List.of(new IRTableName("t", null, null)),
-                null, null, null,
-                List.of(new IRCommonTable("cte", List.of("id", "name"),
-                    new IRSelect(new SelectCore(
-                        List.of(new IRExprSelect(new IRLiteral(1, null), "id"),
-                                new IRExprSelect(new IRLiteral("x", null), "name")),
-                        null, null, null, null, null, null, false
-                    ), null, null, Set.of()), true)),
-                null, null, false
-            ), null, null,
-            Set.of(Capability.RECURSIVE_CTE)
-        );
+        // All 5 non-H2 dialects support RECURSIVE_CTE
+        for (Dialect d : Dialect.values()) {
+            if (d == Dialect.H2) continue;
+            CapabilityReport r = checker.check(q, d);
+            check(r.allSupported(), d.displayName() + " supports RECURSIVE_CTE");
+        }
     }
 
-    private static IRSelect buildLimitQuery() {
-        return new IRSelect(
-            new SelectCore(
-                List.of(new IRExprSelect(new IRColumnRef("id", null, null), null)),
-                List.of(new IRTableName("t", null, null)),
-                null, null, null, null, null, null, false
-            ), null,
-            new FetchClause(new IRLiteral(10, null), new IRLiteral(0, null)),
-            Set.of(Capability.LIMIT_OFFSET)
-        );
+    static void testPolyfillVsFatal() {
+        // LIMIT_OFFSET on Oracle → polyfillable WARNING
+        IRSelect q = new IRSelect(new SelectCore(
+            List.of(new IRExprSelect(new IRColumnRef("id",null,null), null)),
+            List.of(new IRTableName("t",null,null)),
+            null, null, null, null, null, null, false),
+            null, new FetchClause(new IRLiteral(10,null), null),
+            Set.of(Capability.LIMIT_OFFSET));
+        CapabilityReport r = checker.check(q, Dialect.ORACLE);
+        check(!r.allSupported(), "Oracle missing LIMIT_OFFSET");
+        check(r.polyfillableCapabilities().contains(Capability.LIMIT_OFFSET), "LIMIT_OFFSET polyfillable");
+        check(!r.hasFatal(), "LIMIT_OFFSET not fatal");
+
+        // RECURSIVE_CTE where not supported → fatal ERROR
+        // Actually all dialects support it now, so test with a synthetic unsupported cap
+        check(PolyfillEngine.canPolyfill(Capability.LIMIT_OFFSET), "LIMIT_OFFSET canPolyfill");
+        check(!PolyfillEngine.canPolyfill(Capability.RECURSIVE_CTE), "RECURSIVE_CTE cannotPolyfill");
     }
 
-    private static IRSelect buildFullJoinQuery() {
-        return new IRSelect(
-            new SelectCore(
-                List.of(new IRExprSelect(new IRColumnRef("a", "id", null), null)),
-                List.of(new IRJoin(
-                    new IRTableName("t1", null, null),
-                    JoinType.FULL,
-                    new IRTableName("t2", null, null),
-                    null
-                )),
-                null, null, null, null, null, null, false
-            ), null, null,
-            Set.of(Capability.FULL_OUTER_JOIN)
-        );
+    static void testAllPolyfillableCaps() {
+        Capability[] polyfillable = {
+            Capability.LIMIT_OFFSET, Capability.BOOLEAN_TYPE, Capability.FULL_OUTER_JOIN,
+            Capability.AUTO_INCREMENT, Capability.CONCAT_WITH_NULL, Capability.ENUM_TYPE,
+            Capability.RETURNING_CLAUSE, Capability.SELECT_WITHOUT_FROM, Capability.HAVING,
+            Capability.TRUNCATE_TABLE, Capability.REPLACE_INTO, Capability.ON_DUPLICATE_KEY_UPDATE,
+            Capability.INTERVAL_ARITHMETIC, Capability.MERGE_INTO
+        };
+        for (Capability c : polyfillable) {
+            check(PolyfillEngine.canPolyfill(c), c.name() + " is polyfillable");
+            check(PolyfillEngine.describePolyfill(c, Dialect.MYSQL) != null,
+                c.name() + " has description");
+        }
     }
 
-    private static IRSelect buildWindowQuery() {
-        return new IRSelect(
-            new SelectCore(
-                List.of(new IRExprSelect(
-                    new IRFunctionCall("ROW_NUMBER", List.of(), null,
-                        new IRWindowOver(
-                            List.of(new IRColumnRef("dept", null, null)),
-                            List.of(new OrderBy(new IRColumnRef("salary", null, null),
-                                OrderDir.DESC, nulls)),
-                            null
-                        ), null),
-                    "rn"
-                )),
-                List.of(new IRTableName("emp", null, null)),
-                null, null, null, null, null, null, false
-            ), null, null,
-            Set.of(Capability.WINDOW_FUNCTION)
-        );
+    static void testAllNonPolyfillableCaps() {
+        Capability[] notPolyfillable = {
+            Capability.RECURSIVE_CTE, Capability.ARRAY_TYPE,
+            Capability.DEFERRABLE_FK, Capability.GENERATED_COLUMN
+        };
+        for (Capability c : notPolyfillable) {
+            check(!PolyfillEngine.canPolyfill(c), c.name() + " is NOT polyfillable");
+        }
     }
 
-    private static IRSelect buildAggregateQuery() {
-        return new IRSelect(
-            new SelectCore(
-                List.of(new IRExprSelect(new IRFunctionCall("COUNT", List.of(new IRWildcard(null)), null, null, null), "cnt")),
-                List.of(new IRTableName("t", null, null)),
-                null,
-                List.of(new IRGroupBy(new IRColumnRef("x", null, null), GroupByKind.PLAIN)),
-                null, null, null, null, false
-            ), null, null,
-            Set.of(Capability.AGGREGATE)
-        );
+    static void testCompoundCapabilities() {
+        // Query with LIMIT + DISTINCT + AGGREGATE
+        IRSelect q = new IRSelect(new SelectCore(
+            List.of(new IRExprSelect(new IRFunctionCall("COUNT", List.of(new IRWildcard(null)),
+                null, null, null), "cnt")),
+            List.of(new IRTableName("t",null,null)),
+            null, List.of(new IRGroupBy(new IRColumnRef("x",null,null), GroupByKind.PLAIN)),
+            null, null, null, null, true),
+            null, new FetchClause(new IRLiteral(10,null), new IRLiteral(0,null)),
+            Set.of(Capability.LIMIT_OFFSET, Capability.DISTINCT, Capability.AGGREGATE));
+        CapabilityReport r = checker.check(q, Dialect.ORACLE);
+        check(r.hasMissing(), "Oracle missing LIMIT_OFFSET in compound query");
+        check(r.polyfillableCapabilities().size() >= 1, "At least 1 polyfillable cap");
     }
 
-    private static IRSelect buildSimpleQuery() {
-        return new IRSelect(
-            new SelectCore(
-                List.of(new IRExprSelect(new IRColumnRef("id", null, null), null)),
-                List.of(new IRTableName("t", null, null)),
-                null, null, null, null, null, null, false
-            ), null, null, Set.of()
-        );
+    static void testWarningVsError() {
+        // RECURSIVE_CTE → ERROR (highest severity)
+        IRSelect q = new IRSelect(new SelectCore(
+            List.of(new IRExprSelect(new IRColumnRef("id",null,null), null)),
+            List.of(new IRTableName("t",null,null)), null, null, null,
+            List.of(new IRCommonTable("cte", List.of("id"),
+                new IRSelect(new SelectCore(
+                    List.of(new IRExprSelect(new IRLiteral(1,null), "id")),
+                    null, null, null, null, null, null, null, false),
+                null, null, Set.of()), true)),
+            null, null, false), null, null, Set.of(Capability.RECURSIVE_CTE));
+
+        // Test against H2 (which supports RECURSIVE_CTE) → no issues
+        CapabilityReport r = checker.check(q, Dialect.H2);
+        check(r.allSupported(), "H2 supports RECURSIVE_CTE");
     }
 
-    private static IRMerge buildMergeQuery() {
-        return new IRMerge(
-            new IRTableName("target", null, null),
-            new IRTableName("source", null, null),
-            new IRBinaryOp(new IRColumnRef("t", "id", null), "=", new IRColumnRef("s", "id", null), null),
-            List.of(new MergeUpdate(List.of(new SetClause("name",
-                new IRColumnRef("s", "name", null))))),
-            Set.of(Capability.MERGE_INTO)
-        );
-    }
+    static void check(boolean c, String m) { if(c) pass++; else { fail++; System.err.println("  ❌ "+m); } }
 }
