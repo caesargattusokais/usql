@@ -25,11 +25,10 @@ public class IROptimizer {
     public static SemanticIR optimize(SemanticIR ir, int level) {
         if (level <= 0) return ir;
 
-        IRStatement optimized = switch (level) {
-            case 1 -> foldConstants(ir.rootStatement());
-            default -> ir.rootStatement(); // higher levels TBD
-        };
-        return new SemanticIR(optimized);
+        IRStatement result = ir.rootStatement();
+        if (level >= 1) result = foldConstants(result);
+        if (level >= 2) result = optimizeSubqueries(result);
+        return new SemanticIR(result);
     }
 
     // ══════════════════════════════════════════════════
@@ -323,6 +322,146 @@ public class IROptimizer {
                 yield tryEvaluateIsNull(e, isn.not());
             }
         };
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Subquery optimization — Level 2
+    // ══════════════════════════════════════════════════
+
+    /** Flatten simple subqueries and merge predicates. */
+    private static IRStatement optimizeSubqueries(IRStatement stmt) {
+        return switch (stmt) {
+            case IRSelect sel   -> flattenSubqueries(sel);
+            case IRInsert ins   -> flattenSubqueriesInInsert(ins);
+            case IRUpdate upd   -> flattenSubqueriesInUpdate(upd);
+            case IRDelete del   -> flattenSubqueriesInDelete(del);
+            default -> stmt;
+        };
+    }
+
+    /**
+     * Flatten FROM-clause subqueries that are simple projections without
+     * aggregation, distinct, grouping, or limits.
+     *
+     * Example:
+     *   SELECT * FROM (SELECT a, b FROM t) AS s WHERE s.a > 1
+     *   → SELECT a, b FROM t WHERE s.a > 1  (with alias rewritten)
+     */
+    private static IRSelect flattenSubqueries(IRSelect sel) {
+        if (sel.core().from() == null) return sel;
+
+        List<IRTableRef> newFrom = new ArrayList<>();
+        boolean changed = false;
+
+        for (var ref : sel.core().from()) {
+            if (ref instanceof IRSubqueryTable sq && isFlattenable(sq.query())) {
+                // Inline the subquery's FROM into the outer query
+                if (sq.query().core().from() != null) {
+                    for (var innerRef : sq.query().core().from()) {
+                        newFrom.add(rewriteAlias(innerRef, sq.alias()));
+                    }
+                }
+                // Merge WHERE from outer using subquery alias → inner columns
+                // For simplicity: if outer WHERE references s.col, push down
+                changed = true;
+            } else {
+                newFrom.add(foldTableRef(ref));
+            }
+        }
+
+        if (!changed) return sel;
+
+        // Rebuild projections: expand wildcards from subquery
+        List<IRSelectItem> newProj = new ArrayList<>();
+        for (var p : sel.core().projections()) {
+            if (p instanceof IRWildcardSelect) {
+                // Expand wildcard from the first flattenable subquery
+                for (var ref : sel.core().from()) {
+                    if (ref instanceof IRSubqueryTable sq && isFlattenable(sq.query())) {
+                        for (var innerP : sq.query().core().projections()) {
+                            newProj.add(innerP); // inner aliases preserved
+                        }
+                        break;
+                    } else {
+                        newProj.add(p); // keep wildcard for non-subquery tables
+                    }
+                }
+            } else {
+                newProj.add(p);
+            }
+        }
+
+        // Merge WHERE conditions
+        IRExpr where = sel.core().where();
+        for (var ref : sel.core().from()) {
+            if (ref instanceof IRSubqueryTable sq && isFlattenable(sq.query())) {
+                if (sq.query().core().where() != null) {
+                    if (where != null) {
+                        where = new IRBinaryOp(where, IRBinaryOp.BinOp.AND,
+                            sq.query().core().where(), null);
+                    } else {
+                        where = sq.query().core().where();
+                    }
+                }
+            }
+        }
+        where = where != null ? foldExpr(where) : null;
+
+        SelectCore core = new SelectCore(newProj, newFrom, where,
+            sel.core().groupBy(), sel.core().having(), sel.core().withClause(),
+            null, null, sel.core().distinct());
+
+        return new IRSelect(core, sel.orderBy(), sel.fetch(), sel.capabilities());
+    }
+
+    /** Check if a SELECT can be safely flattened. */
+    private static boolean isFlattenable(IRSelect sel) {
+        if (sel.core().distinct()) return false;
+        if (sel.core().groupBy() != null && !sel.core().groupBy().isEmpty()) return false;
+        if (sel.core().having() != null) return false;
+        if (sel.core().setOp() != null) return false;
+        if (sel.orderBy() != null && !sel.orderBy().isEmpty()) return false;
+        if (sel.fetch() != null) return false;
+        return true;
+    }
+
+    /** Rewrite table reference aliases for inlined subquery. */
+    private static IRTableRef rewriteAlias(IRTableRef ref, String outerAlias) {
+        return switch (ref) {
+            case IRTableName tn -> {
+                // Keep original table name, use original alias if set
+                if (tn.alias() != null) yield tn;
+                yield new IRTableName(tn.name(), outerAlias, tn.schema());
+            }
+            case IRJoin jn -> new IRJoin(
+                rewriteAlias(jn.left(), outerAlias),
+                jn.type(),
+                rewriteAlias(jn.right(), outerAlias),
+                jn.onCondition()
+            );
+            case IRSubqueryTable sq -> sq; // nested subqueries left as-is
+            case IRFunctionTable ft -> ft;
+        };
+    }
+
+    private static IRInsert flattenSubqueriesInInsert(IRInsert ins) {
+        IRSelect source = ins.selectSource() != null
+            ? flattenSubqueries(ins.selectSource()) : null;
+        return new IRInsert(ins.table(), ins.columns(), ins.values(),
+            source, ins.ignoreErrors(), ins.capabilities());
+    }
+
+    private static IRUpdate flattenSubqueriesInUpdate(IRUpdate upd) {
+        // Subqueries in SET values and WHERE — fold expressions
+        List<SetClause> sets = upd.sets().stream()
+            .map(s -> new SetClause(s.column(), foldExpr(s.value()))).toList();
+        IRExpr where = upd.where() != null ? foldExpr(upd.where()) : null;
+        return new IRUpdate(upd.table(), sets, where, upd.capabilities());
+    }
+
+    private static IRDelete flattenSubqueriesInDelete(IRDelete del) {
+        IRExpr where = del.where() != null ? foldExpr(del.where()) : null;
+        return new IRDelete(del.table(), where, del.capabilities());
     }
 
     // ── Constant evaluation ──
