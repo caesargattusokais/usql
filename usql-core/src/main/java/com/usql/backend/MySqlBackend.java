@@ -282,54 +282,6 @@ public class MySqlBackend extends AbstractDialectBackend {
         };
     }
 
-    private String generateFunctionCall(IRFunctionCall fc, GenerateOptions opt) {
-        List<String> argList = fc.args().stream()
-            .map(a -> generateExpr(a, opt))
-            .collect(Collectors.toList());
-        String argsStr = String.join(", ", argList);
-
-        // KEEP polyfill — use FIRST_VALUE/LAST_VALUE window function
-        if (fc.keep() != null) {
-            return polyfillKeep(fc, argsStr);
-        }
-
-        String result;
-        if (functionCatalog != null) {
-            var def = functionCatalog.get(fc.funcName());
-            if (def.isPresent()) {
-                var mapping = def.get().forDialect(Dialect.MYSQL);
-                if (mapping.isPresent()) {
-                    String tpl = mapping.get().renderTemplate();
-                    if (tpl != null) {
-                        result = tpl;
-                        for (int i = 0; i < argList.size(); i++)
-                            result = result.replace("{" + i + "}", argList.get(i));
-                    } else {
-                        result = mapping.get().nativeName() + "(" + argsStr + ")";
-                    }
-                } else { result = fc.funcName() + "(" + argsStr + ")"; }
-            } else { result = fc.funcName() + "(" + argsStr + ")"; }
-        } else { result = fc.funcName() + "(" + argsStr + ")"; }
-
-        if (fc.over() != null) {
-            result += " OVER (";
-            var over = fc.over();
-            if (over.partitionBy() != null && !over.partitionBy().isEmpty()) {
-                result += "PARTITION BY " + over.partitionBy().stream()
-                    .map(e -> generateExpr(e, opt)).collect(Collectors.joining(", "));
-            }
-            if (over.orderBy() != null && !over.orderBy().isEmpty()) {
-                if (over.partitionBy() != null && !over.partitionBy().isEmpty()) result += " ";
-                result += "ORDER BY " + over.orderBy().stream()
-                    .map(o -> generateExpr(o.expr(), opt) + (o.dir() == IRStatement.OrderDir.DESC ? " DESC" : " ASC"))
-                    .collect(Collectors.joining(", "));
-            }
-            if (over.frame() != null) result += " " + over.frame().toSql();
-            result += ")";
-        }
-        return result;
-    }
-
     private String generateCase(IRCase cs, GenerateOptions opt) {
         var sb = new StringBuilder("CASE");
         for (var when : cs.whens()) {

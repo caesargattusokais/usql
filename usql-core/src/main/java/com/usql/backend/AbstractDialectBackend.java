@@ -90,6 +90,68 @@ public abstract class AbstractDialectBackend implements DialectBackend {
     }
 
     // ══════════════════════════════════════════════════
+    //  Shared function call generation
+    // ══════════════════════════════════════════════════
+
+    /**
+     * Catalog lookup + template rendering + OVER clause.
+     * Shared by all dialects — the only difference is which Dialect
+     * is passed to {@code forDialect()}, resolved via {@link #targetDialect()}.
+     */
+    protected String resolveFunctionCall(String funcName, List<String> argList, String argsStr,
+                                          IRWindowOver over, GenerateOptions opt) {
+        String result;
+        if (functionCatalog != null) {
+            var def = functionCatalog.get(funcName);
+            if (def.isPresent()) {
+                var mapping = def.get().forDialect(targetDialect());
+                if (mapping.isPresent()) {
+                    String tpl = mapping.get().renderTemplate();
+                    if (tpl != null) {
+                        result = tpl;
+                        for (int i = 0; i < argList.size(); i++)
+                            result = result.replace("{" + i + "}", argList.get(i));
+                    } else {
+                        result = mapping.get().nativeName() + "(" + argsStr + ")";
+                    }
+                } else { result = funcName + "(" + argsStr + ")"; }
+            } else { result = funcName + "(" + argsStr + ")"; }
+        } else { result = funcName + "(" + argsStr + ")"; }
+
+        if (over != null) {
+            result += " OVER (";
+            if (over.partitionBy() != null && !over.partitionBy().isEmpty()) {
+                result += "PARTITION BY " + over.partitionBy().stream()
+                    .map(e -> generateExpr(e, opt)).collect(Collectors.joining(", "));
+            }
+            if (over.orderBy() != null && !over.orderBy().isEmpty()) {
+                if (over.partitionBy() != null && !over.partitionBy().isEmpty()) result += " ";
+                result += "ORDER BY " + over.orderBy().stream()
+                    .map(o -> generateExpr(o.expr(), opt) + (o.dir() == OrderDir.DESC ? " DESC" : " ASC"))
+                    .collect(Collectors.joining(", "));
+            }
+            if (over.frame() != null) result += " " + over.frame().toSql();
+            result += ")";
+        }
+        return result;
+    }
+
+    /**
+     * Generate SQL for a function call.
+     * Default implementation handles KEEP via polyfill (MySQL/PG/DM/SQL Server).
+     * Oracle overrides for native KEEP syntax.
+     */
+    protected String generateFunctionCall(IRFunctionCall fc, GenerateOptions opt) {
+        List<String> argList = fc.args().stream()
+            .map(a -> generateExpr(a, opt))
+            .collect(Collectors.toList());
+        String argsStr = String.join(", ", argList);
+
+        if (fc.keep() != null) return polyfillKeep(fc, argsStr);
+        return resolveFunctionCall(fc.funcName(), argList, argsStr, fc.over(), opt);
+    }
+
+    // ══════════════════════════════════════════════════
     //  Abstract methods — each dialect provides these
     // ══════════════════════════════════════════════════
 
