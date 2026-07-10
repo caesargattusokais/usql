@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 36% (5/14)
+- Phase 5 优化: 43% (6/14)
 
 ---
 
@@ -107,7 +107,7 @@
 | 5.3 | WindowFrame 结构化（sealed interface → toSql） | ✅ |
 | 5.4 | `generateFunctionCall` 提取到 AbstractDialectBackend | ✅ |
 | 5.5 | FunctionCatalog YAML 化 | ✅ |
-| 5.6 | 错误信息优化 | TODO |
+| 5.6 | 错误信息优化 | ✅ |
 | 5.7 | 单元测试补全 | TODO |
 | 5.8 | `IF NOT EXISTS` 跨库一致 | TODO |
 | 5.9 | 类型推导缺失修复 | TODO |
@@ -136,6 +136,15 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.6 错误信息优化 (67a62f2)
+
+- `CompilationResult.Warning` 添加 hint 字段（与 Error 对齐），`report()` 输出 hint
+- `SemanticAnalyzer` 错误添加 actionable hint（未知表达式、未知别名建议可用 scope）
+- 5 个 Backend fallback 错误从 `"Unknown: Xxx"` 改为列出支持的语句/表达式类型
+- `CapabilityChecker` 消息包含 feature 名称和方言名
+- `FunctionCatalog` YAML 错误包含文件名
+- 9 files, +60/-19
 
 ### 5.5 FunctionCatalog YAML 化 (59771a9)
 
