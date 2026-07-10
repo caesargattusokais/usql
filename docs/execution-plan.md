@@ -272,7 +272,10 @@
 | IROptimizer | 常量折叠 / 子查询扁平 | 11 |
 | TypeInferrer | 类型推导 / 函数返回 | 21 |
 | TestDataGenerator | 测试数据自动生成 | 4 |
-| **总计** | | **460** |
+| SemanticAnalyzer | 解析/WHERE/GROUP BY/CTE/窗口/CAST | 10 |
+| PolyfillEngine | FULL JOIN polyfill + canPolyfill | 12 |
+| CompilationResult | 错误/警告/报告/hint | 25 |
+| **总计** | | **507** |
 
 ---
 
