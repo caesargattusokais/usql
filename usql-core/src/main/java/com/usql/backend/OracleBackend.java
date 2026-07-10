@@ -1,6 +1,5 @@
 package com.usql.backend;
 
-import com.usql.catalog.FunctionCatalog;
 import com.usql.dialect.Dialect;
 import com.usql.ir.*;
 import com.usql.ir.IRExpr.*;
@@ -17,12 +16,7 @@ import java.util.stream.Collectors;
  *   - Identifiers use double-quotes
  *   - VARCHAR → VARCHAR2
  */
-public class OracleBackend implements DialectBackend {
-
-    private FunctionCatalog functionCatalog;
-
-    @Override
-    public void setFunctionCatalog(FunctionCatalog catalog) { this.functionCatalog = catalog; }
+public class OracleBackend extends AbstractDialectBackend {
 
     @Override
     public Dialect targetDialect() { return Dialect.ORACLE; }
@@ -231,7 +225,7 @@ public class OracleBackend implements DialectBackend {
     //  Expressions
     // ══════════════════════════════════════════════════
 
-    private String generateExpr(IRExpr expr, GenerateOptions opt) {
+    protected String generateExpr(IRExpr expr, GenerateOptions opt) {
         return switch (expr) {
             case IRLiteral lit -> generateLiteral(lit);
             case IRColumnRef col -> {
@@ -268,6 +262,7 @@ public class OracleBackend implements DialectBackend {
 
     private String generateLiteral(IRLiteral lit) {
         if (lit.value() == null) return "NULL";
+        if (lit.type() == null) return lit.value().toString();
         return switch (lit.type()) {
             case DataType.IntType i     -> lit.value().toString();
             case DataType.FloatType f   -> lit.value().toString();

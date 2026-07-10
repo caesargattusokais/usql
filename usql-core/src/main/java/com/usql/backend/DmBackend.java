@@ -237,6 +237,7 @@ public class DmBackend extends AbstractDialectBackend {
 
     private String generateLiteral(IRLiteral lit) {
         if (lit.value() == null) return "NULL";
+        if (lit.type() == null) return lit.value().toString();
         return switch (lit.type()) {
             case DataType.IntType i     -> lit.value().toString();
             case DataType.FloatType f   -> lit.value().toString();

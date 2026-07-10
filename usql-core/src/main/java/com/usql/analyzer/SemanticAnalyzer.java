@@ -385,9 +385,10 @@ public class SemanticAnalyzer {
             args = List.of(new IRWildcard(null));
         }
 
+        final List<IRExpr> finalArgs = args;
         DataType returnType = functions.get(fc.name())
             .map(fd -> fd.returnType)
-            .orElseGet(() -> TypeInferrer.inferFunctionReturnType(fc.name(), args));
+            .orElseGet(() -> TypeInferrer.inferFunctionReturnType(fc.name(), finalArgs));
 
         // KEEP clause
         KeepSpec keep = null;

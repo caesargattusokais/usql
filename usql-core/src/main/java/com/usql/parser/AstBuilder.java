@@ -838,7 +838,7 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         List<Expression> args = new ArrayList<>();
         if (ctx.expr() != null) {
             for (var e : ctx.expr()) {
-                args.add(visitExpr(e));
+                args.add((Expression) visit(e));
             }
         }
         return new CallStmt(name, args);
@@ -856,13 +856,10 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
 
     private DataTypeDecl parseDataType(USqlParser.DataTypeContext ctx) {
         String name = ctx.getChild(0).getText();
-        int precision = 0, scale = 0;
-        if (ctx.NUMBER() != null && ctx.NUMBER().size() >= 1) {
-            precision = Integer.parseInt(ctx.NUMBER(0).getText());
-        }
-        if (ctx.NUMBER() != null && ctx.NUMBER().size() >= 2) {
-            scale = Integer.parseInt(ctx.NUMBER(1).getText());
-        }
+        int precision = ctx.precision != null
+            ? Integer.parseInt(ctx.precision.getText()) : 0;
+        int scale = ctx.scale != null
+            ? Integer.parseInt(ctx.scale.getText()) : 0;
         return new DataTypeDecl(name, precision, scale);
     }
 

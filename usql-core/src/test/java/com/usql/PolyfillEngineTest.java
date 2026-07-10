@@ -32,10 +32,10 @@ public class PolyfillEngineTest {
         // Build FULL OUTER JOIN query
         IRJoin fullJoin = new IRJoin(
             new IRTableName("t1", null, null),
-            JoinType.FULL,
+            IRStatement.JoinType.FULL,
             new IRTableName("t2", null, null),
             new IRBinaryOp(
-                new IRColumnRef("t1", "id", null), IRBinaryOp.BinOp.EQ,
+                new IRColumnRef("t1", "id", null), IRBinaryOp.BinaryOp.EQ,
                 new IRColumnRef("t2", "id", null), null));
 
         IRSelect query = new IRSelect(
@@ -60,7 +60,7 @@ public class PolyfillEngineTest {
         // Should become UNION of LEFT and RIGHT
         check(result instanceof IRSelect, "Result is IRSelect");
         IRSelect sel = (IRSelect) result;
-        check(sel.core().setOp() == SetOp.UNION, "FULL JOIN → UNION");
+        check(sel.core().setOp() == IRStatement.SetOp.UNION, "FULL JOIN → UNION");
         check(sel.core().setOperand() != null, "Has right-side operand");
 
         System.out.println("  ✅ FULL OUTER JOIN polyfill: creates UNION with LEFT+RIGHT arms");

@@ -45,8 +45,11 @@ public class IROptimizer {
             case IRUpdate upd   -> foldUpdate(upd);
             case IRDelete del   -> foldDelete(del);
             case IRMerge merge  -> foldMerge(merge);
-            case IRCreateTable ct -> foldCreateTable(ct);
-            case IRCreateIndex ci  -> foldCreateIndex(ci);
+            case IRCreateTable ct      -> foldCreateTable(ct);
+            case IRCreateIndex ci       -> foldCreateIndex(ci);
+            case IRCreateProcedure cp   -> cp;
+            case IRCreateFunction cf    -> cf;
+            case IRCall call            -> call;
         };
     }
 
@@ -397,7 +400,7 @@ public class IROptimizer {
             if (ref instanceof IRSubqueryTable sq && isFlattenable(sq.query())) {
                 if (sq.query().core().where() != null) {
                     if (where != null) {
-                        where = new IRBinaryOp(where, IRBinaryOp.BinOp.AND,
+                        where = new IRBinaryOp(where, IRBinaryOp.BinaryOp.AND,
                             sq.query().core().where(), null);
                     } else {
                         where = sq.query().core().where();
@@ -466,7 +469,7 @@ public class IROptimizer {
 
     // ── Constant evaluation ──
 
-    private static IRExpr tryEvaluateBinary(IRExpr left, IRBinaryOp.BinOp op, IRExpr right) {
+    private static IRExpr tryEvaluateBinary(IRExpr left, IRBinaryOp.BinaryOp op, IRExpr right) {
         if (!(left instanceof IRLiteral lv) || !(right instanceof IRLiteral rv)) {
             return new IRBinaryOp(left, op, right, null);
         }
@@ -572,8 +575,9 @@ public class IROptimizer {
     }
 
     private static IRExpr tryEvaluateIsNull(IRExpr expr, boolean not) {
-        if (expr instanceof IRLiteral lit && lit.value() == null) {
-            return new IRLiteral(!not, null);
+        if (expr instanceof IRLiteral lit) {
+            if (lit.value() == null) return new IRLiteral(!not, null);
+            else return new IRLiteral(not, null); // non-null IS NULL → false, IS NOT NULL → true
         }
         return new IRIsNull(expr, not, expr.getType());
     }

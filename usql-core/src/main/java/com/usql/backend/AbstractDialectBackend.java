@@ -159,14 +159,8 @@ public abstract class AbstractDialectBackend implements DialectBackend {
         var sb = new StringBuilder("CREATE ");
         if (cp.orReplace()) sb.append("OR REPLACE ");
         sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
-        sb.append("(");
-        if (cp.params() != null && !cp.params().isEmpty()) {
-            sb.append(cp.params().stream()
-                .map(p -> paramDecl(p, opt))
-                .collect(Collectors.joining(", ")));
-        }
-        sb.append(")\n");
-        sb.append(cp.body());
+        sb.append(paramsDecl(cp.params(), opt));
+        sb.append("\n").append(cp.body());
         return sb.toString();
     }
 
@@ -174,14 +168,9 @@ public abstract class AbstractDialectBackend implements DialectBackend {
         var sb = new StringBuilder("CREATE ");
         if (cf.orReplace()) sb.append("OR REPLACE ");
         sb.append("FUNCTION ").append(quoteIdentifier(cf.name()));
-        sb.append("(");
-        if (cf.params() != null && !cf.params().isEmpty()) {
-            sb.append(cf.params().stream()
-                .map(p -> paramDecl(p, opt))
-                .collect(Collectors.joining(", ")));
-        }
-        sb.append(")\nRETURNS ").append(mapType(cf.returnType())).append("\n");
-        sb.append(cf.body());
+        sb.append(paramsDecl(cf.params(), opt));
+        sb.append(" RETURNS ").append(mapType(cf.returnType()));
+        sb.append("\n").append(cf.body());
         return sb.toString();
     }
 
@@ -192,6 +181,14 @@ public abstract class AbstractDialectBackend implements DialectBackend {
             : "";
         return "CALL " + quoteIdentifier(call.procedureName())
             + (args.isEmpty() ? "" : "(" + args + ")");
+    }
+
+    /** Comma-separated parameter list */
+    protected String paramsDecl(List<ProcedureParam> params, GenerateOptions opt) {
+        if (params == null || params.isEmpty()) return "";
+        return "(" + params.stream()
+            .map(p -> paramDecl(p, opt))
+            .collect(Collectors.joining(", ")) + ")";
     }
 
     /** Parameter declaration for dialect */

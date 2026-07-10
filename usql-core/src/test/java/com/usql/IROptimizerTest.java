@@ -34,15 +34,15 @@ public class IROptimizerTest {
     static void foldArithmetic() {
         // 2+3→5, 3*4→12, 10-7→3, 20/5→4, 15%10→5
         Object[][] cases = {
-            {2L, IRBinaryOp.BinOp.ADD, 3L, 5L},
-            {3L, IRBinaryOp.BinOp.MUL, 4L, 12L},
-            {10L, IRBinaryOp.BinOp.SUB, 7L, 3L},
-            {20L, IRBinaryOp.BinOp.DIV, 5L, 4L},
-            {15L, IRBinaryOp.BinOp.MOD, 10L, 5L},
+            {2L, IRBinaryOp.BinaryOp.ADD, 3L, 5L},
+            {3L, IRBinaryOp.BinaryOp.MUL, 4L, 12L},
+            {10L, IRBinaryOp.BinaryOp.SUB, 7L, 3L},
+            {20L, IRBinaryOp.BinaryOp.DIV, 5L, 4L},
+            {15L, IRBinaryOp.BinaryOp.MOD, 10L, 5L},
         };
         for (Object[] c : cases) {
             IRExpr expr = fold1(new IRBinaryOp(new IRLiteral(c[0], null),
-                (IRBinaryOp.BinOp)c[1], new IRLiteral(c[2], null), null));
+                (IRBinaryOp.BinaryOp)c[1], new IRLiteral(c[2], null), null));
             check(expr instanceof IRLiteral l && l.value().equals(c[3]),
                 c[0] + " " + c[1] + " " + c[2] + " → " + c[3]);
         }
@@ -50,23 +50,23 @@ public class IROptimizerTest {
 
     static void foldBoolean() {
         // TRUE AND FALSE → FALSE
-        check(fold1(new IRBinaryOp(new IRLiteral(true,null), IRBinaryOp.BinOp.AND,
+        check(fold1(new IRBinaryOp(new IRLiteral(true,null), IRBinaryOp.BinaryOp.AND,
             new IRLiteral(false,null), null)) instanceof IRLiteral l && l.value().equals(false),
             "TRUE AND FALSE → FALSE");
         // TRUE OR FALSE → TRUE
-        check(fold1(new IRBinaryOp(new IRLiteral(true,null), IRBinaryOp.BinOp.OR,
+        check(fold1(new IRBinaryOp(new IRLiteral(true,null), IRBinaryOp.BinaryOp.OR,
             new IRLiteral(false,null), null)) instanceof IRLiteral l && l.value().equals(true),
             "TRUE OR FALSE → TRUE");
         // 1 = 1 → true
-        check(fold1(new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinOp.EQ,
+        check(fold1(new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinaryOp.EQ,
             new IRLiteral(1,null), null)) instanceof IRLiteral l && l.value().equals(true),
             "1 = 1 → true");
         // 1 = 2 → false
-        check(fold1(new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinOp.EQ,
+        check(fold1(new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinaryOp.EQ,
             new IRLiteral(2,null), null)) instanceof IRLiteral l && l.value().equals(false),
             "1 = 2 → false");
         // 1 <> 1 → false
-        check(fold1(new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinOp.NEQ,
+        check(fold1(new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinaryOp.NEQ,
             new IRLiteral(1,null), null)) instanceof IRLiteral l && l.value().equals(false),
             "1 <> 1 → false");
     }
@@ -81,10 +81,10 @@ public class IROptimizerTest {
     }
 
     static void foldString() {
-        check(fold1(new IRBinaryOp(new IRLiteral("hello",null), IRBinaryOp.BinOp.ADD,
+        check(fold1(new IRBinaryOp(new IRLiteral("hello",null), IRBinaryOp.BinaryOp.ADD,
             new IRLiteral("world",null), null))
             instanceof IRLiteral l && "helloworld".equals(l.value()), "'hello'+'world' → 'helloworld'");
-        check(fold1(new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinOp.ADD,
+        check(fold1(new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinaryOp.ADD,
             new IRLiteral("x",null), null))
             instanceof IRLiteral l && "1x".equals(l.value()), "1+'x' → '1x'");
     }
@@ -121,9 +121,9 @@ public class IROptimizerTest {
 
     static void foldNested() {
         // (2+3)*4 → 20
-        IRExpr inner = new IRBinaryOp(new IRLiteral(2,null), IRBinaryOp.BinOp.ADD,
+        IRExpr inner = new IRBinaryOp(new IRLiteral(2,null), IRBinaryOp.BinaryOp.ADD,
             new IRLiteral(3,null), null);
-        IRExpr expr = fold1(new IRBinaryOp(inner, IRBinaryOp.BinOp.MUL,
+        IRExpr expr = fold1(new IRBinaryOp(inner, IRBinaryOp.BinaryOp.MUL,
             new IRLiteral(4,null), null));
         check(expr instanceof IRLiteral l && l.value().equals(20L), "(2+3)*4 → 20");
     }
@@ -158,7 +158,7 @@ public class IROptimizerTest {
     static void foldInUpdate() {
         IRUpdate upd = new IRUpdate(new IRTableName("t",null,null),
             List.of(new SetClause("x", new IRBinaryOp(new IRLiteral(1,null),
-                IRBinaryOp.BinOp.ADD, new IRLiteral(2,null), null))),
+                IRBinaryOp.BinaryOp.ADD, new IRLiteral(2,null), null))),
             new IRLiteral(true,null), Set.of());
         check(IROptimizer.optimize(new SemanticIR(upd),1).rootStatement() instanceof IRUpdate,
             "UPDATE with constant folding succeeds");
@@ -174,7 +174,7 @@ public class IROptimizerTest {
     static void foldInMerge() {
         IRMerge merge = new IRMerge(new IRTableName("t",null,null),
             new IRTableName("s",null,null),
-            new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinOp.EQ, new IRLiteral(1,null), null),
+            new IRBinaryOp(new IRLiteral(1,null), IRBinaryOp.BinaryOp.EQ, new IRLiteral(1,null), null),
             List.of(new MergeUpdate(List.of(new SetClause("x", new IRLiteral(42,null))))),
             Set.of());
         check(IROptimizer.optimize(new SemanticIR(merge),1).rootStatement() instanceof IRMerge,

@@ -262,6 +262,7 @@ public class PgBackend extends AbstractDialectBackend {
 
     private String generateLiteral(IRLiteral lit) {
         if (lit.value() == null) return "NULL";
+        if (lit.type() == null) return lit.value().toString();
         return switch (lit.type()) {
             case DataType.IntType i     -> lit.value().toString();
             case DataType.FloatType f   -> lit.value().toString();
@@ -501,7 +502,7 @@ public class PgBackend extends AbstractDialectBackend {
         if (cp.orReplace()) sb.append("OR REPLACE ");
         sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
         sb.append(paramsDecl(cp.params(), opt));
-        sb.append(" LANGUAGE plpgsql AS \$\$\n").append(cp.body()).append("\n\$\$;");
+        sb.append(" LANGUAGE plpgsql AS $$\n").append(cp.body()).append("\n$$;");
         return sb.toString();
     }
 
@@ -512,7 +513,7 @@ public class PgBackend extends AbstractDialectBackend {
         sb.append("FUNCTION ").append(quoteIdentifier(cf.name()));
         sb.append(paramsDecl(cf.params(), opt));
         sb.append(" RETURNS ").append(mapType(cf.returnType()));
-        sb.append(" LANGUAGE plpgsql AS \$\$\n").append(cf.body()).append("\n\$\$;");
+        sb.append(" LANGUAGE plpgsql AS $$\n").append(cf.body()).append("\n$$;");
         return sb.toString();
     }
 
