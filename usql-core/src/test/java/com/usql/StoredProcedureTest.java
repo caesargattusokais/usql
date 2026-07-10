@@ -27,6 +27,10 @@ public class StoredProcedureTest {
         testProcedureWithParams();
         testOrReplace();
         testAllDialects();
+        testTextParsing();
+        testTextParsingCall();
+        testEmptyBody();
+        testNoParams();
 
         System.out.println("\n=== " + pass + "/" + (pass+fail) + " passed ===");
         if (fail > 0) System.exit(1);
@@ -135,6 +139,56 @@ public class StoredProcedureTest {
             if (d == Dialect.H2) continue;
             CompilationResult r = compiler.compileFromIR(call, d);
             check(r.isSuccess(), d.displayName() + " CALL succeeds");
+        }
+    }
+
+    static void testTextParsing() {
+        // Full pipeline: U-SQL text → parse → analyze → generate
+        CompilationResult r = compiler.compile(
+            "CREATE PROCEDURE hello_proc() AS 'BEGIN SELECT 1; END;'");
+        check(r.isSuccess(), "Text parse CREATE PROCEDURE succeeds");
+        check(r.getSql().contains("PROCEDURE"), "Contains PROCEDURE");
+        check(r.getSql().contains("hello_proc"), "Contains procedure name");
+
+        // CREATE FUNCTION from text
+        CompilationResult r2 = compiler.compile(
+            "CREATE FUNCTION add_one(x INT) RETURNS INT AS 'BEGIN RETURN x + 1; END;'");
+        check(r2.isSuccess(), "Text parse CREATE FUNCTION succeeds");
+        check(r2.getSql().contains("FUNCTION"), "Contains FUNCTION");
+        check(r2.getSql().contains("add_one"), "Contains function name");
+        check(r2.getSql().contains("RETURN") || r2.getSql().contains("RETURNS"),
+            "Contains RETURN/RETURNS");
+    }
+
+    static void testTextParsingCall() {
+        CompilationResult r = compiler.compile("CALL my_proc(1, 'hello')");
+        check(r.isSuccess(), "Text parse CALL succeeds");
+        check(r.getSql().contains("my_proc"), "Contains procedure name");
+
+        // CALL with no args
+        CompilationResult r2 = compiler.compile("CALL no_args_proc()");
+        check(r2.isSuccess(), "Text parse CALL no args succeeds");
+        check(!r2.getSql().contains("()"), "No empty parens in output");
+    }
+
+    static void testEmptyBody() {
+        IRCreateProcedure proc = new IRCreateProcedure(
+            "no_body_proc", List.of(), null, false, Set.of());
+        CompilationResult r = compiler.compileFromIR(proc, Dialect.MYSQL);
+        check(r.isSuccess(), "Null body compiles");
+    }
+
+    static void testNoParams() {
+        // No-param procedure generates clean SQL with no trailing artifacts
+        IRCreateProcedure proc = new IRCreateProcedure(
+            "simple", List.of(), "BEGIN NULL; END;", false, Set.of());
+        for (Dialect d : Dialect.values()) {
+            if (d == Dialect.H2) continue;
+            CompilationResult r = compiler.compileFromIR(proc, d);
+            check(r.isSuccess(), d.displayName() + " no-param proc succeeds");
+            // Parens should be empty or absent
+            String sql = r.getSql();
+            check(!sql.contains("()"), d.displayName() + " no empty parens");
         }
     }
 
