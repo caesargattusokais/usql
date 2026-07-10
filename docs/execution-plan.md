@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 64% (9/14)
+- Phase 5 优化: 71% (10/14)
 
 ---
 
@@ -111,7 +111,7 @@
 | 5.7 | 单元测试补全 | ✅ |
 | 5.8 | `IF NOT EXISTS` 跨库一致 | ✅ |
 | 5.9 | 类型推导缺失修复 | ✅ |
-| 5.10 | IROptimizer 常量折叠 Level 1 实现 | TODO |
+| 5.10 | IROptimizer 常量折叠 Level 1 实现 | ✅ |
 | 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | TODO |
 | 5.12 | SemanticVerifier 集成到 CI/编译流程 | TODO |
 | 5.13 | CapabilityChecker 补全 27 能力分级 | TODO |
@@ -136,6 +136,15 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.10 IROptimizer 常量折叠 (7e2a62b)
+
+- 二元运算折叠: `3*4→12`, `'a'||'b'→'ab'`, `TRUE AND FALSE→FALSE`
+- 一元运算折叠: `NOT TRUE→FALSE`, `-5→-5`
+- `IS NULL` 在 null 字面量上求值 → TRUE
+- SELECT 简化: `WHERE TRUE`→移除, `OFFSET 0`→移除
+- 递归折叠所有 IRStatement 类型和子表达式
+- 37→340 行 (+303)
 
 ### 5.9 类型推导缺失修复 (a219fa3)
 
