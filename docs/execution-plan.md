@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 50% (7/14)
+- Phase 5 优化: 57% (8/14)
 
 ---
 
@@ -109,7 +109,7 @@
 | 5.5 | FunctionCatalog YAML 化 | ✅ |
 | 5.6 | 错误信息优化 | ✅ |
 | 5.7 | 单元测试补全 | ✅ |
-| 5.8 | `IF NOT EXISTS` 跨库一致 | TODO |
+| 5.8 | `IF NOT EXISTS` 跨库一致 | ✅ |
 | 5.9 | 类型推导缺失修复 | TODO |
 | 5.10 | IROptimizer 常量折叠 Level 1 实现 | TODO |
 | 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | TODO |
@@ -136,6 +136,13 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.8 IF NOT EXISTS 跨库一致 (170d978)
+
+- SQL Server CREATE TABLE: `IF OBJECT_ID(N'...', N'U') IS NULL` 守卫
+- SQL Server CREATE INDEX: `IF NOT EXISTS (SELECT 1 FROM sys.indexes...)` 守卫
+- Oracle/DM CREATE INDEX: PL/SQL `EXECUTE IMMEDIATE` + `SQLCODE = -955` 包装
+- 5 方言全覆盖: MySQL/PG (native) | Oracle/DM (PL/SQL) | SQL Server (T-SQL guard)
 
 ### 5.7 单元测试补全 (2b8e7f1)
 
