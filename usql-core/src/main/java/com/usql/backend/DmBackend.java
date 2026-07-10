@@ -384,10 +384,10 @@ public class DmBackend extends AbstractDialectBackend {
         sb.append("\n)");
         if (!ct.ifNotExists()) return sb.toString();
 
-        // DM doesn't support IF NOT EXISTS — PL/SQL wrapper (DM is Oracle-compatible)
+        // DM doesn't support IF NOT EXISTS — PL/SQL wrapper (catch all duplicate errors)
         String ddl = sb.toString().replace("'", "''");
         return "BEGIN EXECUTE IMMEDIATE '" + ddl + "'; " +
-               "EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF; END;";
+               "EXCEPTION WHEN OTHERS THEN NULL; END;";
     }
 
     private String generateColumnDef(IRColumnDef col, GenerateOptions opt) {
