@@ -87,7 +87,29 @@ public sealed interface IRExpr {
     /** OVER clause for window functions */
     record IRWindowOver(List<IRExpr> partitionBy,
                         List<IRStatement.OrderBy> orderBy,
-                        String frame) {}
+                        WindowFrame frame) {}
+
+    /** Window frame clause (ROWS/RANGE BETWEEN ...) */
+    public sealed interface WindowFrame {
+        enum Unit { ROWS, RANGE }
+        enum Bound { UNBOUNDED_PRECEDING, CURRENT_ROW, UNBOUNDED_FOLLOWING }
+        record Between(Unit unit, Bound start, Bound end) implements WindowFrame {}
+        record Single(Unit unit, Bound bound) implements WindowFrame {}
+
+        default String toSql() {
+            return switch (this) {
+                case Between b -> b.unit() + " BETWEEN " + boundName(b.start()) + " AND " + boundName(b.end());
+                case Single s  -> s.unit() + " " + boundName(s.bound());
+            };
+        }
+        private static String boundName(Bound b) {
+            return switch (b) {
+                case UNBOUNDED_PRECEDING -> "UNBOUNDED PRECEDING";
+                case CURRENT_ROW -> "CURRENT ROW";
+                case UNBOUNDED_FOLLOWING -> "UNBOUNDED FOLLOWING";
+            };
+        }
+    }
 
     // ── CASE ──
 

@@ -203,7 +203,7 @@ public final class USqlAst {
 
     public record WindowOver(List<Expression> partitionBy,
                               List<OrderByItem> orderBy,
-                              String frame) {}
+                              com.usql.ir.IRExpr.WindowFrame frame) {}
 
     // CASE
     public record CaseExpr(List<WhenClause> whens, Expression elseExpr) implements Expression {}

@@ -312,7 +312,7 @@ public class SqlServerBackend extends AbstractDialectBackend {
                     .map(o -> generateExpr(o.expr(), opt) + (o.dir() == OrderDir.DESC ? " DESC" : " ASC"))
                     .collect(Collectors.joining(", "));
             }
-            if (over.frame() != null) result += " " + over.frame();
+            if (over.frame() != null) result += " " + over.frame().toSql();
             result += ")";
         }
         return result;

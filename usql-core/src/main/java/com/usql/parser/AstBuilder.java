@@ -2,6 +2,8 @@ package com.usql.parser;
 
 import com.usql.ast.USqlAst;
 import com.usql.ast.USqlAst.*;
+import com.usql.ir.IRExpr.WindowFrame;
+import com.usql.ir.IRExpr.WindowFrame.Bound;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
@@ -494,13 +496,27 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
             if (oc.orderByClause() != null) {
                 orderBy = visitOrderByClause(oc.orderByClause());
             }
-            String frame = null;
+            WindowFrame frame = null;
             if (oc.frameClause() != null) {
-                frame = oc.frameClause().getText();
+                frame = parseFrameClause(oc.frameClause());
             }
             over = new WindowOver(partitionBy, orderBy, frame);
         }
         return new FunctionCall(name, args, star, keep, over);
+    }
+
+    private static WindowFrame parseFrameClause(USqlParser.FrameClauseContext ctx) {
+        var unit = ctx.ROWS() != null ? WindowFrame.Unit.ROWS : WindowFrame.Unit.RANGE;
+        var fb = ctx.frameBound();
+        if (fb instanceof USqlParser.FrameBetweenUbAndCurrentContext)
+            return new WindowFrame.Between(unit, Bound.UNBOUNDED_PRECEDING, Bound.CURRENT_ROW);
+        if (fb instanceof USqlParser.FrameBetweenUbAndUbContext)
+            return new WindowFrame.Between(unit, Bound.UNBOUNDED_PRECEDING, Bound.UNBOUNDED_FOLLOWING);
+        if (fb instanceof USqlParser.FrameBetweenCurrentAndUbContext)
+            return new WindowFrame.Between(unit, Bound.CURRENT_ROW, Bound.UNBOUNDED_FOLLOWING);
+        if (fb instanceof USqlParser.FrameUnboundedPrecedingContext)
+            return new WindowFrame.Single(unit, Bound.UNBOUNDED_PRECEDING);
+        return new WindowFrame.Single(unit, Bound.CURRENT_ROW);
     }
 
     // ══════════════════════════════════════════════════

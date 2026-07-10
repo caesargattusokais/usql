@@ -289,11 +289,11 @@ frameClause
     ;
 
 frameBound
-    : BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    | BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-    | BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-    | UNBOUNDED PRECEDING
-    | CURRENT ROW
+    : BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW              # frameBetweenUbAndCurrent
+    | BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING      # frameBetweenUbAndUb
+    | BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING              # frameBetweenCurrentAndUb
+    | UNBOUNDED PRECEDING                                       # frameUnboundedPreceding
+    | CURRENT ROW                                               # frameCurrentRow
     ;
 
 literal
