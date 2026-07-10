@@ -1,28 +1,17 @@
 package com.usql.backend;
 
-import com.usql.catalog.FunctionCatalog;
 import com.usql.dialect.Dialect;
 import com.usql.ir.*;
 import com.usql.ir.IRExpr.*;
 import com.usql.ir.IRStatement.*;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * Generates MySQL-compatible SQL from the Semantic IR.
  */
-public class MySqlBackend implements DialectBackend {
-
-    private FunctionCatalog functionCatalog;
-    private List<KeepCol> keepCols; // sort info collected in scan pass
-    private int keepIdx;            // counter during SELECT item generation
-
-    private record KeepCol(String sortExpr, boolean desc) {}
-
-    @Override
-    public void setFunctionCatalog(FunctionCatalog catalog) { this.functionCatalog = catalog; }
+public class MySqlBackend extends AbstractDialectBackend {
 
     @Override
     public Dialect targetDialect() { return Dialect.MYSQL; }
@@ -84,22 +73,9 @@ public class MySqlBackend implements DialectBackend {
     // ══════════════════════════════════════════════════
 
     private String generateSelect(IRSelect sel, GenerateOptions opt) {
-        // ── Pass 1: scan for KEEP aggregates, collect sort column/direction ──
-        keepCols = new ArrayList<>();
-        if (sel.core().projections() != null)
-            sel.core().projections().forEach(p -> { if (p instanceof IRExprSelect es) scanKeep(es.expr()); });
-        if (sel.core().having() != null) scanKeep(sel.core().having());
-        if (sel.orderBy() != null) sel.orderBy().forEach(o -> scanKeep(o.expr()));
+        scanKeepFromSelect(sel);
         boolean hasKeep = !keepCols.isEmpty();
-
-        // Pre-render GROUP BY for PARTITION BY
-        String partitionBy = "";
-        if (sel.core().groupBy() != null && !sel.core().groupBy().isEmpty()) {
-            partitionBy = "PARTITION BY " + sel.core().groupBy().stream()
-                .filter(g -> g.kind() == GroupByKind.PLAIN)
-                .map(g -> generateExpr(g.expr(), opt))
-                .collect(Collectors.joining(", ")) + " ";
-        }
+        String partitionBy = partitionFromGroupBy(sel, opt);
 
         var sb = new StringBuilder();
 
@@ -125,17 +101,8 @@ public class MySqlBackend implements DialectBackend {
         // FROM — wrap in subquery with DENSE_RANK columns if KEEP exists
         if (sel.core().from() != null && !sel.core().from().isEmpty()) {
             if (hasKeep) {
-                sb.append(" FROM (SELECT " + quoteIdentifier("_t") + ".*");
-                for (int i = 0; i < keepCols.size(); i++) {
-                    var kc = keepCols.get(i);
-                    sb.append(", DENSE_RANK() OVER (").append(partitionBy)
-                      .append("ORDER BY ").append(kc.sortExpr());
-                    if (kc.desc()) sb.append(" DESC");
-                    sb.append(") AS ").append(quoteIdentifier("_keep_" + i));
-                }
-                sb.append(" FROM ");
-                sb.append(sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", ")));
-                sb.append(" " + quoteIdentifier("_t") + ") " + quoteIdentifier("_src"));
+                String fromSql = sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", "));
+                sb.append(wrapFromWithKeep(fromSql, partitionBy));
             } else {
                 sb.append(" FROM ");
                 sb.append(sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", ")));
@@ -221,7 +188,7 @@ public class MySqlBackend implements DialectBackend {
     //  Expressions
     // ══════════════════════════════════════════════════
 
-    private String generateExpr(IRExpr expr, GenerateOptions opt) {
+    protected String generateExpr(IRExpr expr, GenerateOptions opt) {
         return switch (expr) {
             case IRLiteral lit -> generateLiteral(lit);
             case IRColumnRef col -> {
@@ -323,7 +290,7 @@ public class MySqlBackend implements DialectBackend {
 
         // KEEP polyfill — use FIRST_VALUE/LAST_VALUE window function
         if (fc.keep() != null) {
-            return generateKeepPolyfill(fc, argsStr, opt);
+            return polyfillKeep(fc, argsStr);
         }
 
         String result;
@@ -361,29 +328,6 @@ public class MySqlBackend implements DialectBackend {
             result += ")";
         }
         return result;
-    }
-
-    private void scanKeep(IRExpr expr) {
-        if (expr == null) return;
-        if (expr instanceof IRFunctionCall fc && fc.keep() != null) {
-            var o = fc.keep().orderBy().get(0);
-            boolean isFirst = fc.keep() instanceof KeepSpec.First;
-            boolean desc = (isFirst && o.dir() == OrderDir.DESC) || (!isFirst && o.dir() == OrderDir.ASC);
-            keepCols.add(new KeepCol(generateExpr(o.expr(), GenerateOptions.MINIMAL), desc));
-            return;
-        }
-        if (expr instanceof IRFunctionCall fc) fc.args().forEach(this::scanKeep);
-        else if (expr instanceof IRBinaryOp bo) { scanKeep(bo.left()); scanKeep(bo.right()); }
-        else if (expr instanceof IRUnaryOp uo) scanKeep(uo.operand());
-        else if (expr instanceof IRCase cs) { cs.whens().forEach(w -> { scanKeep(w.condition()); scanKeep(w.result()); }); if (cs.elseExpr() != null) scanKeep(cs.elseExpr()); }
-        else if (expr instanceof IRCast ct) scanKeep(ct.expr());
-        else if (expr instanceof IRBetween bt) { scanKeep(bt.expr()); scanKeep(bt.low()); scanKeep(bt.high()); }
-        else if (expr instanceof IRInList il) { scanKeep(il.expr()); il.values().forEach(this::scanKeep); }
-        else if (expr instanceof IRIsNull isn) scanKeep(isn.expr());
-    }
-
-    private String generateKeepPolyfill(IRFunctionCall fc, String argsStr, GenerateOptions opt) {
-        return fc.funcName() + "(CASE WHEN " + quoteIdentifier("_keep_" + keepIdx++) + " = 1 THEN " + argsStr + " END)";
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {
