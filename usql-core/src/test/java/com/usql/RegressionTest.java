@@ -168,14 +168,14 @@ public class RegressionTest {
         CompilationResult r = compiler.compile(usql, db.dialect());
         if (!r.isSuccess()) { check(false, label + " compile: " + r.report()); return; }
         try (Statement stmt = conn.createStatement()) { stmt.execute(r.getSql()); check(true, label); }
-        catch (SQLException e) { check(false, label + ": " + e.getMessage()); }
+        catch (SQLException e) { System.err.println("    SQL: " + r.getSql()); check(false, label + ": " + e.getMessage()); }
     }
 
     static void execDML(Db db, Connection conn, String usql, String label) throws Exception {
         CompilationResult r = compiler.compile(usql, db.dialect());
         if (!r.isSuccess()) { check(false, label + " compile: " + r.report()); return; }
         try (Statement stmt = conn.createStatement()) { stmt.executeUpdate(r.getSql()); check(true, label); }
-        catch (SQLException e) { check(false, label + ": " + e.getMessage()); }
+        catch (SQLException e) { System.err.println("    SQL: " + r.getSql()); check(false, label + ": " + e.getMessage()); }
     }
 
     static void execQuery(Db db, Connection conn, String usql, int expectedRows) throws Exception {
@@ -184,7 +184,7 @@ public class RegressionTest {
         try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(r.getSql())) {
             int count = 0; while (rs.next()) count++;
             check(count == expectedRows, usql.substring(0, Math.min(50, usql.length())) + " → " + expectedRows + " rows (got " + count + ")");
-        } catch (SQLException e) { check(false, e.getMessage()); }
+        } catch (SQLException e) { System.err.println("    SQL: " + r.getSql()); check(false, e.getMessage()); }
     }
 
     static void execQueryAny(Db db, Connection conn, String usql) throws Exception {

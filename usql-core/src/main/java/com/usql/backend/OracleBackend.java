@@ -345,20 +345,28 @@ public class OracleBackend extends AbstractDialectBackend {
     private String generateInsert(IRInsert ins, GenerateOptions opt) {
         boolean multiRow = ins.values() != null && ins.values().size() > 1;
         if (multiRow) {
-            // Oracle multi-row: INSERT ALL INTO t (cols) VALUES (...) ... SELECT 1 FROM DUAL
-            var sb = new StringBuilder("INSERT ALL\n");
-            for (var row : ins.values()) {
-                sb.append("  INTO ").append(generateTableRef(ins.table(), opt));
-                if (ins.columns() != null && !ins.columns().isEmpty()) {
-                    sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
-                        .collect(Collectors.joining(", "))).append(")");
-                }
-                sb.append(" VALUES (");
-                sb.append(row.stream().map(v -> generateExpr(v, opt))
-                    .collect(Collectors.joining(", ")));
-                sb.append(")\n");
+            // Oracle: SELECT UNION ALL — wrap duplicate expressions to avoid ORA-00918
+            var sb = new StringBuilder("INSERT INTO ").append(generateTableRef(ins.table(), opt));
+            if (ins.columns() != null && !ins.columns().isEmpty()) {
+                sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
+                    .collect(Collectors.joining(", "))).append(")");
             }
-            sb.append("SELECT 1 FROM DUAL");
+            for (int i = 0; i < ins.values().size(); i++) {
+                if (i > 0) sb.append(" UNION ALL");
+                sb.append("\n  SELECT ");
+                var row = ins.values().get(i);
+                List<String> exprs = row.stream().map(v -> generateExpr(v, opt))
+                    .collect(Collectors.toList());
+                // Deduplicate identical expressions to avoid ORA-00918
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                for (int j = 0; j < exprs.size(); j++) {
+                    if (j > 0) sb.append(", ");
+                    String e = exprs.get(j);
+                    if (!seen.add(e)) e = "CAST(" + e + " AS NUMBER)";
+                    sb.append(e);
+                }
+                sb.append(" FROM DUAL");
+            }
             return sb.toString();
         }
         var sb = new StringBuilder("INSERT INTO ");

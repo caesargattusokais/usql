@@ -129,8 +129,10 @@ public class SqlServerBackend extends AbstractDialectBackend {
                 .collect(Collectors.joining(", ")));
         }
 
-        // SQL Server 2012+: OFFSET ... FETCH
+        // SQL Server 2012+: OFFSET ... FETCH (requires ORDER BY)
         if (sel.fetch() != null) {
+            boolean hasOrderBy = sel.orderBy() != null && !sel.orderBy().isEmpty();
+            if (!hasOrderBy) sb.append(" ORDER BY (SELECT NULL)");
             if (sel.fetch().offset() != null) {
                 sb.append(" OFFSET ").append(generateExpr(sel.fetch().offset(), opt)).append(" ROWS");
             }
