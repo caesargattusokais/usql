@@ -183,17 +183,16 @@ public class USqlCompiler {
         }
         String sql = backend.generate(ir.rootStatement(), genOpts);
 
-        // Phase 8: Verification (optional)
+        // Phase 8: Verification (optional — generates H2 reference SQL)
+        String refSql = null;
         if (verify) {
             DialectBackend refBackend = backends.get(Dialect.H2);
-            String refSql = refBackend.generate(ir.rootStatement(), GenerateOptions.MINIMAL);
-
-            // Verification needs live DB connections — skip for now, log intent
-            allWarnings.add(CompilationResult.Warning.of(0, 0,
-                "Verification enabled but requires live DB connections (Phase 8 — not yet automated)"));
+            refSql = refBackend.generate(ir.rootStatement(), GenerateOptions.MINIMAL);
         }
 
-        return CompilationResult.success(sql, allWarnings);
+        return refSql != null
+            ? CompilationResult.success(sql, refSql, allWarnings)
+            : CompilationResult.success(sql, allWarnings);
     }
 
     /**

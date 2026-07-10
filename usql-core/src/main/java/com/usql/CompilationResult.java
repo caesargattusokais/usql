@@ -11,14 +11,16 @@ import java.util.stream.Collectors;
 public class CompilationResult {
 
     private final String sql;
+    private final String referenceSql;    // H2 reference SQL when verification enabled
     private final List<Warning> warnings;
     private final List<Error> errors;
     private final boolean success;
     private final String sourceLocation;
 
-    private CompilationResult(String sql, List<Warning> warnings, List<Error> errors,
-                              boolean success, String sourceLocation) {
+    private CompilationResult(String sql, String referenceSql, List<Warning> warnings,
+                              List<Error> errors, boolean success, String sourceLocation) {
         this.sql = sql;
+        this.referenceSql = referenceSql;
         this.warnings = List.copyOf(warnings);
         this.errors = List.copyOf(errors);
         this.success = success;
@@ -26,25 +28,31 @@ public class CompilationResult {
     }
 
     public static CompilationResult success(String sql, List<Warning> warnings) {
-        return new CompilationResult(sql, warnings, List.of(), true, null);
+        return new CompilationResult(sql, null, warnings, List.of(), true, null);
     }
 
     public static CompilationResult success(String sql) {
         return success(sql, List.of());
     }
 
+    public static CompilationResult success(String sql, String referenceSql, List<Warning> warnings) {
+        return new CompilationResult(sql, referenceSql, warnings, List.of(), true, null);
+    }
+
     public static CompilationResult failed(List<Error> errors) {
-        return new CompilationResult(null, List.of(), errors, false, null);
+        return new CompilationResult(null, null, List.of(), errors, false, null);
     }
 
     public static CompilationResult failed(List<Error> errors, String source) {
-        return new CompilationResult(null, List.of(), errors, false, source);
+        return new CompilationResult(null, null, List.of(), errors, false, source);
     }
 
     // ── Getters ──
 
     public boolean isSuccess() { return success; }
     public String getSql() { return sql; }
+    /** H2 reference SQL, only populated when verification is enabled */
+    public String getReferenceSql() { return referenceSql; }
     public List<Warning> getWarnings() { return warnings; }
     public List<Error> getErrors() { return errors; }
 
@@ -71,6 +79,9 @@ public class CompilationResult {
         }
         if (success) {
             sb.append("\nGenerated SQL:\n").append(sql).append('\n');
+            if (referenceSql != null) {
+                sb.append("\n[H2 Reference]:\n").append(referenceSql).append('\n');
+            }
         }
         return sb.toString();
     }
