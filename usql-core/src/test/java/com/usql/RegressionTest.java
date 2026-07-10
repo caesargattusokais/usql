@@ -205,8 +205,7 @@ public class RegressionTest {
         execDML(db, conn, "INSERT INTO reg_fj_a (id, name) VALUES (1, 'A1'), (2, 'A2')", "Insert fj_a");
         execDML(db, conn, "INSERT INTO reg_fj_b (id, label) VALUES (2, 'B2'), (3, 'B3')", "Insert fj_b");
 
-        int expected = db.name().equals("MySQL") ? 2 : 3; // MySQL polyfill WIP
-        execQuery(db, conn, "SELECT a.name, b.label FROM reg_fj_a a FULL JOIN reg_fj_b b ON a.id = b.id", expected);
+        execQuery(db, conn, "SELECT a.name, b.label FROM reg_fj_a a FULL JOIN reg_fj_b b ON a.id = b.id", 3);
 
         dropTable(db, conn, "reg_fj_a"); dropTable(db, conn, "reg_fj_b");
     }

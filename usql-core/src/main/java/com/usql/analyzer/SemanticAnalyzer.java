@@ -98,6 +98,7 @@ public class SemanticAnalyzer {
         // Analyze projections
         List<IRSelectItem> projections = new ArrayList<>();
         Set<Capability> caps = new LinkedHashSet<>();
+        if (hasFullJoin(from)) caps.add(Capability.FULL_OUTER_JOIN);
 
         for (var item : s.projections()) {
             projections.add(analyzeSelectItem(item));
@@ -231,6 +232,17 @@ public class SemanticAnalyzer {
                     ft.args().stream().map(this::analyzeExpr).collect(Collectors.toList()),
                     ft.alias(), ft.lateral());
         };
+    }
+
+    private boolean hasFullJoin(List<IRTableRef> from) {
+        if (from == null) return false;
+        for (var ref : from) {
+            if (ref instanceof IRJoin jn) {
+                if (jn.type() == IRStatement.JoinType.FULL) return true;
+                if (hasFullJoin(List.of(jn.left())) || hasFullJoin(List.of(jn.right()))) return true;
+            }
+        }
+        return false;
     }
 
     private Map<String, DataType> extractSubqueryColumns(SelectStmt subquery) {
