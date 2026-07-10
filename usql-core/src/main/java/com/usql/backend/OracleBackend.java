@@ -373,24 +373,6 @@ public class OracleBackend extends AbstractDialectBackend {
                 .collect(Collectors.joining(", ")));
             sb.append(")");
         } else if (ins.selectSource() != null) {
-                    sb.append("  INTO ").append(generateTableRef(ins.table(), opt));
-                    if (ins.columns() != null && !ins.columns().isEmpty()) {
-                        sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
-                            .collect(Collectors.joining(", "))).append(")");
-                    }
-                    sb.append(" VALUES (");
-                    sb.append(row.stream().map(v -> generateExpr(v, opt))
-                        .collect(Collectors.joining(", ")));
-                    sb.append(")\n");
-                }
-                sb.append("SELECT 1 FROM DUAL");
-            } else {
-                sb.append(" VALUES (");
-                sb.append(ins.values().get(0).stream().map(v -> generateExpr(v, opt))
-                    .collect(Collectors.joining(", ")));
-                sb.append(")");
-            }
-        } else if (ins.selectSource() != null) {
             sb.append(" ").append(generateSelect(ins.selectSource(), opt));
         }
         return sb.toString();
