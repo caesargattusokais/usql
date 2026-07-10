@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 71% (10/14)
+- Phase 5 优化: 79% (11/14)
 
 ---
 
@@ -112,7 +112,7 @@
 | 5.8 | `IF NOT EXISTS` 跨库一致 | ✅ |
 | 5.9 | 类型推导缺失修复 | ✅ |
 | 5.10 | IROptimizer 常量折叠 Level 1 实现 | ✅ |
-| 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | TODO |
+| 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | ✅ |
 | 5.12 | SemanticVerifier 集成到 CI/编译流程 | TODO |
 | 5.13 | CapabilityChecker 补全 27 能力分级 | TODO |
 | 5.14 | SemanticAnalyzer 职责拆分 | TODO |
@@ -136,6 +136,13 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.11 PolyfillEngine IR rewrite (5520a1a)
+
+- `polyfillFullOuterJoin` 实际实现: FULL JOIN → LEFT JOIN UNION RIGHT JOIN
+- `replaceJoinType` 递归遍历 FROM 树替换 JOIN 类型
+- 处理嵌套 JOIN 和子查询表
+- 之前为空壳 "requires IR tree rewrite"，现在生效
 
 ### 5.10 IROptimizer 常量折叠 (7e2a62b)
 
