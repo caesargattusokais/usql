@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 79% (11/14)
+- Phase 5 优化: 86% (12/14)
 
 ---
 
@@ -113,7 +113,7 @@
 | 5.9 | 类型推导缺失修复 | ✅ |
 | 5.10 | IROptimizer 常量折叠 Level 1 实现 | ✅ |
 | 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | ✅ |
-| 5.12 | SemanticVerifier 集成到 CI/编译流程 | TODO |
+| 5.12 | SemanticVerifier 集成到 CI/编译流程 | ✅ |
 | 5.13 | CapabilityChecker 补全 27 能力分级 | TODO |
 | 5.14 | SemanticAnalyzer 职责拆分 | TODO |
 
@@ -136,6 +136,14 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.12 SemanticVerifier 集成 (979e68b)
+
+- `CompilationResult` 新增 `referenceSql` 字段和 `getReferenceSql()` getter
+- Phase 8: verify 标志启用时生成 H2 参考 SQL，不再打 dead warning
+- `report()` 输出参考 SQL 与目标 SQL 并列
+- CiRunner 可用 `getReferenceSql()` 配合真实库做运行验证
+- 移除 "not yet automated" 占位
 
 ### 5.11 PolyfillEngine IR rewrite (5520a1a)
 
