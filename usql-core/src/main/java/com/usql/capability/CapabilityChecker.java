@@ -18,9 +18,32 @@ public class CapabilityChecker {
 
     public CapabilityChecker() {
         this.fatalCapabilities = new HashMap<>();
-        // Fatal: cannot polyfill in any reasonable way
+
+        // ── ERROR: truly untranslatable ──
         fatalCapabilities.put(Capability.RECURSIVE_CTE, Severity.ERROR);
-        fatalCapabilities.put(Capability.FULL_OUTER_JOIN, Severity.WARNING); // polyfill via UNION
+
+        // ── WARNING: can work around with caveats ──
+        fatalCapabilities.put(Capability.WINDOW_FUNCTION, Severity.WARNING);
+        fatalCapabilities.put(Capability.ARRAY_TYPE, Severity.WARNING);
+        fatalCapabilities.put(Capability.DEFERRABLE_FK, Severity.WARNING);
+        fatalCapabilities.put(Capability.GENERATED_COLUMN, Severity.WARNING);
+        fatalCapabilities.put(Capability.FULL_OUTER_JOIN, Severity.WARNING);
+
+        // ── INFO: clean polyfill available ──
+        fatalCapabilities.put(Capability.LIMIT_OFFSET, Severity.INFO);
+        fatalCapabilities.put(Capability.BOOLEAN_TYPE, Severity.INFO);
+        fatalCapabilities.put(Capability.AUTO_INCREMENT, Severity.INFO);
+        fatalCapabilities.put(Capability.CONCAT_WITH_NULL, Severity.INFO);
+        fatalCapabilities.put(Capability.PARTIAL_INDEX, Severity.INFO);
+        fatalCapabilities.put(Capability.ENUM_TYPE, Severity.INFO);
+        fatalCapabilities.put(Capability.RETURNING_CLAUSE, Severity.INFO);
+        fatalCapabilities.put(Capability.SELECT_WITHOUT_FROM, Severity.INFO);
+        fatalCapabilities.put(Capability.HAVING, Severity.INFO);
+        fatalCapabilities.put(Capability.TRUNCATE_TABLE, Severity.INFO);
+        fatalCapabilities.put(Capability.REPLACE_INTO, Severity.INFO);
+        fatalCapabilities.put(Capability.ON_DUPLICATE_KEY_UPDATE, Severity.INFO);
+        fatalCapabilities.put(Capability.INTERVAL_ARITHMETIC, Severity.INFO);
+        fatalCapabilities.put(Capability.MERGE_INTO, Severity.INFO);
     }
 
     /**

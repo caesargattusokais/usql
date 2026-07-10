@@ -41,10 +41,11 @@ public class PolyfillEngine {
                  MERGE_INTO -> true;
 
             case RECURSIVE_CTE,
-                 WINDOW_FUNCTION,
                  ARRAY_TYPE,
                  DEFERRABLE_FK,
                  GENERATED_COLUMN -> false;
+
+            case WINDOW_FUNCTION -> true; // subquery polyfill
 
             default -> true;
         };
