@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 93% (13/14)
+- Phase 5 优化: 100% ✅ (14/14)
 
 ---
 
@@ -115,7 +115,7 @@
 | 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | ✅ |
 | 5.12 | SemanticVerifier 集成到 CI/编译流程 | ✅ |
 | 5.13 | CapabilityChecker 补全 27 能力分级 | ✅ |
-| 5.14 | SemanticAnalyzer 职责拆分 | TODO |
+| 5.14 | SemanticAnalyzer 职责拆分 | ✅ |
 
 ### 5.1 KEEP polyfill 提取 (53ee6ba)
 
@@ -136,6 +136,13 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.14 SemanticAnalyzer 拆分 (f6357b2)
+
+- 新建 `TypeInferrer` 工具类，4 个静态方法
+- `inferBinaryResultType` / `inferFunctionReturnType` / `inferExpressionType` / `parseTypeName`
+- SemanticAnalyzer 委托给 TypeInferrer，~95 行纯逻辑提取
+- SemanticAnalyzer: 740→645 行
 
 ### 5.13 CapabilityChecker 补全 (a22c86b)
 
