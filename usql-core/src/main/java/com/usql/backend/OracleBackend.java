@@ -38,7 +38,9 @@ public class OracleBackend implements DialectBackend {
             case IRCreateTable ct -> generateCreateTable(ct, options);
             case IRCreateIndex ci  -> generateCreateIndex(ci, options);
             default ->
-                throw new UnsupportedOperationException("Unsupported: " + statement.getClass().getSimpleName());
+                throw new UnsupportedOperationException(
+                    "Oracle backend cannot generate statement '" + statement.getClass().getSimpleName()
+                    + "'. Supported: IRSelect, IRInsert, IRUpdate, IRDelete, IRMerge, IRCreateTable, IRCreateIndex");
         };
     }
 
@@ -254,7 +256,10 @@ public class OracleBackend implements DialectBackend {
                 yield r + ")";
             }
             case IRIsNull isn -> generateExpr(isn.expr(), opt) + (isn.not() ? " IS NOT NULL" : " IS NULL");
-            default -> throw new UnsupportedOperationException("Unknown: " + expr.getClass().getSimpleName());
+            default -> throw new UnsupportedOperationException(
+                "Oracle backend cannot generate expression '" + expr.getClass().getSimpleName()
+                + "'. Supported: IRLiteral, IRColumnRef, IRWildcard, IRParameter, IRBinaryOp, IRUnaryOp, "
+                + "IRFunctionCall, IRCase, IRCast, IRSubquery, IRBetween, IRInList, IRIsNull");
         };
     }
 

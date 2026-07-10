@@ -65,6 +65,9 @@ public class CompilationResult {
         for (var warn : warnings) {
             sb.append("  Warning [").append(warn.line).append(':').append(warn.col).append("] ")
               .append(warn.message).append('\n');
+            if (warn.hint != null) {
+                sb.append("    → Hint: ").append(warn.hint).append('\n');
+            }
         }
         if (success) {
             sb.append("\nGenerated SQL:\n").append(sql).append('\n');
@@ -85,9 +88,12 @@ public class CompilationResult {
         }
     }
 
-    public record Warning(int line, int col, String message) {
+    public record Warning(int line, int col, String message, String hint) {
         public static Warning of(int line, int col, String message) {
-            return new Warning(line, col, message);
+            return new Warning(line, col, message, null);
+        }
+        public static Warning of(int line, int col, String message, String hint) {
+            return new Warning(line, col, message, hint);
         }
     }
 }

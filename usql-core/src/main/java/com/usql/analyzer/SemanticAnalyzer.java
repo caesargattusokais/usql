@@ -278,7 +278,9 @@ public class SemanticAnalyzer {
 
             default -> {
                 errors.add(CompilationResult.Error.of(0, 0,
-                    "Unknown expression: " + expr.getClass().getSimpleName()));
+                    "Unknown expression: " + expr.getClass().getSimpleName(),
+                    "U-SQL does not support this expression type. "
+                        + "Check the syntax reference for supported expressions."));
                 yield new IRLiteral(null, new DataType.NullType());
             }
         };
@@ -306,7 +308,10 @@ public class SemanticAnalyzer {
                 }
             }
             errors.add(CompilationResult.Error.of(0, 0,
-                "Unknown qualifier '" + qual + "' — not a table alias in scope"));
+                "Unknown qualifier '" + qual + "' — not a table alias in scope",
+                "Available table aliases in scope: " + scopes.stream()
+                    .flatMap(s -> s.keySet().stream())
+                    .collect(java.util.stream.Collectors.joining(", "))));
             return new IRColumnRef(name, qual, new DataType.NullType());
         } else {
             // Unqualified: search all scopes

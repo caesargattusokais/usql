@@ -41,12 +41,14 @@ public class CapabilityChecker {
                     polyfillable.add(cap);
                     findings.add(new CapabilityReport.Finding(
                         cap, Severity.WARNING,
-                        "Polyfill available for " + cap.name()
+                        "Feature '" + cap.name() + "' is not natively supported by "
+                            + dialect.displayName() + " — applying polyfill"
                     ));
                 } else {
                     findings.add(new CapabilityReport.Finding(
                         cap, severity,
-                        dialect.displayName() + " does not support " + cap.name()
+                        "Feature '" + cap.name() + "' is required but "
+                            + dialect.displayName() + " does not support it"
                     ));
                 }
             }

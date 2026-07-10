@@ -27,7 +27,9 @@ public class MySqlBackend extends AbstractDialectBackend {
             case IRCreateTable ct -> generateCreateTable(ct, options);
             case IRCreateIndex ci  -> generateCreateIndex(ci, options);
             default ->
-                throw new UnsupportedOperationException("Unsupported statement: " + statement.getClass().getSimpleName());
+                throw new UnsupportedOperationException(
+                    "MySQL backend cannot generate statement '" + statement.getClass().getSimpleName()
+                    + "'. Supported: IRSelect, IRInsert, IRUpdate, IRDelete, IRMerge, IRCreateTable, IRCreateIndex");
         };
     }
 
@@ -218,7 +220,10 @@ public class MySqlBackend extends AbstractDialectBackend {
                 yield r + ")";
             }
             case IRIsNull isn    -> generateExpr(isn.expr(), opt) + (isn.not() ? " IS NOT NULL" : " IS NULL");
-            default -> throw new UnsupportedOperationException("Unknown expression: " + expr.getClass().getSimpleName());
+            default -> throw new UnsupportedOperationException(
+                "MySQL backend cannot generate expression '" + expr.getClass().getSimpleName()
+                + "'. Supported: IRLiteral, IRColumnRef, IRWildcard, IRParameter, IRBinaryOp, IRUnaryOp, "
+                + "IRFunctionCall, IRCase, IRCast, IRSubquery, IRBetween, IRInList, IRIsNull");
         };
     }
 

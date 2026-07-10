@@ -128,8 +128,10 @@ public class FunctionCatalog {
         Object dialects = entry.get("dialects");
         Map<String, Object> polyfill = cast(entry.get("polyfill"));
 
-        if (name == null) throw new IllegalStateException("Function entry missing 'name'");
-        if (dialects == null) throw new IllegalStateException("Function '" + name + "' missing 'dialects'");
+        if (name == null) throw new IllegalStateException(
+            "functions.yaml: function entry missing required 'name' field");
+        if (dialects == null) throw new IllegalStateException(
+            "functions.yaml: function '" + name + "' missing required 'dialects' mapping");
 
         DataType returnType = returns != null ? parseReturnType(returns) : null;
 
@@ -172,7 +174,8 @@ public class FunctionCatalog {
                 String nativeName = (String) m.get("name");
                 String template = (String) m.get("template");
                 if (nativeName == null) {
-                    throw new IllegalStateException("Dialect mapping missing 'name'");
+                    throw new IllegalStateException(
+                        "functions.yaml: dialect mapping missing required 'name' field");
                 }
                 result.put(dialect, new DialectMapping(nativeName, template, false, null));
             }
