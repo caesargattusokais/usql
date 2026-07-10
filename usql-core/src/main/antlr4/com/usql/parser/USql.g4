@@ -20,6 +20,9 @@ statement
     | mergeStatement
     | createTableStatement
     | createIndexStatement
+    | createProcedureStatement
+    | createFunctionStatement
+    | callStatement
     ;
 
 // ══════════════════════════════════════════════════
@@ -532,6 +535,15 @@ BLOB:         B L O B;
 CLOB:         C L O B;
 BIT:          B I T;
 ENUM:         E N U M;
+PROCEDURE:    P R O C E D U R E;
+FUNCTION:     F U N C T I O N;
+CALL:         C A L L;
+REPLACE:      R E P L A C E;
+IN:           I N;
+OUT:          O U T;
+INOUT:        I N O U T;
+RETURNS:      R E T U R N S;
+LANGUAGE:     L A N G U A G E;
 LATERAL:      L A T E R A L;
 IGNORE:       I G N O R E;
 ENGINE:       E N G I N E;
@@ -585,6 +597,31 @@ IDENTIFIER
 
 BACKTICK_ID
     : '`' (~'`')* '`'
+    ;
+
+// ══════════════════════════════════════════════════
+//  CREATE PROCEDURE / FUNCTION
+// ══════════════════════════════════════════════════
+
+createProcedureStatement
+    : CREATE (OR REPLACE)? PROCEDURE identifier
+      LPAREN (procedureParam (COMMA procedureParam)*)? RPAREN
+      (AS body=STRING_LITERAL)?
+    ;
+
+createFunctionStatement
+    : CREATE (OR REPLACE)? FUNCTION identifier
+      LPAREN (procedureParam (COMMA procedureParam)*)? RPAREN
+      RETURNS dataType
+      (AS body=STRING_LITERAL)?
+    ;
+
+callStatement
+    : CALL identifier LPAREN (expr (COMMA expr)*)? RPAREN
+    ;
+
+procedureParam
+    : (IN | OUT | INOUT)? paramName=identifier dataType
     ;
 
 // ── Fragments ──

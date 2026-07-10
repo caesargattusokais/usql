@@ -82,6 +82,9 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         if (ctx.mergeStatement() != null) return visitMergeStatement(ctx.mergeStatement());
         if (ctx.createTableStatement() != null) return visitCreateTableStatement(ctx.createTableStatement());
         if (ctx.createIndexStatement() != null) return visitCreateIndexStatement(ctx.createIndexStatement());
+        if (ctx.createProcedureStatement() != null) return visitCreateProcedureStatement(ctx.createProcedureStatement());
+        if (ctx.createFunctionStatement() != null) return visitCreateFunctionStatement(ctx.createFunctionStatement());
+        if (ctx.callStatement() != null) return visitCallStatement(ctx.callStatement());
         throw new IllegalStateException("Unknown statement type");
     }
 
@@ -797,6 +800,76 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         boolean desc = ctx.DESC() != null;
         boolean nullsFirst = ctx.NULLS() != null && ctx.FIRST() != null;
         return new IndexColumn(name, desc, nullsFirst);
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Stored Procedures
+    // ══════════════════════════════════════════════════
+
+    public CreateProcedureStmt visitCreateProcedureStatement(USqlParser.CreateProcedureStatementContext ctx) {
+        String name = getIdentifier(ctx.identifier());
+        boolean orReplace = ctx.REPLACE() != null;
+        List<ParamDef> params = new ArrayList<>();
+        if (ctx.procedureParam() != null) {
+            for (var p : ctx.procedureParam()) {
+                params.add(visitProcedureParam(p));
+            }
+        }
+        String body = ctx.body != null ? stripQuotes(ctx.body.getText()) : null;
+        return new CreateProcedureStmt(name, params, orReplace, body);
+    }
+
+    public CreateFunctionStmt visitCreateFunctionStatement(USqlParser.CreateFunctionStatementContext ctx) {
+        String name = getIdentifier(ctx.identifier());
+        boolean orReplace = ctx.REPLACE() != null;
+        List<ParamDef> params = new ArrayList<>();
+        if (ctx.procedureParam() != null) {
+            for (var p : ctx.procedureParam()) {
+                params.add(visitProcedureParam(p));
+            }
+        }
+        DataTypeDecl returnType = parseDataType(ctx.dataType());
+        String body = ctx.body != null ? stripQuotes(ctx.body.getText()) : null;
+        return new CreateFunctionStmt(name, params, returnType, orReplace, body);
+    }
+
+    public CallStmt visitCallStatement(USqlParser.CallStatementContext ctx) {
+        String name = getIdentifier(ctx.identifier());
+        List<Expression> args = new ArrayList<>();
+        if (ctx.expr() != null) {
+            for (var e : ctx.expr()) {
+                args.add(visitExpr(e));
+            }
+        }
+        return new CallStmt(name, args);
+    }
+
+    public ParamDef visitProcedureParam(USqlParser.ProcedureParamContext ctx) {
+        String name = getIdentifier(ctx.paramName);
+        DataTypeDecl type = parseDataType(ctx.dataType());
+        ParamDir dir = ParamDir.IN;
+        if (ctx.INOUT() != null) dir = ParamDir.INOUT;
+        else if (ctx.OUT() != null) dir = ParamDir.OUT;
+        else if (ctx.IN() != null) dir = ParamDir.IN;
+        return new ParamDef(name, type, dir);
+    }
+
+    private DataTypeDecl parseDataType(USqlParser.DataTypeContext ctx) {
+        String name = ctx.getChild(0).getText();
+        int precision = 0, scale = 0;
+        if (ctx.NUMBER() != null && ctx.NUMBER().size() >= 1) {
+            precision = Integer.parseInt(ctx.NUMBER(0).getText());
+        }
+        if (ctx.NUMBER() != null && ctx.NUMBER().size() >= 2) {
+            scale = Integer.parseInt(ctx.NUMBER(1).getText());
+        }
+        return new DataTypeDecl(name, precision, scale);
+    }
+
+    private String stripQuotes(String s) {
+        if (s == null) return null;
+        if (s.startsWith("'") && s.endsWith("'")) return s.substring(1, s.length() - 1);
+        return s;
     }
 
     // ══════════════════════════════════════════════════

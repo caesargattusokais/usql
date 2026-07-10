@@ -85,6 +85,44 @@ public final class USqlAst {
     public record ExprItem(Expression expr, String alias) implements SelectItem {}
     public record StarItem(String qualifier) implements SelectItem {}
 
+    // ══════════════════════════════════════════════════
+    //  Stored Procedures
+    // ══════════════════════════════════════════════════
+
+    public record CreateProcedureStmt(
+        String name,
+        List<ParamDef> params,
+        boolean orReplace,
+        String body
+    ) implements Statement {}
+
+    public record CreateFunctionStmt(
+        String name,
+        List<ParamDef> params,
+        DataTypeDecl returnType,
+        boolean orReplace,
+        String body
+    ) implements Statement {}
+
+    public record CallStmt(
+        String name,
+        List<Expression> args
+    ) implements Statement {}
+
+    public record ParamDef(
+        String name,
+        DataTypeDecl type,
+        ParamDir direction
+    ) {}
+
+    public enum ParamDir { IN, OUT, INOUT }
+
+    public record DataTypeDecl(
+        String name,
+        int precision,
+        int scale
+    ) {}
+
     public sealed interface TableRef {}
     public record SimpleTable(String name, String alias) implements TableRef {}
     public record SubqueryTable(SelectStmt query, String alias) implements TableRef {}

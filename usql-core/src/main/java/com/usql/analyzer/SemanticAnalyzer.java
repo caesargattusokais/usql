@@ -74,7 +74,10 @@ public class SemanticAnalyzer {
             case DeleteStmt s      -> analyzeDelete(s);
             case CreateTableStmt s -> analyzeCreateTable(s);
             case CreateIndexStmt s -> analyzeCreateIndex(s);
-            case MergeStmt s      -> analyzeMerge(s);
+            case MergeStmt s             -> analyzeMerge(s);
+            case CreateProcedureStmt s   -> analyzeCreateProcedure(s);
+            case CreateFunctionStmt s    -> analyzeCreateFunction(s);
+            case CallStmt s              -> analyzeCall(s);
             default -> throw new UnsupportedOperationException(
                 "Analysis not implemented for: " + stmt.getClass().getSimpleName());
         };
@@ -597,6 +600,43 @@ public class SemanticAnalyzer {
 
         return new IRCreateIndex(ci.name(), new IRTableName(ci.tableName(), null, null),
             cols, ci.unique(), ci.ifNotExists(), IRStatement.IndexType.BTREE, where, caps);
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Stored Procedures
+    // ══════════════════════════════════════════════════
+
+    private IRCreateProcedure analyzeCreateProcedure(CreateProcedureStmt sp) {
+        List<ProcedureParam> params = sp.params() != null
+            ? sp.params().stream().map(this::analyzeParam).toList()
+            : List.of();
+        return new IRCreateProcedure(sp.name(), params, sp.body(), sp.orReplace(), Set.of());
+    }
+
+    private IRCreateFunction analyzeCreateFunction(CreateFunctionStmt sf) {
+        List<ProcedureParam> params = sf.params() != null
+            ? sf.params().stream().map(this::analyzeParam).toList()
+            : List.of();
+        DataType returnType = TypeInferrer.parseTypeName(
+            sf.returnType().name(), sf.returnType().precision(), sf.returnType().scale());
+        return new IRCreateFunction(sf.name(), params, returnType, sf.body(), sf.orReplace(), Set.of());
+    }
+
+    private IRCall analyzeCall(CallStmt call) {
+        List<IRExpr> args = call.args() != null
+            ? call.args().stream().map(this::analyzeExpr).toList()
+            : List.of();
+        return new IRCall(call.name(), args, Set.of());
+    }
+
+    private ProcedureParam analyzeParam(ParamDef p) {
+        DataType type = TypeInferrer.parseTypeName(p.type().name(), p.type().precision(), p.type().scale());
+        ParamMode mode = switch (p.direction()) {
+            case IN -> ParamMode.IN;
+            case OUT -> ParamMode.OUT;
+            case INOUT -> ParamMode.INOUT;
+        };
+        return new ProcedureParam(p.name(), type, mode);
     }
 
     // ══════════════════════════════════════════════════
