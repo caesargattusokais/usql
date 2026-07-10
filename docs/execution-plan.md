@@ -11,7 +11,7 @@
 - Phase 1 MVP: 100% ✅
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
-- Phase 4 高级: 83% (5/6)
+- Phase 4 高级: 100% ✅ (6/6)
 - Phase 5 优化: 100% ✅ (14/14)
 
 ---
@@ -72,7 +72,7 @@
 | 4.3 | MERGE INTO / UPSERT | ✅ |
 | 4.4 | 子查询优化 | ✅ |
 | 4.5 | 验证数据自动生成 | ✅ |
-| 4.6 | 存储过程 IR | TODO |
+| 4.6 | 存储过程 IR | ✅ |
 
 ### 4.1 窗口函数 — 详情
 
@@ -87,6 +87,13 @@
 - IR 层: `IRCommonTable` (name, columns, query, recursive)
 - `SelectCore.withClause` 承载 WITH 子句
 - 5 方言均声明 `RECURSIVE_CTE` 能力
+
+### 4.6 存储过程 IR (733a2f8)
+
+- IR 新增: `IRCreateProcedure`, `IRCreateFunction`, `IRCall`, `ProcedureParam`, `ParamMode`
+- 支持 IN/OUT/INOUT 参数, `OR REPLACE`, raw body 直传
+- `AbstractDialectBackend` 共享生成: `generateCreateProcedure`/`generateCreateFunction`/`generateCall`
+- 5 方言 Backend 全部接入 switch 分发
 
 ### 4.5 验证数据自动生成 (1967c17)
 
