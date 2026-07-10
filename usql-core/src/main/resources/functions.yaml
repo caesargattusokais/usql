@@ -1,0 +1,646 @@
+# USQL Function Catalog
+# ~110 functions with dialect-specific mappings and polyfills.
+# Loaded by FunctionCatalog at startup.
+
+functions:
+  # ══════════════════════════════════════════════════
+  #  String functions
+  # ══════════════════════════════════════════════════
+
+  - name: LENGTH
+    desc: String length
+    returns: INT
+    dialects: { mysql: LENGTH, postgresql: LENGTH, oracle: LENGTH, dm: LENGTH, sqlserver: LEN }
+
+  - name: UPPER
+    desc: Convert to uppercase
+    returns: VARCHAR
+    dialects: UPPER
+
+  - name: LOWER
+    desc: Convert to lowercase
+    returns: VARCHAR
+    dialects: LOWER
+
+  - name: TRIM
+    desc: Remove leading and trailing spaces
+    returns: VARCHAR
+    dialects: TRIM
+
+  - name: SUBSTR
+    desc: Extract substring
+    returns: VARCHAR
+    dialects: { mysql: SUBSTR, postgresql: SUBSTR, oracle: SUBSTR, dm: SUBSTR, sqlserver: SUBSTRING }
+
+  - name: REPLACE
+    desc: Replace occurrences of substring
+    returns: VARCHAR
+    dialects: REPLACE
+
+  - name: CONCAT
+    desc: Concatenate strings
+    returns: VARCHAR
+    dialects: CONCAT
+    polyfill: { strategy: EXPRESSION, template: "COALESCE({0},'') || COALESCE({1},'')" }
+
+  - name: INSTR
+    desc: Position of substring in string
+    returns: INT
+    dialects:
+      mysql:    { name: INSTR,    template: "INSTR({0}, {1})" }
+      postgresql: { name: POSITION, template: "POSITION({1} IN {0})" }
+      oracle:   INSTR
+      dm:       INSTR
+    polyfill: { strategy: EXPRESSION, template: "POSITION({1} IN {0})" }
+
+  - name: LEFT
+    desc: Leftmost n characters
+    returns: VARCHAR
+    dialects:
+      mysql: LEFT
+      postgresql: LEFT
+      oracle: { name: SUBSTR, template: "SUBSTR({0}, 1, {1})" }
+      dm: LEFT
+    polyfill: { strategy: EXPRESSION, template: "SUBSTR({0}, 1, {1})" }
+
+  - name: RIGHT
+    desc: Rightmost n characters
+    returns: VARCHAR
+    dialects:
+      mysql: RIGHT
+      postgresql: RIGHT
+      oracle: { name: SUBSTR, template: "SUBSTR({0}, LENGTH({0}) - {1} + 1)" }
+      dm: RIGHT
+    polyfill: { strategy: EXPRESSION, template: "SUBSTR({0}, LENGTH({0}) - {1} + 1)" }
+
+  - name: CONCAT_WS
+    desc: Concat with separator
+    returns: VARCHAR
+    dialects: CONCAT_WS
+    polyfill: { strategy: EXPRESSION, template: "RTRIM(LISTAGG({1}, {0}) WITHIN GROUP (ORDER BY {1}), {0})" }
+
+  - name: LTRIM
+    desc: Remove leading spaces
+    returns: VARCHAR
+    dialects: LTRIM
+
+  - name: RTRIM
+    desc: Remove trailing spaces
+    returns: VARCHAR
+    dialects: RTRIM
+
+  - name: CHAR_LENGTH
+    desc: Character length
+    returns: INT
+    dialects: { mysql: CHAR_LENGTH, postgresql: CHAR_LENGTH, oracle: LENGTH, dm: CHAR_LENGTH, sqlserver: LEN }
+
+  - name: REPEAT
+    desc: Repeat string n times
+    returns: VARCHAR
+    dialects:
+      mysql: REPEAT
+      postgresql: REPEAT
+      oracle: { name: RPAD, template: "RPAD({0}, LENGTH({0}) * {1}, {0})" }
+      dm: REPEAT
+    polyfill: { strategy: EXPRESSION, template: "RPAD({0}, LENGTH({0}) * {1}, {0})" }
+
+  - name: REVERSE
+    desc: Reverse string
+    returns: VARCHAR
+    dialects: REVERSE
+
+  - name: LPAD
+    desc: Left pad string
+    returns: VARCHAR
+    dialects: LPAD
+
+  - name: RPAD
+    desc: Right pad string
+    returns: VARCHAR
+    dialects: RPAD
+
+  - name: ASCII
+    desc: ASCII code of first char
+    returns: INT
+    dialects: ASCII
+
+  - name: LOCATE
+    desc: Locate substring position
+    returns: INT
+    dialects: { mysql: LOCATE, postgresql: POSITION, oracle: INSTR, dm: INSTR }
+
+  - name: TRANSLATE
+    desc: Character translation
+    returns: VARCHAR
+    dialects: TRANSLATE
+
+  - name: CHAR
+    desc: Character from ASCII code
+    returns: VARCHAR(1)
+    dialects: CHAR
+
+  - name: SPACE
+    desc: String of n spaces
+    returns: VARCHAR
+    dialects:
+      mysql: SPACE
+      postgresql: { name: REPEAT, template: "REPEAT(' ', {0})" }
+      oracle: { name: RPAD, template: "RPAD(' ', {0}, ' ')" }
+      dm: SPACE
+    polyfill: { strategy: EXPRESSION, template: "REPEAT(' ', {0})" }
+
+  - name: INITCAP
+    desc: Capitalize first letter
+    returns: VARCHAR
+    dialects:
+      mysql: { name: INITCAP, template: "CONCAT(UPPER(LEFT({0},1)), LOWER(SUBSTR({0},2)))" }
+      postgresql: INITCAP
+      oracle: INITCAP
+      dm: INITCAP
+    polyfill: { strategy: EXPRESSION, template: "CONCAT(UPPER(LEFT({0},1)), LOWER(SUBSTR({0},2)))" }
+
+  # ══════════════════════════════════════════════════
+  #  Numeric functions
+  # ══════════════════════════════════════════════════
+
+  - name: ABS
+    desc: Absolute value
+    returns: INT
+    dialects: ABS
+
+  - name: ROUND
+    desc: Round to n decimal places
+    returns: INT
+    dialects: ROUND
+
+  - name: CEIL
+    desc: Ceiling (round up)
+    returns: INT
+    dialects: { mysql: CEIL, postgresql: CEIL, oracle: CEIL, dm: CEIL, sqlserver: CEILING }
+
+  - name: CEILING
+    desc: Ceiling (round up)
+    returns: INT
+    dialects: { mysql: CEILING, postgresql: CEILING, oracle: CEIL, dm: CEIL }
+
+  - name: FLOOR
+    desc: Floor (round down)
+    returns: INT
+    dialects: FLOOR
+
+  - name: MOD
+    desc: Modulo (remainder)
+    returns: INT
+    dialects: MOD
+    polyfill: { strategy: EXPRESSION, template: "({0} - {1} * FLOOR({0} / {1}))" }
+
+  - name: POWER
+    desc: Raise to power
+    returns: DOUBLE
+    dialects: POWER
+
+  - name: SQRT
+    desc: Square root
+    returns: DOUBLE
+    dialects: SQRT
+
+  - name: SIGN
+    desc: Sign of number (-1, 0, 1)
+    returns: INT
+    dialects: SIGN
+
+  - name: EXP
+    desc: e raised to power n
+    returns: DOUBLE
+    dialects: EXP
+
+  - name: LN
+    desc: Natural logarithm
+    returns: DOUBLE
+    dialects: LN
+
+  - name: LOG
+    desc: Logarithm base x of y
+    returns: DOUBLE
+    dialects: LOG
+
+  - name: TRUNC
+    desc: Truncate to n decimals
+    returns: DOUBLE
+    dialects: { mysql: TRUNCATE, postgresql: TRUNC, oracle: TRUNC, dm: TRUNC }
+
+  - name: RAND
+    desc: Random number 0-1
+    returns: DOUBLE
+    dialects: { mysql: RAND, postgresql: RANDOM, oracle: DBMS_RANDOM.VALUE, dm: RAND }
+
+  - name: COS
+    desc: Cosine
+    returns: DOUBLE
+    dialects: COS
+
+  - name: SIN
+    desc: Sine
+    returns: DOUBLE
+    dialects: SIN
+
+  - name: TAN
+    desc: Tangent
+    returns: DOUBLE
+    dialects: TAN
+
+  - name: ACOS
+    desc: Arc cosine
+    returns: DOUBLE
+    dialects: ACOS
+
+  - name: ASIN
+    desc: Arc sine
+    returns: DOUBLE
+    dialects: ASIN
+
+  - name: ATAN
+    desc: Arc tangent
+    returns: DOUBLE
+    dialects: ATAN
+
+  - name: ATAN2
+    desc: Arc tangent of y/x
+    returns: DOUBLE
+    dialects: ATAN2
+
+  - name: PI
+    desc: Mathematical constant pi
+    returns: DOUBLE
+    dialects:
+      mysql: PI
+      postgresql: PI
+      oracle: { name: ACOS, template: "ACOS(-1)" }
+      dm: PI
+    polyfill: { strategy: EXPRESSION, template: "ACOS(-1)" }
+
+  - name: DEGREES
+    desc: Radians to degrees
+    returns: DOUBLE
+    dialects: DEGREES
+
+  - name: RADIANS
+    desc: Degrees to radians
+    returns: DOUBLE
+    dialects: RADIANS
+
+  - name: STDDEV
+    desc: Population standard deviation
+    returns: DOUBLE
+    dialects: STDDEV
+
+  - name: VARIANCE
+    desc: Population variance
+    returns: DOUBLE
+    dialects: VARIANCE
+
+  # ══════════════════════════════════════════════════
+  #  Date / Time functions
+  # ══════════════════════════════════════════════════
+
+  - name: CURRENT_TIMESTAMP
+    desc: Current date and time
+    returns: DATETIME
+    dialects:
+      mysql: { name: NOW, template: "NOW()" }
+      postgresql: { name: NOW, template: "NOW()" }
+      oracle: { name: SYSDATE, template: "SYSDATE" }
+      dm: { name: SYSDATE, template: "SYSDATE" }
+
+  - name: CURRENT_DATE
+    desc: Current date
+    returns: DATE
+    dialects: { mysql: CURDATE, postgresql: CURRENT_DATE, oracle: TRUNC(SYSDATE), dm: CURDATE, sqlserver: CAST(GETDATE() AS DATE) }
+
+  - name: CURRENT_TIME
+    desc: Current time
+    returns: TIME(0)
+    dialects: { mysql: CURTIME, postgresql: CURRENT_TIME, oracle: SYSTIMESTAMP, dm: CURTIME }
+
+  - name: EXTRACT
+    desc: Extract date part (YEAR, MONTH, DAY, etc.)
+    returns: INT
+    dialects: EXTRACT
+
+  - name: DATE_FORMAT
+    desc: Format date to string
+    returns: VARCHAR
+    dialects: { mysql: DATE_FORMAT, postgresql: TO_CHAR, oracle: TO_CHAR, dm: TO_CHAR }
+
+  - name: DATE_ADD
+    desc: Add interval to date
+    returns: DATETIME(0)
+    dialects: { mysql: DATE_ADD, postgresql: DATE_ADD, oracle: DATE_ADD, dm: DATE_ADD, sqlserver: DATEADD }
+
+  - name: DATE_DIFF
+    desc: Difference between two dates
+    returns: BIGINT
+    dialects: { mysql: TIMESTAMPDIFF, postgresql: DATE_DIFF, oracle: MONTHS_BETWEEN, dm: DATEDIFF, sqlserver: DATEDIFF }
+
+  - name: DATE_SUB
+    desc: Subtract interval from date
+    returns: DATETIME(0)
+    dialects: DATE_SUB
+
+  - name: DAY
+    desc: Day of month
+    returns: INT
+    dialects:
+      mysql: DAY
+      postgresql: { name: EXTRACT, template: "EXTRACT(DAY FROM {0})" }
+      oracle: { name: EXTRACT, template: "EXTRACT(DAY FROM {0})" }
+      dm: DAY
+
+  - name: MONTH
+    desc: Month number
+    returns: INT
+    dialects:
+      mysql: MONTH
+      postgresql: { name: EXTRACT, template: "EXTRACT(MONTH FROM {0})" }
+      oracle: { name: EXTRACT, template: "EXTRACT(MONTH FROM {0})" }
+      dm: MONTH
+
+  - name: YEAR
+    desc: Year number
+    returns: INT
+    dialects:
+      mysql: YEAR
+      postgresql: { name: EXTRACT, template: "EXTRACT(YEAR FROM {0})" }
+      oracle: { name: EXTRACT, template: "EXTRACT(YEAR FROM {0})" }
+      dm: YEAR
+
+  - name: QUARTER
+    desc: Quarter (1-4)
+    returns: INT
+    dialects:
+      mysql: QUARTER
+      postgresql: { name: EXTRACT, template: "EXTRACT(QUARTER FROM {0})" }
+      oracle: { name: EXTRACT, template: "EXTRACT(QUARTER FROM {0})" }
+      dm: QUARTER
+
+  - name: HOUR
+    desc: Hour from time
+    returns: INT
+    dialects:
+      mysql: HOUR
+      postgresql: { name: EXTRACT, template: "EXTRACT(HOUR FROM {0})" }
+      oracle: { name: EXTRACT, template: "EXTRACT(HOUR FROM {0})" }
+      dm: HOUR
+
+  - name: MINUTE
+    desc: Minute from time
+    returns: INT
+    dialects:
+      mysql: MINUTE
+      postgresql: { name: EXTRACT, template: "EXTRACT(MINUTE FROM {0})" }
+      oracle: { name: EXTRACT, template: "EXTRACT(MINUTE FROM {0})" }
+      dm: MINUTE
+
+  - name: SECOND
+    desc: Second from time
+    returns: INT
+    dialects:
+      mysql: SECOND
+      postgresql: { name: EXTRACT, template: "EXTRACT(SECOND FROM {0})" }
+      oracle: { name: EXTRACT, template: "EXTRACT(SECOND FROM {0})" }
+      dm: SECOND
+
+  - name: DATEDIFF
+    desc: Alias for DATE_DIFF
+    returns: BIGINT
+    dialects: { mysql: DATEDIFF, postgresql: DATEDIFF, oracle: MONTHS_BETWEEN, dm: DATEDIFF }
+
+  - name: DAYOFWEEK
+    desc: Day of week (1=Sunday)
+    returns: INT
+    dialects:
+      mysql: DAYOFWEEK
+      postgresql: { name: EXTRACT, template: "EXTRACT(DOW FROM {0})" }
+      oracle: TO_CHAR
+      dm: DAYOFWEEK
+
+  - name: DAYOFMONTH
+    desc: Day of month
+    returns: INT
+    dialects:
+      mysql: DAYOFMONTH
+      postgresql: { name: EXTRACT, template: "EXTRACT(DAY FROM {0})" }
+      oracle: { name: EXTRACT, template: "EXTRACT(DAY FROM {0})" }
+      dm: DAY
+
+  - name: DAYOFYEAR
+    desc: Day of year
+    returns: INT
+    dialects:
+      mysql: DAYOFYEAR
+      postgresql: { name: EXTRACT, template: "EXTRACT(DOY FROM {0})" }
+      oracle: TO_CHAR
+      dm: DAYOFYEAR
+
+  - name: WEEK
+    desc: Week number
+    returns: INT
+    dialects:
+      mysql: WEEK
+      postgresql: { name: EXTRACT, template: "EXTRACT(WEEK FROM {0})" }
+      oracle: TO_CHAR
+      dm: WEEK
+
+  - name: LAST_DAY
+    desc: Last day of month
+    returns: DATE
+    dialects: LAST_DAY
+
+  - name: TO_DATE
+    desc: Convert string to date
+    returns: DATE
+    dialects: { mysql: STR_TO_DATE, postgresql: TO_DATE, oracle: TO_DATE, dm: TO_DATE }
+
+  - name: UNIX_TIMESTAMP
+    desc: Seconds since 1970-01-01
+    returns: BIGINT
+    dialects:
+      mysql: UNIX_TIMESTAMP
+      postgresql: { name: EXTRACT, template: "EXTRACT(EPOCH FROM NOW())" }
+      oracle: UNIX_TIMESTAMP
+      dm: UNIX_TIMESTAMP
+
+  # ══════════════════════════════════════════════════
+  #  Conditional / NULL handling
+  # ══════════════════════════════════════════════════
+
+  - name: COALESCE
+    desc: Return first non-null value
+    dialects: COALESCE
+    polyfill: { strategy: EXPRESSION, template: "CASE WHEN {0} IS NOT NULL THEN {0} WHEN {1} IS NOT NULL THEN {1} ELSE NULL END" }
+
+  - name: NULLIF
+    desc: Return NULL if args are equal
+    dialects: NULLIF
+    polyfill: { strategy: EXPRESSION, template: "CASE WHEN {0} = {1} THEN NULL ELSE {0} END" }
+
+  - name: NVL
+    desc: Replace NULL with default value
+    dialects: { mysql: IFNULL, postgresql: COALESCE, oracle: NVL, dm: NVL, sqlserver: ISNULL }
+    polyfill: { strategy: EXPRESSION, template: "COALESCE({0}, {1})" }
+
+  - name: IFNULL
+    desc: Replace NULL with default value
+    dialects: { mysql: IFNULL, postgresql: COALESCE, oracle: NVL, dm: NVL }
+    polyfill: { strategy: EXPRESSION, template: "COALESCE({0}, {1})" }
+
+  - name: GREATEST
+    desc: Largest of values
+    dialects: { mysql: GREATEST, postgresql: GREATEST, oracle: GREATEST, dm: GREATEST, sqlserver: IIF }
+    polyfill: { strategy: EXPRESSION, template: "CASE WHEN {0} > {1} THEN {0} ELSE {1} END" }
+
+  - name: LEAST
+    desc: Smallest of values
+    dialects: { mysql: LEAST, postgresql: LEAST, oracle: LEAST, dm: LEAST, sqlserver: IIF }
+    polyfill: { strategy: EXPRESSION, template: "CASE WHEN {0} < {1} THEN {0} ELSE {1} END" }
+
+  - name: IF
+    desc: IF(cond, trueVal, falseVal)
+    dialects: { mysql: IF, postgresql: CASE WHEN, oracle: CASE WHEN, dm: IF }
+
+  - name: ISNULL
+    desc: Check if value is NULL
+    returns: BOOLEAN
+    dialects:
+      mysql: ISNULL
+      postgresql: { name: ISNULL, template: "CASE WHEN {0} IS NULL THEN TRUE ELSE FALSE END" }
+      oracle: { name: CASE, template: "CASE WHEN {0} IS NULL THEN 1 ELSE 0 END" }
+      dm: ISNULL
+    polyfill: { strategy: EXPRESSION, template: "CASE WHEN {0} IS NULL THEN 1 ELSE 0 END" }
+
+  - name: NVL2
+    desc: NVL2(expr, notNull, isNull)
+    dialects: { mysql: IF, postgresql: CASE WHEN, oracle: NVL2, dm: NVL2 }
+
+  # ══════════════════════════════════════════════════
+  #  Aggregate functions
+  # ══════════════════════════════════════════════════
+
+  - name: COUNT
+    desc: Row count
+    returns: BIGINT
+    dialects: COUNT
+
+  - name: SUM
+    desc: Sum of values
+    dialects: SUM
+
+  - name: AVG
+    desc: Average of values
+    dialects: AVG
+
+  - name: MIN
+    desc: Minimum value
+    dialects: MIN
+
+  - name: MAX
+    desc: Maximum value
+    dialects: MAX
+
+  - name: GROUP_CONCAT
+    desc: Concatenate group values
+    returns: VARCHAR
+    dialects: { mysql: GROUP_CONCAT, postgresql: STRING_AGG, oracle: LISTAGG, dm: LISTAGG, sqlserver: STRING_AGG }
+
+  - name: STRING_AGG
+    desc: String aggregation with delimiter
+    returns: VARCHAR
+    dialects: { mysql: GROUP_CONCAT, postgresql: STRING_AGG, oracle: LISTAGG, dm: LISTAGG }
+
+  - name: MEDIAN
+    desc: Median value
+    returns: DOUBLE
+    dialects:
+      mysql: MEDIAN
+      postgresql: { name: PERCENTILE_CONT, template: "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY {0})" }
+      oracle: MEDIAN
+      dm: MEDIAN
+
+  # ══════════════════════════════════════════════════
+  #  Window functions
+  # ══════════════════════════════════════════════════
+
+  - name: ROW_NUMBER
+    desc: Row number in window
+    returns: BIGINT
+    dialects: ROW_NUMBER
+
+  - name: RANK
+    desc: Rank in window (with gaps)
+    returns: BIGINT
+    dialects: RANK
+
+  - name: DENSE_RANK
+    desc: Dense rank in window
+    returns: BIGINT
+    dialects: DENSE_RANK
+
+  - name: LAG
+    desc: Value from previous row
+    dialects: LAG
+
+  - name: LEAD
+    desc: Value from next row
+    dialects: LEAD
+
+  - name: FIRST_VALUE
+    desc: First value in window
+    dialects: FIRST_VALUE
+
+  - name: LAST_VALUE
+    desc: Last value in window
+    dialects: LAST_VALUE
+
+  - name: NTILE
+    desc: Bucket number (1-n)
+    returns: INT
+    dialects: NTILE
+
+  - name: PERCENT_RANK
+    desc: Percentile rank
+    returns: DOUBLE
+    dialects: PERCENT_RANK
+
+  - name: CUME_DIST
+    desc: Cumulative distribution
+    returns: DOUBLE
+    dialects: CUME_DIST
+
+  # ══════════════════════════════════════════════════
+  #  Utility functions
+  # ══════════════════════════════════════════════════
+
+  - name: MD5
+    desc: MD5 hash
+    returns: VARCHAR(32)
+    dialects: { mysql: MD5, postgresql: MD5, oracle: DBMS_CRYPTO.HASH, dm: MD5 }
+
+  - name: RANDOM
+    desc: Random number
+    returns: DOUBLE
+    dialects: { mysql: RAND, postgresql: RANDOM, oracle: DBMS_RANDOM.VALUE, dm: RAND }
+
+  - name: NOW
+    desc: Alias for CURRENT_TIMESTAMP
+    returns: DATETIME
+    dialects: { mysql: NOW, postgresql: NOW, oracle: SYSDATE, dm: SYSDATE, sqlserver: GETDATE }
+
+  - name: CURDATE
+    desc: Alias for CURRENT_DATE
+    returns: DATE
+    dialects: { mysql: CURDATE, postgresql: CURRENT_DATE, oracle: TRUNC(SYSDATE), dm: CURDATE }
+
+  - name: SYSDATE
+    desc: Server date+time
+    returns: DATETIME(0)
+    dialects: { mysql: NOW, postgresql: NOW, oracle: SYSDATE, dm: SYSDATE, sqlserver: GETDATE }
