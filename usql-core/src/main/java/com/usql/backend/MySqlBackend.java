@@ -503,7 +503,7 @@ public class MySqlBackend extends AbstractDialectBackend {
         var sb = new StringBuilder("CREATE ");
         if (idx.unique()) sb.append("UNIQUE ");
         sb.append("INDEX ");
-        if (idx.ifNotExists()) sb.append("IF NOT EXISTS ");
+        // MySQL doesn't support IF NOT EXISTS for indexes (skip it)
         sb.append(quoteIdentifier(idx.name()));
         sb.append(" ON ").append(quoteIdentifier(idx.table().name()));
 
