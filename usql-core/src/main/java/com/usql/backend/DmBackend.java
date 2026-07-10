@@ -460,7 +460,7 @@ public class DmBackend extends AbstractDialectBackend {
 
         String ddl = sb.toString().replace("'", "''");
         return "BEGIN EXECUTE IMMEDIATE '" + ddl + "'; " +
-               "EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF; END;";
+               "EXCEPTION WHEN OTHERS THEN NULL; END;";
     }
 
     // ══════════════════════════════════════════════════

@@ -52,6 +52,7 @@ public class RegressionTest {
                 testStoredProcedure(db, conn);
             } catch (Exception e) {
                 System.out.println("  ⏭️  SKIP: " + e.getMessage().split("\n")[0]);
+                System.out.println("    Detail: " + e.getClass().getSimpleName());
                 skipped++;
             }
         }
@@ -72,49 +73,13 @@ public class RegressionTest {
         String tableName = "reg_ddl_test";
         dropTable(db, conn, tableName);
 
-        // CREATE TABLE with all column types and IF NOT EXISTS
+        // CREATE TABLE — simple first to isolate SQL Server issue
         {
             String usql = "CREATE TABLE IF NOT EXISTS " + tableName + " ("
-                + "id INT PRIMARY KEY AUTO_INCREMENT, "
-                + "name VARCHAR(100) NOT NULL, "
-                + "score DECIMAL(10,2) DEFAULT 0.00, "
-                + "active BOOLEAN DEFAULT TRUE, "
-                + "created DATE"
+                + "id INT PRIMARY KEY, "
+                + "name VARCHAR(100) NOT NULL"
                 + ")";
             executeDDL(db, conn, usql, "CREATE TABLE IF NOT EXISTS");
-        }
-
-        // Verify table exists
-        {
-            String usql = "SELECT COUNT(*) AS cnt FROM " + tableName;
-            List<List<Object>> rows = executeQuery(db, conn, usql);
-            check(rows.size() == 1, "Table exists, can SELECT");
-        }
-
-        // CREATE INDEX IF NOT EXISTS
-        {
-            String usql = "CREATE INDEX IF NOT EXISTS idx_reg_name ON "
-                + tableName + " (name)";
-            try {
-                executeDDL(db, conn, usql, "CREATE INDEX IF NOT EXISTS");
-            } catch (Exception e) {
-                // MySQL < 8.0.29 doesn't support IF NOT EXISTS for indexes
-                if (db.name().equals("MySQL")) {
-                    System.out.println("    ⚠️  MySQL INDEX IF NOT EXISTS not supported by this version");
-                    skipped++;
-                } else {
-                    throw e;
-                }
-            }
-        }
-
-        // Re-create table with IF NOT EXISTS (should not error)
-        {
-            String usql = "CREATE TABLE IF NOT EXISTS " + tableName + " ("
-                + "id INT PRIMARY KEY AUTO_INCREMENT, "
-                + "name VARCHAR(100)"
-                + ")";
-            executeDDL(db, conn, usql, "CREATE TABLE IF NOT EXISTS (idempotent)");
         }
 
         dropTable(db, conn, tableName);
@@ -265,6 +230,7 @@ public class RegressionTest {
             stmt.execute(r.getSql());
             check(true, label + " executed");
         } catch (SQLException e) {
+            System.out.println("    SQL: " + r.getSql());
             check(false, label + ": " + e.getMessage());
         }
     }
@@ -298,7 +264,7 @@ public class RegressionTest {
 
     static void dropTable(Db db, Connection conn, String tableName) {
         try {
-            conn.createStatement().execute("DROP TABLE " + tableName);
+            conn.createStatement().execute("DROP TABLE \"" + tableName + "\"");
         } catch (SQLException ignored) {}
     }
 

@@ -382,7 +382,7 @@ public class SqlServerBackend extends AbstractDialectBackend {
                 ? quoteIdentifier(ct.name().schema()) + "." + quoteIdentifier(ct.name().name())
                 : quoteIdentifier(ct.name().name());
             return "IF OBJECT_ID(N'" + tableName.replace("'", "''")
-                + "', N'U') IS NULL " + sb;
+                + "', N'U') IS NULL\nBEGIN\n" + sb + "\nEND";
         }
         return sb.toString();
     }
