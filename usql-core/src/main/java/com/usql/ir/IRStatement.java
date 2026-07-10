@@ -238,4 +238,42 @@ public sealed interface IRStatement {
     record IndexColumn(String name, IRStatement.OrderDir dir, IRStatement.NullsOrder nulls) {}
 
     enum IndexType { BTREE, HASH, GIST, GIN, BRIN }
+
+    // ══════════════════════════════════════════════════
+    //  Stored Procedures
+    // ══════════════════════════════════════════════════
+
+    /** CREATE PROCEDURE — body is raw dialect-specific SQL */
+    record IRCreateProcedure(
+        String name,
+        List<ProcedureParam> params,
+        String body,                         // raw SQL body (dialect-specific)
+        boolean orReplace,                   // CREATE OR REPLACE
+        Set<Capability> capabilities
+    ) implements IRStatement {}
+
+    /** CREATE FUNCTION — returns a scalar value */
+    record IRCreateFunction(
+        String name,
+        List<ProcedureParam> params,
+        DataType returnType,
+        String body,                         // raw SQL body
+        boolean orReplace,
+        Set<Capability> capabilities
+    ) implements IRStatement {}
+
+    /** CALL procedure(args) */
+    record IRCall(
+        String procedureName,
+        List<IRExpr> args,
+        Set<Capability> capabilities
+    ) implements IRStatement {}
+
+    record ProcedureParam(
+        String name,
+        DataType type,
+        ParamMode mode                       // IN / OUT / INOUT
+    ) {}
+
+    enum ParamMode { IN, OUT, INOUT }
 }

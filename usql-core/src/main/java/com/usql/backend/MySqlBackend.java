@@ -24,12 +24,15 @@ public class MySqlBackend extends AbstractDialectBackend {
             case IRUpdate upd   -> generateUpdate(upd, options);
             case IRDelete del   -> generateDelete(del, options);
             case IRMerge merge  -> generateMerge(merge, options);
-            case IRCreateTable ct -> generateCreateTable(ct, options);
-            case IRCreateIndex ci  -> generateCreateIndex(ci, options);
+            case IRCreateTable ct      -> generateCreateTable(ct, options);
+            case IRCreateIndex ci       -> generateCreateIndex(ci, options);
+            case IRCreateProcedure cp   -> generateCreateProcedure(cp, options);
+            case IRCreateFunction cf    -> generateCreateFunction(cf, options);
+            case IRCall call            -> generateCall(call, options);
             default ->
                 throw new UnsupportedOperationException(
                     "MySQL backend cannot generate statement '" + statement.getClass().getSimpleName()
-                    + "'. Supported: IRSelect, IRInsert, IRUpdate, IRDelete, IRMerge, IRCreateTable, IRCreateIndex");
+                    + "'. Supported: IRSelect, IRInsert, IRUpdate, IRDelete, IRMerge, IRCreateTable, IRCreateIndex, IRCreateProcedure, IRCreateFunction, IRCall");
         };
     }
 

@@ -152,6 +152,58 @@ public abstract class AbstractDialectBackend implements DialectBackend {
     }
 
     // ══════════════════════════════════════════════════
+    //  Stored procedure generation (shared)
+    // ══════════════════════════════════════════════════
+
+    protected String generateCreateProcedure(IRCreateProcedure cp, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cp.orReplace()) sb.append("OR REPLACE ");
+        sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
+        sb.append("(");
+        if (cp.params() != null && !cp.params().isEmpty()) {
+            sb.append(cp.params().stream()
+                .map(p -> paramDecl(p, opt))
+                .collect(Collectors.joining(", ")));
+        }
+        sb.append(")\n");
+        sb.append(cp.body());
+        return sb.toString();
+    }
+
+    protected String generateCreateFunction(IRCreateFunction cf, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cf.orReplace()) sb.append("OR REPLACE ");
+        sb.append("FUNCTION ").append(quoteIdentifier(cf.name()));
+        sb.append("(");
+        if (cf.params() != null && !cf.params().isEmpty()) {
+            sb.append(cf.params().stream()
+                .map(p -> paramDecl(p, opt))
+                .collect(Collectors.joining(", ")));
+        }
+        sb.append(")\nRETURNS ").append(mapType(cf.returnType())).append("\n");
+        sb.append(cf.body());
+        return sb.toString();
+    }
+
+    protected String generateCall(IRCall call, GenerateOptions opt) {
+        String args = call.args() != null
+            ? call.args().stream().map(a -> generateExpr(a, opt))
+                .collect(Collectors.joining(", "))
+            : "";
+        return "CALL " + quoteIdentifier(call.procedureName()) + "(" + args + ")";
+    }
+
+    /** Parameter declaration for dialect */
+    protected String paramDecl(ProcedureParam p, GenerateOptions opt) {
+        String mode = switch (p.mode()) {
+            case IN -> "IN ";
+            case OUT -> "OUT ";
+            case INOUT -> "INOUT ";
+        };
+        return mode + quoteIdentifier(p.name()) + " " + mapType(p.type());
+    }
+
+    // ══════════════════════════════════════════════════
     //  Abstract methods — each dialect provides these
     // ══════════════════════════════════════════════════
 
