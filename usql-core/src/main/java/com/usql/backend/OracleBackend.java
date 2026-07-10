@@ -343,26 +343,47 @@ public class OracleBackend extends AbstractDialectBackend {
     // ══════════════════════════════════════════════════
 
     private String generateInsert(IRInsert ins, GenerateOptions opt) {
-        var sb = new StringBuilder("INSERT");
-        // Oracle doesn't have INSERT IGNORE — use INSERT /*+ ignore_row_on_dupkey_index */ or just INSERT
-        sb.append(" INTO ").append(generateTableRef(ins.table(), opt));
+        boolean multiRow = ins.values() != null && ins.values().size() > 1;
+        if (multiRow) {
+            // Oracle multi-row: INSERT ALL INTO t (cols) VALUES (...) ... SELECT 1 FROM DUAL
+            var sb = new StringBuilder("INSERT ALL\n");
+            for (var row : ins.values()) {
+                sb.append("  INTO ").append(generateTableRef(ins.table(), opt));
+                if (ins.columns() != null && !ins.columns().isEmpty()) {
+                    sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
+                        .collect(Collectors.joining(", "))).append(")");
+                }
+                sb.append(" VALUES (");
+                sb.append(row.stream().map(v -> generateExpr(v, opt))
+                    .collect(Collectors.joining(", ")));
+                sb.append(")\n");
+            }
+            sb.append("SELECT 1 FROM DUAL");
+            return sb.toString();
+        }
+        var sb = new StringBuilder("INSERT INTO ");
+        sb.append(generateTableRef(ins.table(), opt));
         if (ins.columns() != null && !ins.columns().isEmpty()) {
             sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
                 .collect(Collectors.joining(", "))).append(")");
         }
         if (ins.values() != null && !ins.values().isEmpty()) {
-            // Oracle: multi-row INSERT uses INSERT ALL ... SELECT FROM DUAL
-            if (ins.values().size() > 1) {
-                sb.append("\nSELECT ");
-                int rowNum = 0;
-                for (var row : ins.values()) {
-                    if (rowNum > 0) sb.append(" UNION ALL\n  SELECT ");
-                    else sb.append("\n  ");
+            sb.append(" VALUES (");
+            sb.append(ins.values().get(0).stream().map(v -> generateExpr(v, opt))
+                .collect(Collectors.joining(", ")));
+            sb.append(")");
+        } else if (ins.selectSource() != null) {
+                    sb.append("  INTO ").append(generateTableRef(ins.table(), opt));
+                    if (ins.columns() != null && !ins.columns().isEmpty()) {
+                        sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier)
+                            .collect(Collectors.joining(", "))).append(")");
+                    }
+                    sb.append(" VALUES (");
                     sb.append(row.stream().map(v -> generateExpr(v, opt))
                         .collect(Collectors.joining(", ")));
-                    sb.append(" FROM DUAL");
-                    rowNum++;
+                    sb.append(")\n");
                 }
+                sb.append("SELECT 1 FROM DUAL");
             } else {
                 sb.append(" VALUES (");
                 sb.append(ins.values().get(0).stream().map(v -> generateExpr(v, opt))
