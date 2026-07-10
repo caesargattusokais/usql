@@ -11,7 +11,7 @@
 - Phase 1 MVP: 100% ✅
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
-- Phase 4 高级: 67% (4/6)
+- Phase 4 高级: 83% (5/6)
 - Phase 5 优化: 100% ✅ (14/14)
 
 ---
@@ -71,7 +71,7 @@
 | 4.2 | CTE + 递归CTE | ✅ |
 | 4.3 | MERGE INTO / UPSERT | ✅ |
 | 4.4 | 子查询优化 | ✅ |
-| 4.5 | 验证数据自动生成 | TODO |
+| 4.5 | 验证数据自动生成 | ✅ |
 | 4.6 | 存储过程 IR | TODO |
 
 ### 4.1 窗口函数 — 详情
@@ -87,6 +87,14 @@
 - IR 层: `IRCommonTable` (name, columns, query, recursive)
 - `SelectCore.withClause` 承载 WITH 子句
 - 5 方言均声明 `RECURSIVE_CTE` 能力
+
+### 4.5 验证数据自动生成 (1967c17)
+
+- `TestDataGenerator` — 根据 CREATE TABLE 定义自动生成 INSERT 语句
+- 支持所有类型: INT/VARCHAR/BOOLEAN/DATE/DATETIME/ENUM/JSON/UUID 等
+- 外键列自动引用前序表的 PK 值，保持引用完整性
+- 可空列最后一行生成 NULL，主键/自增列正确处理
+- 确定性生成 (seeded PRNG, seed=42)，可配置行数
 
 ### 4.4 子查询优化 (019af31)
 
