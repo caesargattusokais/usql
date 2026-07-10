@@ -384,7 +384,7 @@ public class SemanticAnalyzer {
 
         DataType returnType = functions.get(fc.name())
             .map(fd -> fd.returnType)
-            .orElse(new DataType.NullType());
+            .orElseGet(() -> inferFunctionReturnType(fc.name(), args));
 
         // KEEP clause
         KeepSpec keep = null;
@@ -417,15 +417,54 @@ public class SemanticAnalyzer {
         return new IRFunctionCall(fc.name(), args, returnType, over, keep);
     }
 
+    /**
+     * Infer return type for functions where the catalog has no fixed returnType.
+     */
+    private DataType inferFunctionReturnType(String funcName, List<IRExpr> args) {
+        DataType argType = args.isEmpty() ? new DataType.NullType() : args.get(0).getType();
+        return switch (funcName.toUpperCase()) {
+            // Aggregates
+            case "SUM" -> {
+                if (argType instanceof DataType.FloatType) yield DataType.FloatType.DOUBLE;
+                yield DataType.IntType.BIGINT;
+            }
+            case "AVG", "STDDEV", "VARIANCE" -> DataType.FloatType.DOUBLE;
+            case "COUNT" -> DataType.IntType.BIGINT;
+            case "MIN", "MAX" -> argType instanceof DataType.NullType
+                ? new DataType.NullType() : argType;
+            // String functions
+            case "UPPER", "LOWER", "TRIM", "LTRIM", "RTRIM", "REVERSE",
+                 "LPAD", "RPAD", "REPEAT", "INITCAP", "TRANSLATE" ->
+                new DataType.VarcharType(0);
+            case "CONCAT", "CONCAT_WS" -> new DataType.VarcharType(0);
+            case "SUBSTR", "REPLACE", "SPACE" -> new DataType.VarcharType(0);
+            // Coalesce / NULL handling
+            case "COALESCE", "IFNULL", "NVL", "NULLIF", "IF",
+                 "NVL2", "GREATEST", "LEAST" ->
+                argType instanceof DataType.NullType ? new DataType.NullType() : argType;
+            // Default
+            default -> new DataType.NullType();
+        };
+    }
+
     private IRExpr analyzeCase(CaseExpr cs) {
         List<IRCase.WhenClause> whens = cs.whens().stream()
             .map(w -> new IRCase.WhenClause(analyzeExpr(w.condition()), analyzeExpr(w.result())))
             .collect(Collectors.toList());
         IRExpr elseExpr = cs.elseExpr() != null ? analyzeExpr(cs.elseExpr()) : null;
 
-        // Result type = first THEN's type (simplified)
-        DataType resultType = whens.isEmpty() ? new DataType.NullType()
-            : whens.get(0).result().getType();
+        // Result type = first non-null branch (ELSE → THENs)
+        DataType resultType = new DataType.NullType();
+        if (elseExpr != null && !(elseExpr.getType() instanceof DataType.NullType)) {
+            resultType = elseExpr.getType();
+        } else {
+            for (var w : whens) {
+                if (!(w.result().getType() instanceof DataType.NullType)) {
+                    resultType = w.result().getType();
+                    break;
+                }
+            }
+        }
 
         return new IRCase(whens, elseExpr, resultType);
     }
@@ -619,6 +658,9 @@ public class SemanticAnalyzer {
                     yield DataType.FloatType.DOUBLE;
                 if (left instanceof DataType.DecimalType || right instanceof DataType.DecimalType)
                     yield new DataType.DecimalType(20, 4);
+                if (left instanceof DataType.IntType li && right instanceof DataType.IntType ri)
+                    yield (li.bits() >= 64 || ri.bits() >= 64)
+                        ? DataType.IntType.BIGINT : DataType.IntType.INT;
                 yield DataType.IntType.INT;
             }
         };
