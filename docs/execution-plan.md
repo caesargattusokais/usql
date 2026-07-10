@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 43% (6/14)
+- Phase 5 优化: 50% (7/14)
 
 ---
 
@@ -108,7 +108,7 @@
 | 5.4 | `generateFunctionCall` 提取到 AbstractDialectBackend | ✅ |
 | 5.5 | FunctionCatalog YAML 化 | ✅ |
 | 5.6 | 错误信息优化 | ✅ |
-| 5.7 | 单元测试补全 | TODO |
+| 5.7 | 单元测试补全 | ✅ |
 | 5.8 | `IF NOT EXISTS` 跨库一致 | TODO |
 | 5.9 | 类型推导缺失修复 | TODO |
 | 5.10 | IROptimizer 常量折叠 Level 1 实现 | TODO |
@@ -136,6 +136,12 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.7 单元测试补全 (2b8e7f1)
+
+- `FunctionCatalogTest` — 14 项测试：YAML 加载、函数查找、polyfill 检测、方言映射、返回类型
+- `CapabilityCheckerTest` — 10 项测试：跨 5 方言能力检查、polyfill vs fatal 判定
+- 均为独立 main 方法，无需数据库
 
 ### 5.6 错误信息优化 (67a62f2)
 
@@ -185,7 +191,9 @@
 | DdlVerification | DDL/DML 操作 × 4 库 | 20 |
 | EnumTest | ENUM 约束验证 | 4 |
 | CompilerE2E / TextInput | 编译器单元 | 32 |
-| **总计** | | **396** |
+| FunctionCatalog | YAML 加载 / 函数查找 | 14 |
+| CapabilityChecker | 能力检查 / polyfill 判定 | 10 |
+| **总计** | | **420** |
 
 ---
 
