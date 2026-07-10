@@ -11,7 +11,7 @@
 - Phase 1 MVP: 100% ✅
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
-- Phase 4 高级: 50% (3/6)
+- Phase 4 高级: 67% (4/6)
 - Phase 5 优化: 100% ✅ (14/14)
 
 ---
@@ -70,7 +70,7 @@
 | 4.1 | 窗口函数 (ROW_NUMBER/RANK/LAG/LEAD 等 10 个 + WindowFrame ROWS/RANGE) | ✅ |
 | 4.2 | CTE + 递归CTE | ✅ |
 | 4.3 | MERGE INTO / UPSERT | ✅ |
-| 4.4 | 子查询优化 | TODO |
+| 4.4 | 子查询优化 | ✅ |
 | 4.5 | 验证数据自动生成 | TODO |
 | 4.6 | 存储过程 IR | TODO |
 
@@ -87,6 +87,14 @@
 - IR 层: `IRCommonTable` (name, columns, query, recursive)
 - `SelectCore.withClause` 承载 WITH 子句
 - 5 方言均声明 `RECURSIVE_CTE` 能力
+
+### 4.4 子查询优化 (019af31)
+
+- IROptimizer Level 2: FROM 子查询扁平化
+- 简单子查询内联: `SELECT * FROM (SELECT a,b FROM t) s` → `SELECT a,b FROM t`
+- WHERE 合并: 内层和外层条件用 AND 组合
+- 安全检查: DISTINCT/GROUP BY/HAVING/ORDER BY/LIMIT 不扁平化
+- Level 2 链路: foldConstants → optimizeSubqueries
 
 ### 4.3 MERGE INTO / UPSERT — 详情
 
