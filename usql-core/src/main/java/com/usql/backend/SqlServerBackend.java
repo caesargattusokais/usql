@@ -378,10 +378,10 @@ public class SqlServerBackend extends AbstractDialectBackend {
         sb.append("\n)");
 
         if (ct.ifNotExists()) {
-            String tableName = ct.name().schema() != null
-                ? quoteIdentifier(ct.name().schema()) + "." + quoteIdentifier(ct.name().name())
-                : quoteIdentifier(ct.name().name());
-            return "IF OBJECT_ID(N'" + tableName.replace("'", "''")
+            String rawName = ct.name().schema() != null
+                ? ct.name().schema() + "." + ct.name().name()
+                : ct.name().name();
+            return "IF OBJECT_ID(N'" + rawName.replace("'", "''")
                 + "', N'U') IS NULL\nBEGIN\n" + sb + "\nEND";
         }
         return sb.toString();

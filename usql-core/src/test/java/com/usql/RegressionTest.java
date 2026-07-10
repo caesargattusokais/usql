@@ -52,7 +52,6 @@ public class RegressionTest {
                 testStoredProcedure(db, conn);
             } catch (Exception e) {
                 System.out.println("  ⏭️  SKIP: " + e.getMessage().split("\n")[0]);
-                System.out.println("    Detail: " + e.getClass().getSimpleName());
                 skipped++;
             }
         }
@@ -230,7 +229,6 @@ public class RegressionTest {
             stmt.execute(r.getSql());
             check(true, label + " executed");
         } catch (SQLException e) {
-            System.out.println("    SQL: " + r.getSql());
             check(false, label + ": " + e.getMessage());
         }
     }
@@ -264,7 +262,12 @@ public class RegressionTest {
 
     static void dropTable(Db db, Connection conn, String tableName) {
         try {
-            conn.createStatement().execute("DROP TABLE \"" + tableName + "\"");
+            String name = switch (db.dialect()) {
+                case MYSQL -> "`" + tableName + "`";
+                case SQLSERVER -> "[" + tableName + "]";
+                default -> "\"" + tableName + "\"";
+            };
+            conn.createStatement().execute("DROP TABLE " + name);
         } catch (SQLException ignored) {}
     }
 
