@@ -14,6 +14,7 @@
 - [U-SQL 语法](#u-sql-语法)
 - [方言映射表](#方言映射表)
 - [DDL 映射](#ddl-映射)
+- [存储过程](#存储过程)
 - [SQL 编写规则](#sql-编写规则)
 - [项目结构与构建](#项目结构与构建)
 
@@ -359,6 +360,94 @@ CREATE TABLE users (
 )
 
 CREATE UNIQUE INDEX idx_email ON users (email)
+```
+
+### 存储过程
+
+USQL 支持 CREATE PROCEDURE、CREATE FUNCTION 和 CALL 语句，body 为原生 SQL（方言直传，不翻译）。
+
+#### 创建存储过程
+
+```sql
+-- 简单存储过程
+CREATE PROCEDURE hello()
+AS 'BEGIN SELECT 1; END;'
+
+-- 带参数
+CREATE PROCEDURE greet(IN p_name VARCHAR(100))
+AS 'BEGIN SELECT CONCAT(''Hello '', p_name); END;'
+
+-- OR REPLACE（覆盖已存在的同名过程）
+CREATE OR REPLACE PROCEDURE reload_cache()
+AS 'BEGIN DELETE FROM cache; INSERT INTO cache SELECT * FROM source; END;'
+
+-- 调用
+CALL hello();
+CALL greet('World');
+```
+
+#### 创建函数
+
+```sql
+CREATE FUNCTION add_one(x INT) RETURNS INT
+AS 'BEGIN RETURN x + 1; END;'
+
+-- 使用函数
+SELECT add_one(41);  -- → 42
+```
+
+#### 参数模式
+
+```sql
+CREATE PROCEDURE transfer(
+    IN  from_account INT,
+    IN  to_account   INT,
+    IN  amount       DECIMAL(10,2),
+    OUT status       VARCHAR(20)
+)
+AS 'BEGIN UPDATE accounts SET balance = balance - amount WHERE id = from_account;
+          UPDATE accounts SET balance = balance + amount WHERE id = to_account;
+          SET status = ''OK''; END;'
+```
+
+| 模式 | U-SQL | 含义 |
+|------|-------|------|
+| `IN` | 默认 | 输入参数 |
+| `OUT` | `OUT p_name type` | 输出参数 |
+| `INOUT` | `INOUT p_name type` | 输入+输出 |
+
+#### 方言生成结果
+
+U-SQL: `CREATE PROCEDURE my_proc(IN x INT) AS 'BEGIN SELECT x; END;'`
+
+| 方言 | 生成 SQL |
+|------|---------|
+| MySQL | `CREATE PROCEDURE "my_proc"(IN "x" INT)\nBEGIN SELECT x; END;` |
+| PostgreSQL | `CREATE OR REPLACE PROCEDURE "my_proc"(IN "x" INT) LANGUAGE plpgsql AS $$\nBEGIN SELECT x; END;\n$$;` |
+| Oracle | `CREATE OR REPLACE PROCEDURE "my_proc"("x" IN INT) AS\nBEGIN SELECT x; END;;` |
+| 达梦 DM | `CREATE OR REPLACE PROCEDURE "my_proc"("x" INT) AS\nBEGIN SELECT x; END;;` |
+| SQL Server | `CREATE PROCEDURE "my_proc"\n  @x INT\n AS\nBEGIN\nBEGIN SELECT x; END;\nEND;` |
+
+> **注意**: body 部分为方言原生 SQL，**不会经过 USQL 编译器翻译**。body 中的表名、函数、语法需使用目标数据库的方言。
+
+#### 通过 IR 构建（无需语法解析）
+
+```java
+// 创建存储过程
+IRCreateProcedure proc = new IRCreateProcedure(
+    "my_proc",
+    List.of(new ProcedureParam("x", DataType.IntType.INT, ParamMode.IN)),
+    "BEGIN SELECT x; END;",
+    false,  // orReplace
+    Set.of()
+);
+CompilationResult r = compiler.compileFromIR(proc, Dialect.ORACLE);
+
+// 调用
+IRCall call = new IRCall("my_proc", 
+    List.of(new IRLiteral(42, null)),
+    Set.of());
+CompilationResult r2 = compiler.compileFromIR(call, Dialect.ORACLE);
 ```
 
 ---
