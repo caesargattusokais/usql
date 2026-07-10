@@ -17,7 +17,7 @@
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 100% ✅
 - Phase 5 优化: 100% ✅
-- Phase 6 收尾: 20% (1/5)
+- Phase 6 收尾: 60% (3/5)
 
 ---
 
@@ -26,8 +26,8 @@
 | # | 任务 | 状态 |
 |---|------|------|
 | 6.1 | 存储过程方言语法补全（Oracle/PG/SQL Server/DM 覆写） | ✅ |
-| 6.2 | 存储过程语法解析（grammar + AstBuilder） | TODO |
-| 6.3 | 存储过程 SemanticAnalyzer + Capability 标记 | TODO |
+| 6.2 | 存储过程语法解析（grammar + AstBuilder） | ✅ |
+| 6.3 | 存储过程 SemanticAnalyzer + Capability 标记 | ✅ |
 | 6.4 | IRCall 无参括号修复 | TODO |
 | 6.5 | 存储过程集成测试（含真实 DB） | TODO |
 
