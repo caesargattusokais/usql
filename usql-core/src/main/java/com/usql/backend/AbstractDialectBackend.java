@@ -186,11 +186,12 @@ public abstract class AbstractDialectBackend implements DialectBackend {
     }
 
     protected String generateCall(IRCall call, GenerateOptions opt) {
-        String args = call.args() != null
+        String args = call.args() != null && !call.args().isEmpty()
             ? call.args().stream().map(a -> generateExpr(a, opt))
                 .collect(Collectors.joining(", "))
             : "";
-        return "CALL " + quoteIdentifier(call.procedureName()) + "(" + args + ")";
+        return "CALL " + quoteIdentifier(call.procedureName())
+            + (args.isEmpty() ? "" : "(" + args + ")");
     }
 
     /** Parameter declaration for dialect */
