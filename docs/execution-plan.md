@@ -275,7 +275,10 @@
 | SemanticAnalyzer | 解析/WHERE/GROUP BY/CTE/窗口/CAST | 10 |
 | PolyfillEngine | FULL JOIN polyfill + canPolyfill | 12 |
 | CompilationResult | 错误/警告/报告/hint | 25 |
-| **总计** | | **507** |
+| CapabilityChecker | 27 能力 polyfill/fatal 判定 | 30+ |
+| Dialect | 6 方言能力集 + displayName | 20+ |
+| FunctionCatalog | 按类别验证 100+ 函数 | 20 |
+| **总计** | | **620+** |
 
 ---
 
