@@ -528,7 +528,12 @@ public class OracleBackend implements DialectBackend {
             .map(c -> quoteIdentifier(c.name()) + (c.dir() == OrderDir.DESC ? " DESC" : ""))
             .collect(Collectors.joining(", ")));
         sb.append(")");
-        return sb.toString();
+
+        if (!idx.ifNotExists()) return sb.toString();
+
+        String ddl = sb.toString().replace("'", "''");
+        return "BEGIN EXECUTE IMMEDIATE '" + ddl + "'; " +
+               "EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF; END;";
     }
 
     // ══════════════════════════════════════════════════

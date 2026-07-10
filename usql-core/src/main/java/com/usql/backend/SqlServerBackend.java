@@ -372,6 +372,14 @@ public class SqlServerBackend extends AbstractDialectBackend {
                 .collect(Collectors.joining(",\n")));
         }
         sb.append("\n)");
+
+        if (ct.ifNotExists()) {
+            String tableName = ct.name().schema() != null
+                ? quoteIdentifier(ct.name().schema()) + "." + quoteIdentifier(ct.name().name())
+                : quoteIdentifier(ct.name().name());
+            return "IF OBJECT_ID(N'" + tableName.replace("'", "''")
+                + "', N'U') IS NULL " + sb;
+        }
         return sb.toString();
     }
 
@@ -444,6 +452,11 @@ public class SqlServerBackend extends AbstractDialectBackend {
             .collect(Collectors.joining(", ")));
         sb.append(")");
         if (idx.whereClause() != null) sb.append(" WHERE ").append(generateExpr(idx.whereClause(), opt));
+
+        if (idx.ifNotExists()) {
+            return "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'"
+                + idx.name().replace("'", "''") + "') " + sb;
+        }
         return sb.toString();
     }
 }
