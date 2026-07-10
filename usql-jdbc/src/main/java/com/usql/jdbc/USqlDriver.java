@@ -24,7 +24,7 @@ import java.util.logging.Logger;
 public class USqlDriver implements java.sql.Driver {
 
     private static final String USQL_PREFIX = "jdbc:usql:";
-    private static final USqlCompiler compiler = USqlCompiler.builder().build();
+    private static final USqlCompiler compiler = USqlDataSource.compiler();
 
     static {
         try {

@@ -37,14 +37,17 @@ import java.util.logging.Logger;
  */
 public class USqlDataSource implements DataSource {
 
+    private static final USqlCompiler COMPILER = USqlCompiler.builder().build();
+
+    /** Shared compiler instance — also used by USqlDriver */
+    static USqlCompiler compiler() { return COMPILER; }
+
     private final DataSource real;      // the pooled DataSource (HikariCP/Druid/etc)
     private final Dialect dialect;
-    private final USqlCompiler compiler;
 
     public USqlDataSource(DataSource real, Dialect dialect) {
         this.real = real;
         this.dialect = dialect;
-        this.compiler = USqlCompiler.builder().build();
     }
 
     /** Factory: auto-detect dialect from JDBC URL. */
@@ -57,12 +60,12 @@ public class USqlDataSource implements DataSource {
 
     @Override
     public Connection getConnection() throws SQLException {
-        return new USqlConnection(real.getConnection(), dialect, compiler);
+        return new USqlConnection(real.getConnection(), dialect, COMPILER);
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        return new USqlConnection(real.getConnection(username, password), dialect, compiler);
+        return new USqlConnection(real.getConnection(username, password), dialect, COMPILER);
     }
 
     // ── Standard DataSource delegation ──
