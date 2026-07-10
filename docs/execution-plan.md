@@ -17,7 +17,7 @@
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 100% ✅
 - Phase 5 优化: 100% ✅
-- Phase 6 收尾: 80% (4/5)
+- Phase 6 收尾: 100% ✅ (5/5)
 
 ---
 
@@ -29,7 +29,7 @@
 | 6.2 | 存储过程语法解析（grammar + AstBuilder） | ✅ |
 | 6.3 | 存储过程 SemanticAnalyzer + Capability 标记 | ✅ |
 | 6.4 | IRCall 无参括号修复 | ✅ |
-| 6.5 | 存储过程集成测试（含真实 DB） | TODO |
+| 6.5 | 存储过程集成测试（含真实 DB） | ✅ |
 
 ---
 
