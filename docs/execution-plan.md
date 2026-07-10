@@ -12,7 +12,7 @@
 - Phase 2 扩展: 100% ✅
 - Phase 3 交付: 100% ✅
 - Phase 4 高级: 50% (3/6)
-- Phase 5 优化: 57% (8/14)
+- Phase 5 优化: 64% (9/14)
 
 ---
 
@@ -110,7 +110,7 @@
 | 5.6 | 错误信息优化 | ✅ |
 | 5.7 | 单元测试补全 | ✅ |
 | 5.8 | `IF NOT EXISTS` 跨库一致 | ✅ |
-| 5.9 | 类型推导缺失修复 | TODO |
+| 5.9 | 类型推导缺失修复 | ✅ |
 | 5.10 | IROptimizer 常量折叠 Level 1 实现 | TODO |
 | 5.11 | PolyfillEngine 补全 IR rewrite 逻辑 | TODO |
 | 5.12 | SemanticVerifier 集成到 CI/编译流程 | TODO |
@@ -136,6 +136,13 @@
 - `toSql()` 方法从结构化类型生成 frame 文本
 - 语法文件：`frameBound` 备选加标签，方便 IR 构建
 - 5 个 Backend 统一用 `over.frame().toSql()` 替代原始字符串拼接
+
+### 5.9 类型推导缺失修复 (a219fa3)
+
+- 函数返回类型: catalog 未指定时按函数名+参数推断 (SUM→BIGINT/DOUBLE, AVG→DOUBLE, COUNT→BIGINT)
+- 二元运算: BIGINT 参与运算保留 BIGINT (之前总是回退 INT)
+- CASE 表达式: ELSE 优先，然后扫描 WHEN 分支 (之前只用第一个 WHEN)
+- +46/-4 行
 
 ### 5.8 IF NOT EXISTS 跨库一致 (170d978)
 
