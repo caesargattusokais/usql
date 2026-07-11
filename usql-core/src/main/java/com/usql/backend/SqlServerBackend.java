@@ -36,6 +36,10 @@ public class SqlServerBackend extends AbstractDialectBackend {
             case IRTruncateTable tt          -> generateTruncateTable(tt, options);
             case IRAlterTableAddColumn aa    -> generateAlterTableAddColumn(aa, options);
             case IRAlterTableDropColumn ad   -> generateAlterTableDropColumn(ad, options);
+            case IRAlterColumnType act       -> generateAlterColumnType(act, options);
+            case IRAlterColumnSetDefault acs -> generateAlterColumnSetDefault(acs, options);
+            case IRAlterColumnDropDefault acd -> generateAlterColumnDropDefault(acd, options);
+            case IRRenameColumn rc           -> generateRenameColumn(rc, options);
             default ->
                 throw new UnsupportedOperationException(
                     "SQL Server backend cannot generate statement '" + statement.getClass().getSimpleName()

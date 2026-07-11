@@ -237,6 +237,26 @@ public abstract class AbstractDialectBackend implements DialectBackend {
             + " DROP COLUMN " + quoteIdentifier(ad.columnName());
     }
 
+    protected String generateAlterColumnType(IRAlterColumnType act, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(act.tableName())
+            + " ALTER COLUMN " + quoteIdentifier(act.column()) + " TYPE " + mapType(act.newType());
+    }
+
+    protected String generateAlterColumnSetDefault(IRAlterColumnSetDefault acs, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(acs.tableName())
+            + " ALTER COLUMN " + quoteIdentifier(acs.column()) + " SET DEFAULT " + generateExpr(acs.value(), opt);
+    }
+
+    protected String generateAlterColumnDropDefault(IRAlterColumnDropDefault acd, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(acd.tableName())
+            + " ALTER COLUMN " + quoteIdentifier(acd.column()) + " DROP DEFAULT";
+    }
+
+    protected String generateRenameColumn(IRRenameColumn rc, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(rc.tableName())
+            + " RENAME COLUMN " + quoteIdentifier(rc.oldName()) + " TO " + quoteIdentifier(rc.newName());
+    }
+
     // ══════════════════════════════════════════════════
     //  Abstract methods — each dialect provides these
     // ══════════════════════════════════════════════════

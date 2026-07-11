@@ -286,4 +286,8 @@ public sealed interface IRStatement {
     record IRTruncateTable(String name, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableAddColumn(String tableName, IRColumnDef column, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableDropColumn(String tableName, String columnName, Set<Capability> capabilities) implements IRStatement {}
+    record IRAlterColumnType(String tableName, String column, DataType newType, Set<Capability> capabilities) implements IRStatement {}
+    record IRAlterColumnSetDefault(String tableName, String column, IRExpr value, Set<Capability> capabilities) implements IRStatement {}
+    record IRAlterColumnDropDefault(String tableName, String column, Set<Capability> capabilities) implements IRStatement {}
+    record IRRenameColumn(String tableName, String oldName, String newName, Set<Capability> capabilities) implements IRStatement {}
 }

@@ -135,6 +135,10 @@ public final class USqlAst {
     public sealed interface AlterAction {}
     public record AddColumn(String name, DataTypeDecl type, List<ColumnConstraint> constraints, Expression defaultVal) implements AlterAction {}
     public record DropColumn(String name) implements AlterAction {}
+    public record AlterColumnType(String column, DataTypeDecl newType) implements AlterAction {}
+    public record AlterColumnSetDefault(String column, Expression defaultVal) implements AlterAction {}
+    public record AlterColumnDropDefault(String column) implements AlterAction {}
+    public record RenameColumn(String oldName, String newName) implements AlterAction {}
 
     public sealed interface TableRef {}
     public record SimpleTable(String name, String alias) implements TableRef {}

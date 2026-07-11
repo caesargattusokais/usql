@@ -56,6 +56,10 @@ public class IROptimizer {
             case IRTruncateTable tt     -> tt;
             case IRAlterTableAddColumn aa -> aa;
             case IRAlterTableDropColumn ad -> ad;
+            case IRAlterColumnType act     -> act;
+            case IRAlterColumnSetDefault acs -> acs;
+            case IRAlterColumnDropDefault acd -> acd;
+            case IRRenameColumn rc         -> rc;
         };
     }
 

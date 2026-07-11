@@ -671,6 +671,11 @@ public class SemanticAnalyzer {
                     new IRColumnDef(ac.name(), type, constraints, defaultVal), Set.of());
             }
             case DropColumn dc -> new IRAlterTableDropColumn(s.tableName(), dc.name(), Set.of());
+            case AlterColumnType act -> new IRAlterColumnType(s.tableName(), act.column(),
+                TypeInferrer.parseTypeName(act.newType().name(), act.newType().precision(), act.newType().scale()), Set.of());
+            case AlterColumnSetDefault acs -> new IRAlterColumnSetDefault(s.tableName(), acs.column(), analyzeExpr(acs.defaultVal()), Set.of());
+            case AlterColumnDropDefault acd -> new IRAlterColumnDropDefault(s.tableName(), acd.column(), Set.of());
+            case RenameColumn rc -> new IRRenameColumn(s.tableName(), rc.oldName(), rc.newName(), Set.of());
         };
     }
 

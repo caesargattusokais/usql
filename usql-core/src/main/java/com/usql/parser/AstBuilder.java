@@ -920,6 +920,22 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         return new DropColumn(getIdentifier(ctx.identifier()));
     }
 
+    public AlterAction visitAlterColumnType(USqlParser.AlterColumnTypeContext ctx) {
+        return new AlterColumnType(getIdentifier(ctx.col), parseDataType(ctx.dataType()));
+    }
+
+    public AlterAction visitAlterColumnSetDefault(USqlParser.AlterColumnSetDefaultContext ctx) {
+        return new AlterColumnSetDefault(getIdentifier(ctx.col), (Expression) visit(ctx.expr()));
+    }
+
+    public AlterAction visitAlterColumnDropDefault(USqlParser.AlterColumnDropDefaultContext ctx) {
+        return new AlterColumnDropDefault(getIdentifier(ctx.col));
+    }
+
+    public AlterAction visitRenameColumn(USqlParser.RenameColumnContext ctx) {
+        return new RenameColumn(getIdentifier(ctx.old), getIdentifier(ctx.newName));
+    }
+
     // ══════════════════════════════════════════════════
     //  Helpers
     // ══════════════════════════════════════════════════

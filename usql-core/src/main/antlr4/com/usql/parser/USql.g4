@@ -400,7 +400,7 @@ keyword
     | LATERAL | IGNORE | ENGINE | TABLESPACE | CHARACTER | COLLATE | COMMENT
     | WITH | TIME | ZONE
     | PROCEDURE | FUNCTION | CALL | REPLACE | OUT | INOUT | RETURNS | LANGUAGE
-    | DROP | TRUNCATE | ALTER | ADD | COLUMN
+    | DROP | TRUNCATE | ALTER | ADD | COLUMN | TYPE | RENAME
     ;
 
 // ══════════════════════════════════════════════════
@@ -553,6 +553,8 @@ DROP:         D R O P;
 TRUNCATE:     T R U N C A T E;
 ALTER:        A L T E R;
 ADD:          A D D;
+TYPE:         T Y P E;
+RENAME:       R E N A M E;
 COLUMN:       C O L U M N;
 LATERAL:      L A T E R A L;
 IGNORE:       I G N O R E;
@@ -630,8 +632,12 @@ alterTableStatement
     ;
 
 alterAction
-    : ADD (COLUMN)? columnDef      # AddColumn
-    | DROP (COLUMN)? identifier    # DropColumn
+    : ADD (COLUMN)? columnDef                     # AddColumn
+    | DROP (COLUMN)? identifier                    # DropColumn
+    | ALTER (COLUMN)? col=identifier TYPE dataType  # AlterColumnType
+    | ALTER (COLUMN)? col=identifier SET DEFAULT expr # AlterColumnSetDefault
+    | ALTER (COLUMN)? col=identifier DROP DEFAULT    # AlterColumnDropDefault
+    | RENAME COLUMN old=identifier TO newName=identifier # RenameColumn
     ;
 
 // ══════════════════════════════════════════════════
