@@ -191,7 +191,10 @@ public class StoredProcedureTest {
             check(r.isSuccess(), d.displayName() + " no-param proc succeeds");
             // Parens should be empty or absent
             String sql = r.getSql();
-            check(!sql.contains("()"), d.displayName() + " no empty parens");
+            if (d == Dialect.MYSQL || d == Dialect.POSTGRESQL)
+                check(sql.contains("()"), d.displayName() + " has empty parens");
+            else
+                check(!sql.contains("()"), d.displayName() + " no empty parens");
         }
     }
 
