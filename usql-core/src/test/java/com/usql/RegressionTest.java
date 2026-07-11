@@ -49,6 +49,7 @@ public class RegressionTest {
                 testEnum(db, conn);
                 testCTE(db, conn);
                 testSetOps(db, conn);
+                testRollupCube(db, conn);
             } catch (Exception e) {
                 System.out.println("  SKIP: " + e.getMessage().split("\n")[0]);
                 skipped++;
@@ -326,6 +327,36 @@ public class RegressionTest {
         execQuery(db, conn, "SELECT name FROM reg_so_a EXCEPT SELECT name FROM reg_so_b", 1);
 
         dropTable(db, conn, "reg_so_a"); dropTable(db, conn, "reg_so_b");
+    }
+
+    // ═══════════════════════════════════════
+    //  ROLLUP / CUBE / GROUPING SETS
+    // ═══════════════════════════════════════
+
+    static void testRollupCube(Db db, Connection conn) throws Exception {
+        dropTable(db, conn, "reg_rc");
+        execDDL(db, conn, "CREATE TABLE reg_rc (dept VARCHAR(50), city VARCHAR(50), sales DECIMAL(10,2))", "Setup rc");
+        execDML(db, conn,
+            "INSERT INTO reg_rc (dept, city, sales) VALUES "
+            + "('Eng', 'NY', 100), ('Eng', 'SF', 200), "
+            + "('Sales', 'NY', 150), ('Sales', 'SF', 50)",
+            "Insert rc");
+
+        // ROLLUP (MySQL uses different syntax: GROUP BY ... WITH ROLLUP)
+        if (!db.name().equals("MySQL")) {
+            execQuery(db, conn,
+                "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
+                + "GROUP BY ROLLUP(dept, city)", 7);
+        }
+
+        // CUBE (MySQL doesn't support CUBE)
+        if (!db.name().equals("MySQL")) {
+            execQuery(db, conn,
+                "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
+                + "GROUP BY CUBE(dept, city)", 9);
+        }
+
+        dropTable(db, conn, "reg_rc");
     }
 
     // ═══════════════════════════════════════
