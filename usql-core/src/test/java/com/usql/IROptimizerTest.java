@@ -15,6 +15,7 @@ public class IROptimizerTest {
         testIsNull(); testWhere(); testFetch(); testNested();
         testSubquery(); testLevel2Simplify(); testLevel2Zero();
         testLevel2Collapse(); testLevel2NotNot(); testLevel2DML();
+        testLevel3All();
         System.out.println("\n=== " + pass + "/" + (pass+fail) + " ===");
         if (fail > 0) System.exit(1);
     }
@@ -122,6 +123,71 @@ public class IROptimizerTest {
         // NOT NOT x→x
         IRExpr e = new IRUnaryOp(IRUnaryOp.UnaryOp.NOT,new IRUnaryOp(IRUnaryOp.UnaryOp.NOT,new IRColumnRef("x",null,null),null),null);
         chk(((IRExprSelect)opt2(simpleQuery(e)).core().projections().get(0)).expr() instanceof IRColumnRef,"NOT NOT x→x");
+    }
+
+    // Level 3: predicate pushdown
+    static void testLevel3Pushdown() {
+        // SELECT * FROM (SELECT DISTINCT a FROM t) s WHERE s.a > 1 → push WHERE into subquery
+        // Use DISTINCT to prevent Level 2 flattening
+        IRSelect inner = new IRSelect(new SelectCore(
+            List.of(new IRExprSelect(new IRColumnRef("a",null,null),"a")),
+            List.of(new IRTableName("t",null,null)),null,null,null,null,null,null,true),
+            null,null,Set.of());
+        IRSelect outer = new IRSelect(new SelectCore(
+            List.of(new IRWildcardSelect(new IRWildcard(null))),
+            List.of(new IRSubqueryTable(inner,"s")),
+            new IRBinaryOp(new IRColumnRef("s","a",null),IRBinaryOp.BinaryOp.GT,new IRLiteral(1,null),null),
+            null,null,null,null,null,false),null,null,Set.of());
+        IRSelect r = (IRSelect)IROptimizer.optimize(new SemanticIR(outer),3).rootStatement();
+        // Subquery should now have WHERE pushed into it
+        boolean hasSubquery = false;
+        for (var ref : r.core().from()) {
+            if (ref instanceof IRSubqueryTable sq) {
+                hasSubquery = true;
+                chk(sq.query().core().where()!=null,"Pushdown: subquery has WHERE");
+            }
+        }
+        chk(hasSubquery,"Pushdown: subquery preserved after L2");
+    }
+
+    static void testLevel3NoPushdown() {
+        // SELECT * FROM t1, (SELECT DISTINCT a FROM t) s WHERE t1.x > 1 — don't push (refs t1)
+        IRSelect inner = new IRSelect(new SelectCore(
+            List.of(new IRExprSelect(new IRColumnRef("a",null,null),"a")),
+            List.of(new IRTableName("t",null,null)),null,null,null,null,null,null,true),
+            null,null,Set.of());
+        IRSelect outer = new IRSelect(new SelectCore(
+            List.of(new IRWildcardSelect(new IRWildcard(null))),
+            List.of(new IRTableName("t1",null,null),new IRSubqueryTable(inner,"s")),
+            new IRBinaryOp(new IRColumnRef("t1","x",null),IRBinaryOp.BinaryOp.GT,new IRLiteral(1,null),null),
+            null,null,null,null,null,false),null,null,Set.of());
+        IRSelect r = (IRSelect)IROptimizer.optimize(new SemanticIR(outer),3).rootStatement();
+        chk(r.core().where()!=null,"No pushdown: WHERE stays for t1 ref");
+    }
+
+    // Level 3: projection pruning
+    static void testLevel3Prune() {
+        // SELECT s.x FROM (SELECT DISTINCT a AS x, b AS y FROM t) s → prune b
+        IRSelect inner = new IRSelect(new SelectCore(
+            List.of(new IRExprSelect(new IRColumnRef("a",null,null),"x"),
+                    new IRExprSelect(new IRColumnRef("b",null,null),"y")),
+            List.of(new IRTableName("t",null,null)),null,null,null,null,null,null,true),
+            null,null,Set.of());
+        IRSelect outer = new IRSelect(new SelectCore(
+            List.of(new IRExprSelect(new IRColumnRef("s","x",null),"x")),
+            List.of(new IRSubqueryTable(inner,"s")),null,null,null,null,null,null,false),
+            null,null,Set.of());
+        IRSelect r = (IRSelect)IROptimizer.optimize(new SemanticIR(outer),3).rootStatement();
+        boolean pruned = false;
+        for (var ref : r.core().from()) {
+            if (ref instanceof IRSubqueryTable sq)
+                pruned = sq.query().core().projections().size()==1;
+        }
+        chk(pruned,"Prune: subquery has 1 projection");
+    }
+
+    static void testLevel3All() {
+        testLevel3Pushdown(); testLevel3NoPushdown(); testLevel3Prune();
     }
 
     static void testLevel2DML() {
