@@ -152,6 +152,8 @@ public class RegressionTest {
         execQuery(db, conn, "SELECT ROUND(salary / 1000, 0) FROM reg_q", 5);
         // Expression
         execQuery(db, conn, "SELECT 1 + 1 AS two", 1);
+        // CAST
+        execQuery(db, conn, "SELECT CAST(salary AS VARCHAR(10)) FROM reg_q WHERE name = 'Alice'", 1);
         // COALESCE
         execQuery(db, conn, "SELECT COALESCE(name, 'N/A') FROM reg_q", 5);
         // JOIN

@@ -216,7 +216,13 @@ public class MySqlBackend extends AbstractDialectBackend {
             case IRUnaryOp uo    -> generateUnaryOp(uo, opt);
             case IRFunctionCall fc -> generateFunctionCall(fc, opt);
             case IRCase cs       -> generateCase(cs, opt);
-            case IRCast ct       -> "CAST(" + generateExpr(ct.expr(), opt) + " AS " + mapType(ct.targetType()) + ")";
+            case IRCast ct       -> {
+                String targetType = mapType(ct.targetType());
+                // MySQL CAST doesn't support VARCHAR, use CHAR
+                if (ct.targetType() instanceof DataType.VarcharType)
+                    targetType = "CHAR(" + ((DataType.VarcharType) ct.targetType()).length() + ")";
+                yield "CAST(" + generateExpr(ct.expr(), opt) + " AS " + targetType + ")";
+            }
             case IRSubquery sq   -> "(" + generateSelect(sq.query(), opt) + ")";
             case IRBetween btw   -> generateExpr(btw.expr(), opt) + (btw.not() ? " NOT" : "") +
                                     " BETWEEN " + generateExpr(btw.low(), opt) + " AND " + generateExpr(btw.high(), opt);
