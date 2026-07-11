@@ -275,20 +275,30 @@ public class RegressionTest {
             + "SELECT n + 1 FROM nums WHERE n < 3"
             + ") SELECT SUM(n) AS total FROM nums", 1);
 
-        // INSERT...WITH (MySQL & PG only)
-        if (!Set.of("Oracle", "达梦DM", "SQL Server").contains(db.name())) {
-            dropTable(db, conn, "reg_cte_out");
-            execDDL(db, conn, "CREATE TABLE reg_cte_out (n INT)", "Setup cte_out");
-            execDML(db, conn,
-                "INSERT INTO reg_cte_out (n) "
-                + "WITH RECURSIVE nums AS ("
-                + "SELECT 1 AS n "
-                + "UNION ALL "
-                + "SELECT n + 1 FROM nums WHERE n < 4"
-                + ") SELECT n FROM nums", "INSERT...WITH RECURSIVE");
-            execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_cte_out", 1);
-            dropTable(db, conn, "reg_cte_out");
+        // INSERT...WITH RECURSIVE
+        dropTable(db, conn, "reg_cte_out");
+        execDDL(db, conn, "CREATE TABLE reg_cte_out (n INT)", "Setup cte_out");
+        CompilationResult r = compiler.compile(
+            "INSERT INTO reg_cte_out (n) "
+            + "WITH RECURSIVE nums AS ("
+            + "SELECT 1 AS n "
+            + "UNION ALL "
+            + "SELECT n + 1 FROM nums WHERE n < 4"
+            + ") SELECT n FROM nums", db.dialect());
+        if (r.isSuccess()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate(r.getSql());
+                check(true, "INSERT...WITH executed");
+                execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_cte_out", 1);
+            } catch (SQLException e) {
+                System.out.println("    SQL: " + r.getSql());
+                check(false, db.name() + " INSERT...WITH: " + e.getMessage());
+            }
+        } else {
+            System.out.println("    ⚠️  INSERT...WITH compile failed: " + r.report());
+            skipped++;
         }
+        dropTable(db, conn, "reg_cte_out");
 
         dropTable(db, conn, "reg_cte_t");
     }

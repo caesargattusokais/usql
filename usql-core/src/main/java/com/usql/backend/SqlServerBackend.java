@@ -301,11 +301,27 @@ public class SqlServerBackend extends AbstractDialectBackend {
     // ══════════════════════════════════════════════════
 
     private String generateInsert(IRInsert ins, GenerateOptions opt) {
-        var sb = new StringBuilder("INSERT INTO ").append(generateTableRef(ins.table(), opt));
+        // SQL Server: WITH must come before INSERT
+        String withClause = null;
+        String selectSQL = null;
+        if (ins.selectSource() != null) {
+            selectSQL = generateSelect(ins.selectSource(), opt);
+            if (ins.selectSource().core().withClause() != null
+                && !ins.selectSource().core().withClause().isEmpty()) {
+                int withEnd = selectSQL.indexOf(") SELECT") + 2;
+                if (withEnd > 1) {
+                    withClause = selectSQL.substring(0, withEnd);
+                    selectSQL = "SELECT" + selectSQL.substring(withEnd + 6);
+                }
+            }
+        }
+        var sb = new StringBuilder();
+        if (withClause != null) sb.append(withClause).append("\n");
+        sb.append("INSERT INTO ").append(generateTableRef(ins.table(), opt));
         if (ins.columns() != null && !ins.columns().isEmpty())
             sb.append(" (").append(ins.columns().stream().map(this::quoteIdentifier).collect(Collectors.joining(", "))).append(")");
-        if (ins.selectSource() != null)
-            sb.append(" ").append(generateSelect(ins.selectSource(), opt));
+        if (selectSQL != null)
+            sb.append(" ").append(selectSQL);
         else if (ins.values() != null && !ins.values().isEmpty()) {
             sb.append(" VALUES ");
             sb.append(ins.values().stream()
