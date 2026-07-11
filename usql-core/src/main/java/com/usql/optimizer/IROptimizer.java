@@ -627,7 +627,6 @@ public class IROptimizer {
 
         for (var ref : sel.core().from()) {
             if (ref instanceof IRSubqueryTable sq) {
-                // Collect column refs that reference the subquery's alias
                 List<IRExpr> pushable = extractPushable(outerWhere, sq.alias());
                 if (!pushable.isEmpty()) {
                     // Merge pushable conditions into subquery's WHERE
@@ -651,7 +650,7 @@ public class IROptimizer {
             newFrom.add(ref);
         }
 
-        remainingWhere = foldExpr(remainingWhere);
+        if (remainingWhere != null) remainingWhere = foldExpr(remainingWhere);
         var core = new SelectCore(sel.core().projections(), newFrom, remainingWhere,
             sel.core().groupBy(), sel.core().having(), sel.core().withClause(),
             sel.core().setOp(), sel.core().setOperand(), sel.core().distinct());

@@ -128,7 +128,7 @@ public class IROptimizerTest {
     // Level 3: predicate pushdown
     static void testLevel3Pushdown() {
         // SELECT * FROM (SELECT DISTINCT a FROM t) s WHERE s.a > 1 → push WHERE into subquery
-        // Use DISTINCT to prevent Level 2 flattening
+        // IRColumnRef is (name, qualifier, type) — "a" is name, "s" is qualifier
         IRSelect inner = new IRSelect(new SelectCore(
             List.of(new IRExprSelect(new IRColumnRef("a",null,null),"a")),
             List.of(new IRTableName("t",null,null)),null,null,null,null,null,null,true),
@@ -136,22 +136,18 @@ public class IROptimizerTest {
         IRSelect outer = new IRSelect(new SelectCore(
             List.of(new IRWildcardSelect(new IRWildcard(null))),
             List.of(new IRSubqueryTable(inner,"s")),
-            new IRBinaryOp(new IRColumnRef("s","a",null),IRBinaryOp.BinaryOp.GT,new IRLiteral(1,null),null),
+            new IRBinaryOp(new IRColumnRef("a","s",null),IRBinaryOp.BinaryOp.GT,new IRLiteral(1,null),null),
             null,null,null,null,null,false),null,null,Set.of());
-        IRSelect r = (IRSelect)IROptimizer.optimize(new SemanticIR(outer),3).rootStatement();
-        // Subquery should now have WHERE pushed into it
-        boolean hasSubquery = false;
+        var result = com.usql.optimizer.IROptimizer.optimize(new SemanticIR(outer), 3);
+        IRSelect r = (IRSelect) result.rootStatement();
+        boolean hasWhere = false;
         for (var ref : r.core().from()) {
-            if (ref instanceof IRSubqueryTable sq) {
-                hasSubquery = true;
-                chk(sq.query().core().where()!=null,"Pushdown: subquery has WHERE");
-            }
+            if (ref instanceof IRSubqueryTable sq && sq.query().core().where() != null) hasWhere = true;
         }
-        chk(hasSubquery,"Pushdown: subquery preserved after L2");
+        chk(hasWhere, "Pushdown: subquery has WHERE after Level 3");
     }
 
     static void testLevel3NoPushdown() {
-        // SELECT * FROM t1, (SELECT DISTINCT a FROM t) s WHERE t1.x > 1 — don't push (refs t1)
         IRSelect inner = new IRSelect(new SelectCore(
             List.of(new IRExprSelect(new IRColumnRef("a",null,null),"a")),
             List.of(new IRTableName("t",null,null)),null,null,null,null,null,null,true),
@@ -159,7 +155,7 @@ public class IROptimizerTest {
         IRSelect outer = new IRSelect(new SelectCore(
             List.of(new IRWildcardSelect(new IRWildcard(null))),
             List.of(new IRTableName("t1",null,null),new IRSubqueryTable(inner,"s")),
-            new IRBinaryOp(new IRColumnRef("t1","x",null),IRBinaryOp.BinaryOp.GT,new IRLiteral(1,null),null),
+            new IRBinaryOp(new IRColumnRef("x","t1",null),IRBinaryOp.BinaryOp.GT,new IRLiteral(1,null),null),
             null,null,null,null,null,false),null,null,Set.of());
         IRSelect r = (IRSelect)IROptimizer.optimize(new SemanticIR(outer),3).rootStatement();
         chk(r.core().where()!=null,"No pushdown: WHERE stays for t1 ref");
@@ -174,7 +170,7 @@ public class IROptimizerTest {
             List.of(new IRTableName("t",null,null)),null,null,null,null,null,null,true),
             null,null,Set.of());
         IRSelect outer = new IRSelect(new SelectCore(
-            List.of(new IRExprSelect(new IRColumnRef("s","x",null),"x")),
+            List.of(new IRExprSelect(new IRColumnRef("x","s",null),"x")),
             List.of(new IRSubqueryTable(inner,"s")),null,null,null,null,null,null,false),
             null,null,Set.of());
         IRSelect r = (IRSelect)IROptimizer.optimize(new SemanticIR(outer),3).rootStatement();
