@@ -7,6 +7,7 @@ import com.usql.ir.IRExpr.*;
 import com.usql.ir.IRStatement.*;
 
 import java.util.ArrayList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -95,9 +96,23 @@ public class DmBackend extends AbstractDialectBackend {
 
         if (sel.core().withClause() != null && !sel.core().withClause().isEmpty()) {
             sb.append("WITH ");
-            if (sel.core().withClause().get(0).recursive()) sb.append("RECURSIVE ");
+            // DM uses WITH for both recursive and non-recursive CTEs
+            // Recursive CTEs need column alias list
             sb.append(sel.core().withClause().stream()
-                .map(cte -> quoteIdentifier(cte.name()) + " AS (" + generateSelect(cte.query(), opt) + ")")
+                .map(cte -> {
+                    String cols = "";
+                    if (cte.recursive() && (cte.columns() == null || cte.columns().isEmpty())) {
+                        List<String> names = new ArrayList<>();
+                        if (cte.query().core().projections() != null) {
+                            for (var p : cte.query().core().projections()) {
+                                if (p instanceof IRExprSelect es && es.alias() != null)
+                                    names.add(quoteIdentifier(es.alias()));
+                            }
+                        }
+                        if (!names.isEmpty()) cols = " (" + String.join(", ", names) + ")";
+                    }
+                    return quoteIdentifier(cte.name()) + cols + " AS (" + generateSelect(cte.query(), opt) + ")";
+                })
                 .collect(Collectors.joining(", ")));
             sb.append(" ");
         }

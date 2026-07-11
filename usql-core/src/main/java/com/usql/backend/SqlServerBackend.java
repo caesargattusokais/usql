@@ -87,7 +87,7 @@ public class SqlServerBackend extends AbstractDialectBackend {
         // CTE
         if (sel.core().withClause() != null && !sel.core().withClause().isEmpty()) {
             sb.append("WITH ");
-            if (sel.core().withClause().get(0).recursive()) sb.append("RECURSIVE ");
+            // SQL Server uses WITH for both recursive and non-recursive CTEs
             sb.append(sel.core().withClause().stream()
                 .map(cte -> quoteIdentifier(cte.name()) + " AS (" + generateSelect(cte.query(), opt) + ")")
                 .collect(Collectors.joining(", ")));

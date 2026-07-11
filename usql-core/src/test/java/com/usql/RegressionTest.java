@@ -260,22 +260,20 @@ public class RegressionTest {
         execQuery(db, conn,
             "WITH cte AS (SELECT id, name FROM reg_cte_t WHERE val > 15) SELECT name FROM cte", 2);
 
-        // Recursive CTE (MySQL & PG only — Oracle/DM/SQL Server syntax differs)
-        if (!Set.of("Oracle", "达梦DM", "SQL Server").contains(db.name())) {
-            execQuery(db, conn,
-                "WITH RECURSIVE nums AS ("
-                + "SELECT 1 AS n "
-                + "UNION ALL "
-                + "SELECT n + 1 FROM nums WHERE n < 5"
-                + ") SELECT n FROM nums", 5);
+        // Recursive CTE — all 5 dialects
+        execQuery(db, conn,
+            "WITH RECURSIVE nums AS ("
+            + "SELECT 1 AS n "
+            + "UNION ALL "
+            + "SELECT n + 1 FROM nums WHERE n < 5"
+            + ") SELECT n FROM nums", 5);
 
-            execQuery(db, conn,
-                "WITH RECURSIVE nums AS ("
-                + "SELECT 1 AS n "
-                + "UNION ALL "
-                + "SELECT n + 1 FROM nums WHERE n < 3"
-                + ") SELECT SUM(n) AS total FROM nums", 1);
-        }
+        execQuery(db, conn,
+            "WITH RECURSIVE nums AS ("
+            + "SELECT 1 AS n "
+            + "UNION ALL "
+            + "SELECT n + 1 FROM nums WHERE n < 3"
+            + ") SELECT SUM(n) AS total FROM nums", 1);
 
         // INSERT...WITH (MySQL & PG only)
         if (!Set.of("Oracle", "达梦DM", "SQL Server").contains(db.name())) {
