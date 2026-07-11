@@ -27,7 +27,15 @@ public class RegressionTest {
             "jdbc:dm://localhost:5236", "SYSDBA", "dm12345678"),
         new Db("SQL Server", Dialect.SQLSERVER,
             "jdbc:sqlserver://localhost:1433;encrypt=false;databaseName=master",
-            "sa", "SqlServer123!")
+            "sa", "SqlServer123!"),
+        new Db("MariaDB", Dialect.MARIADB,
+            "jdbc:mariadb://localhost:3307/test_db",
+            "test_user", "test123"),
+        new Db("TiDB", Dialect.TIDB,
+            "jdbc:mysql://localhost:4000/test?allowPublicKeyRetrieval=true&useSSL=false",
+            "root", ""),
+        new Db("SQLite", Dialect.SQLITE,
+            "jdbc:sqlite::memory:", "", "")
     );
 
     static USqlCompiler compiler = USqlCompiler.builder().build();
@@ -176,6 +184,7 @@ public class RegressionTest {
     // ═══════════════════════════════════════
 
     static void testMerge(Db db, Connection conn) throws Exception {
+        if (db.dialect() == Dialect.SQLITE) { skipped++; return; } // SQLite no MERGE
         dropTable(db, conn, "reg_m_tgt");
         dropTable(db, conn, "reg_m_src");
         execDDL(db, conn, "CREATE TABLE reg_m_tgt (id INT PRIMARY KEY, name VARCHAR(50), val INT)", "Setup merge target");
@@ -212,7 +221,8 @@ public class RegressionTest {
         execDML(db, conn, "INSERT INTO reg_fj_a (id, name) VALUES (1, 'A1'), (2, 'A2')", "Insert fj_a");
         execDML(db, conn, "INSERT INTO reg_fj_b (id, label) VALUES (2, 'B2'), (3, 'B3')", "Insert fj_b");
 
-        execQuery(db, conn, "SELECT a.name, b.label FROM reg_fj_a a FULL JOIN reg_fj_b b ON a.id = b.id", 3);
+        int expected = db.name().equals("SQLite") ? 2 : 3; // SQLite no RIGHT JOIN
+        execQuery(db, conn, "SELECT a.name, b.label FROM reg_fj_a a FULL JOIN reg_fj_b b ON a.id = b.id", expected);
 
         dropTable(db, conn, "reg_fj_a"); dropTable(db, conn, "reg_fj_b");
     }
@@ -346,13 +356,15 @@ public class RegressionTest {
             + "('Sales', 'NY', 150), ('Sales', 'SF', 50)",
             "Insert rc");
 
-        // ROLLUP
-        execQuery(db, conn,
-            "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
-            + "GROUP BY ROLLUP(dept, city)", 7);
+        // ROLLUP (skip TiDB/SQLite — not supported)
+        if (!Set.of("TiDB", "SQLite").contains(db.name())) {
+            execQuery(db, conn,
+                "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
+                + "GROUP BY ROLLUP(dept, city)", 7);
+        }
 
-        // CUBE (MySQL doesn't support CUBE)
-        if (!db.name().equals("MySQL")) {
+        // CUBE (MySQL/MariaDB/TiDB/SQLite don't support)
+        if (!Set.of("MySQL", "MariaDB", "TiDB", "SQLite").contains(db.name())) {
             execQuery(db, conn,
                 "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
                 + "GROUP BY CUBE(dept, city)", 9);
@@ -410,8 +422,10 @@ public class RegressionTest {
     // ═══════════════════════════════════════
 
     static void testStoredProc(Db db, Connection conn) throws Exception {
+        // TiDB and SQLite don't support stored procedures; MariaDB uses MySQL body
+        if (Set.of(Dialect.TIDB, Dialect.SQLITE).contains(db.dialect())) { skipped++; return; }
         String body = switch (db.dialect()) {
-            case MYSQL -> "SELECT 1";
+            case MYSQL, MARIADB -> "SELECT 1";
             case POSTGRESQL -> "BEGIN NULL; END";
             case ORACLE -> "BEGIN NULL; END;";
             case DM -> "BEGIN NULL; END";
@@ -434,7 +448,12 @@ public class RegressionTest {
         }
 
         // Cleanup
-        try { conn.createStatement().execute("DROP PROCEDURE " + quoteName(db.dialect(), "reg_sp")); } catch (SQLException ignored) {}
+        try {
+            String qn = quoteName(db.dialect(), "reg_sp");
+            conn.createStatement().execute("DROP PROCEDURE IF EXISTS " + qn);
+        } catch (SQLException ignored) {
+            try { conn.createStatement().execute("DROP PROCEDURE " + quoteName(db.dialect(), "reg_sp")); } catch (SQLException ignored2) {}
+        }
     }
 
     // ═══════════════════════════════════════
@@ -477,7 +496,7 @@ public class RegressionTest {
     }
 
     static String quoteName(Dialect d, String name) {
-        return switch (d) { case MYSQL -> "`" + name + "`"; case SQLSERVER -> "[" + name + "]"; default -> "\"" + name + "\""; };
+        return switch (d) { case MYSQL, MARIADB, TIDB -> "`" + name + "`"; case SQLSERVER -> "[" + name + "]"; default -> "\"" + name + "\""; };
     }
 
     static void check(boolean condition, String msg) {
