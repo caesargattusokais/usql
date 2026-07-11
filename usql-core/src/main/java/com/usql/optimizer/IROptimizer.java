@@ -28,6 +28,7 @@ public class IROptimizer {
         IRStatement result = ir.rootStatement();
         if (level >= 1) result = foldConstants(result);
         if (level >= 2) result = optimizeSubqueries(result);
+        if (level >= 2) result = simplifyExpressions(result);
         return new SemanticIR(result);
     }
 
@@ -465,6 +466,125 @@ public class IROptimizer {
     private static IRDelete flattenSubqueriesInDelete(IRDelete del) {
         IRExpr where = del.where() != null ? foldExpr(del.where()) : null;
         return new IRDelete(del.table(), where, del.capabilities());
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Expression simplification — Level 2
+    // ══════════════════════════════════════════════════
+
+    /** Apply algebraic simplifications: x*1→x, x+0→x, x AND TRUE→x, etc. */
+    private static IRStatement simplifyExpressions(IRStatement stmt) {
+        return switch (stmt) {
+            case IRSelect sel   -> simplifySelect(sel);
+            case IRInsert ins   -> simplifyInsert(ins);
+            case IRUpdate upd   -> simplifyUpdate(upd);
+            case IRDelete del   -> simplifyDelete(del);
+            default -> stmt;
+        };
+    }
+
+    private static IRSelect simplifySelect(IRSelect sel) {
+        List<IRSelectItem> proj = sel.core().projections() != null
+            ? sel.core().projections().stream().map(IROptimizer::simplifySelectItem).toList() : null;
+        List<IRTableRef> from = sel.core().from() != null
+            ? sel.core().from().stream().map(IROptimizer::simplifyTableRef).toList() : null;
+        IRExpr where = sel.core().where() != null ? simplifyExpr(sel.core().where()) : null;
+        List<IRGroupBy> gb = sel.core().groupBy() != null
+            ? sel.core().groupBy().stream().map(g -> new IRGroupBy(simplifyExpr(g.expr()), g.kind())).toList() : null;
+        IRExpr having = sel.core().having() != null ? simplifyExpr(sel.core().having()) : null;
+        List<OrderBy> ob = sel.orderBy() != null
+            ? sel.orderBy().stream().map(o -> new OrderBy(simplifyExpr(o.expr()), o.dir(), o.nulls())).toList() : null;
+        return new IRSelect(new SelectCore(proj, from, where, gb, having, sel.core().withClause(),
+            sel.core().setOp(), sel.core().setOperand(), sel.core().distinct()), ob, sel.fetch(), sel.capabilities());
+    }
+
+    private static IRInsert simplifyInsert(IRInsert ins) {
+        return new IRInsert(ins.table(), ins.columns(), ins.values(), ins.selectSource(), ins.ignoreErrors(), ins.capabilities());
+    }
+    private static IRUpdate simplifyUpdate(IRUpdate upd) {
+        IRExpr where = upd.where() != null ? simplifyExpr(upd.where()) : null;
+        return new IRUpdate(upd.table(), upd.sets().stream().map(s -> new SetClause(s.column(), simplifyExpr(s.value()))).toList(), where, upd.capabilities());
+    }
+    private static IRDelete simplifyDelete(IRDelete del) {
+        IRExpr where = del.where() != null ? simplifyExpr(del.where()) : null;
+        return new IRDelete(del.table(), where, del.capabilities());
+    }
+
+    private static IRSelectItem simplifySelectItem(IRSelectItem item) {
+        return item instanceof IRExprSelect es ? new IRExprSelect(simplifyExpr(es.expr()), es.alias()) : item;
+    }
+    private static IRTableRef simplifyTableRef(IRTableRef ref) {
+        if (ref instanceof IRJoin jn) return new IRJoin(simplifyTableRef(jn.left()), jn.type(), simplifyTableRef(jn.right()), jn.onCondition() != null ? simplifyExpr(jn.onCondition()) : null);
+        if (ref instanceof IRSubqueryTable sq) return new IRSubqueryTable(simplifySelect(sq.query()), sq.alias());
+        return ref;
+    }
+
+    /** Rewrite simplified expressions: x*1→x, x+0→x, x AND TRUE→x, etc. */
+    private static IRExpr simplifyExpr(IRExpr expr) {
+        return switch (expr) {
+            case IRBinaryOp bo -> {
+                IRExpr left = simplifyExpr(bo.left());
+                IRExpr right = simplifyExpr(bo.right());
+                yield simplifyBinary(left, bo.op(), right);
+            }
+            case IRUnaryOp uo -> {
+                IRExpr operand = simplifyExpr(uo.operand());
+                yield simplifyUnary(uo.op(), operand);
+            }
+            case IRFunctionCall fc -> {
+                List<IRExpr> args = fc.args().stream().map(IROptimizer::simplifyExpr).toList();
+                yield new IRFunctionCall(fc.funcName(), args, fc.type(), fc.over(), fc.keep());
+            }
+            case IRCase cs -> {
+                var whens = cs.whens().stream().map(w -> new IRCase.WhenClause(simplifyExpr(w.condition()), simplifyExpr(w.result()))).toList();
+                IRExpr elseE = cs.elseExpr() != null ? simplifyExpr(cs.elseExpr()) : null;
+                yield new IRCase(whens, elseE, cs.type());
+            }
+            default -> expr;
+        };
+    }
+
+    private static IRExpr simplifyBinary(IRExpr left, IRBinaryOp.BinaryOp op, IRExpr right) {
+        // x * 1 → x, x / 1 → x
+        if ((op == IRBinaryOp.BinaryOp.MUL || op == IRBinaryOp.BinaryOp.DIV) && isLiteral(right, 1))
+            return left;
+        // x + 0 → x, x - 0 → x
+        if ((op == IRBinaryOp.BinaryOp.ADD || op == IRBinaryOp.BinaryOp.SUB) && isLiteral(right, 0))
+            return left;
+        // 0 + x → x
+        if (op == IRBinaryOp.BinaryOp.ADD && isLiteral(left, 0))
+            return right;
+        // 1 * x → x
+        if (op == IRBinaryOp.BinaryOp.MUL && isLiteral(left, 1))
+            return right;
+        // x AND TRUE → x, x OR FALSE → x
+        if (op == IRBinaryOp.BinaryOp.AND && isLiteral(right, true))
+            return left;
+        if (op == IRBinaryOp.BinaryOp.OR && isLiteral(right, false))
+            return left;
+        // TRUE AND x → x, FALSE OR x → x
+        if (op == IRBinaryOp.BinaryOp.AND && isLiteral(left, true))
+            return right;
+        if (op == IRBinaryOp.BinaryOp.OR && isLiteral(left, false))
+            return right;
+        return new IRBinaryOp(left, op, right, null);
+    }
+
+    private static IRExpr simplifyUnary(IRUnaryOp.UnaryOp op, IRExpr operand) {
+        // NOT NOT x → x
+        if (op == IRUnaryOp.UnaryOp.NOT && operand instanceof IRUnaryOp uo2 && uo2.op() == IRUnaryOp.UnaryOp.NOT)
+            return uo2.operand();
+        // -(-x) → x
+        if (op == IRUnaryOp.UnaryOp.NEG && operand instanceof IRUnaryOp uo3 && uo3.op() == IRUnaryOp.UnaryOp.NEG)
+            return uo3.operand();
+        return new IRUnaryOp(op, operand, null);
+    }
+
+    private static boolean isLiteral(IRExpr expr, long value) {
+        return expr instanceof IRLiteral lit && lit.value() instanceof Number n && n.longValue() == value;
+    }
+    private static boolean isLiteral(IRExpr expr, boolean value) {
+        return expr instanceof IRLiteral lit && lit.value() instanceof Boolean b && b == value;
     }
 
     // ── Constant evaluation ──
