@@ -345,12 +345,10 @@ public class RegressionTest {
             + "('Sales', 'NY', 150), ('Sales', 'SF', 50)",
             "Insert rc");
 
-        // ROLLUP (MySQL uses different syntax: GROUP BY ... WITH ROLLUP)
-        if (!db.name().equals("MySQL")) {
-            execQuery(db, conn,
-                "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
-                + "GROUP BY ROLLUP(dept, city)", 7);
-        }
+        // ROLLUP
+        execQuery(db, conn,
+            "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
+            + "GROUP BY ROLLUP(dept, city)", 7);
 
         // CUBE (MySQL doesn't support CUBE)
         if (!db.name().equals("MySQL")) {

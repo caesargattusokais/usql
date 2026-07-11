@@ -243,17 +243,20 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
 
     @Override
     public GroupByItem visitRollupGroupBy(USqlParser.RollupGroupByContext ctx) {
-        return new GroupByItem((Expression) visit(ctx.expr(0)), GroupByKind.ROLLUP);
+        var args = ctx.expr().stream().map(e -> (Expression) visit(e)).collect(Collectors.toList());
+        return new GroupByItem(new FunctionCall("ROLLUP", args, false, null, null), GroupByKind.ROLLUP);
     }
 
     @Override
     public GroupByItem visitCubeGroupBy(USqlParser.CubeGroupByContext ctx) {
-        return new GroupByItem((Expression) visit(ctx.expr(0)), GroupByKind.CUBE);
+        var args = ctx.expr().stream().map(e -> (Expression) visit(e)).collect(Collectors.toList());
+        return new GroupByItem(new FunctionCall("CUBE", args, false, null, null), GroupByKind.CUBE);
     }
 
     @Override
     public GroupByItem visitGroupingSetsGroupBy(USqlParser.GroupingSetsGroupByContext ctx) {
-        return new GroupByItem((Expression) visit(ctx.expr(0)), GroupByKind.GROUPING_SETS);
+        var args = ctx.expr().stream().map(e -> (Expression) visit(e)).collect(Collectors.toList());
+        return new GroupByItem(new FunctionCall("GROUPING SETS", args, false, null, null), GroupByKind.GROUPING_SETS);
     }
 
     @Override

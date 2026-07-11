@@ -133,9 +133,9 @@ public class PgBackend extends AbstractDialectBackend {
                     String expr = generateExpr(g.expr(), opt);
                     return switch (g.kind()) {
                         case PLAIN -> expr;
-                        case ROLLUP -> "ROLLUP(" + expr + ")";
-                        case CUBE -> "CUBE(" + expr + ")";
-                        case GROUPING_SETS -> "GROUPING SETS(" + expr + ")";
+                        case ROLLUP -> "ROLLUP(" + stripFunc(expr, "ROLLUP") + ")";
+                        case CUBE -> "CUBE(" + stripFunc(expr, "CUBE") + ")";
+                        case GROUPING_SETS -> "GROUPING SETS(" + stripFunc(expr, "GROUPING SETS") + ")";
                     };
                 })
                 .collect(Collectors.joining(", ")));
@@ -529,6 +529,10 @@ public class PgBackend extends AbstractDialectBackend {
             case INOUT -> "INOUT ";
         };
         return mode + quoteIdentifier(p.name()) + " " + mapType(p.type());
+    }
+
+    private String stripFunc(String expr, String name) {
+        return expr.replaceFirst("^(?i)" + name.replace(" ", "\\s*") + "\\(", "").replaceFirst("\\)$", "");
     }
 
     private String escapeString(String s) {

@@ -76,10 +76,10 @@ groupByClause
     ;
 
 groupByItem
-    : expr                                             # PlainGroupBy
-    | ROLLUP LPAREN expr (COMMA expr)* RPAREN          # RollupGroupBy
+    : ROLLUP LPAREN expr (COMMA expr)* RPAREN          # RollupGroupBy
     | CUBE LPAREN expr (COMMA expr)* RPAREN            # CubeGroupBy
     | GROUPING SETS LPAREN expr (COMMA expr)* RPAREN   # GroupingSetsGroupBy
+    | expr                                             # PlainGroupBy
     ;
 
 havingClause

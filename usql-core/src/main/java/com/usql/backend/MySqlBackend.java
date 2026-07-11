@@ -120,8 +120,22 @@ public class MySqlBackend extends AbstractDialectBackend {
 
         if (sel.core().where() != null) sb.append(" WHERE ").append(generateExpr(sel.core().where(), opt));
         if (sel.core().groupBy() != null && !sel.core().groupBy().isEmpty()) {
+            // MySQL: ROLLUP uses WITH ROLLUP suffix, CUBE not supported
+            boolean hasRollup = sel.core().groupBy().stream().anyMatch(g -> g.kind() == GroupByKind.ROLLUP);
+            boolean hasCube = sel.core().groupBy().stream().anyMatch(g -> g.kind() == GroupByKind.CUBE);
             sb.append(" GROUP BY ");
-            sb.append(sel.core().groupBy().stream().map(g -> generateExpr(g.expr(), opt)).collect(Collectors.joining(", ")));
+            if (hasRollup || hasCube) {
+                // Strip ROLLUP()/CUBE() wrapper for MySQL — just the column list
+                var first = sel.core().groupBy().get(0);
+                String expr = generateExpr(first.expr(), opt);
+                // Remove ROLLUP( / CUBE( prefix and trailing )
+                expr = expr.replaceFirst("^(?i)(ROLLUP|CUBE)\\(", "").replaceFirst("\\)$", "");
+                sb.append(expr);
+            } else {
+                sb.append(sel.core().groupBy().stream().map(g -> generateExpr(g.expr(), opt)).collect(Collectors.joining(", ")));
+            }
+            if (hasRollup) sb.append(" WITH ROLLUP");
+            // MySQL doesn't support CUBE — flattened to plain GROUP BY
         }
         if (sel.core().having() != null) sb.append(" HAVING ").append(generateExpr(sel.core().having(), opt));
         if (sel.orderBy() != null && !sel.orderBy().isEmpty()) {
