@@ -1,4 +1,4 @@
-# USQL — Universal SQL Compiler v2.0.0
+# USQL — Universal SQL Compiler v3.0.0
 
 写一次 SQL，在 MySQL、PostgreSQL、Oracle、达梦 DM、SQL Server 上正确执行。
 
@@ -576,4 +576,4 @@ usql/
 
 ## 版本
 
-当前版本: **v2.0.0**
+当前版本: **v3.0.0**
