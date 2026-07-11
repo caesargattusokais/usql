@@ -623,6 +623,24 @@ public class OracleBackend extends AbstractDialectBackend {
     }
 
     @Override
+    protected String generateAlterColumnType(IRAlterColumnType act, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(act.tableName())
+            + " MODIFY " + quoteIdentifier(act.column()) + " " + mapType(act.newType());
+    }
+
+    @Override
+    protected String generateAlterColumnSetDefault(IRAlterColumnSetDefault acs, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(acs.tableName())
+            + " MODIFY " + quoteIdentifier(acs.column()) + " DEFAULT " + generateExpr(acs.value(), opt);
+    }
+
+    @Override
+    protected String generateAlterColumnDropDefault(IRAlterColumnDropDefault acd, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(acd.tableName())
+            + " MODIFY " + quoteIdentifier(acd.column()) + " DEFAULT NULL";
+    }
+
+    @Override
     protected String generateDropTable(IRDropTable dt, GenerateOptions opt) {
         String cascadeSuffix = dt.cascade() ? " CASCADE CONSTRAINTS" : "";
         if (!dt.ifExists())

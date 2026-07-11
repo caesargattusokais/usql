@@ -523,6 +523,12 @@ public class DmBackend extends AbstractDialectBackend {
     }
 
     @Override
+    protected String generateAlterColumnType(IRAlterColumnType act, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(act.tableName())
+            + " MODIFY " + quoteIdentifier(act.column()) + " " + mapType(act.newType());
+    }
+
+    @Override
     protected String generateDropTable(IRDropTable dt, GenerateOptions opt) {
         String cascadeSuffix = dt.cascade() ? " CASCADE" : "";
         if (!dt.ifExists())

@@ -506,6 +506,19 @@ public class SqlServerBackend extends AbstractDialectBackend {
     }
 
     @Override
+    protected String generateAlterColumnType(IRAlterColumnType act, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(act.tableName())
+            + " ALTER COLUMN " + quoteIdentifier(act.column()) + " " + mapType(act.newType());
+    }
+
+    @Override
+    protected String generateAlterColumnSetDefault(IRAlterColumnSetDefault acs, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(acs.tableName())
+            + " ADD CONSTRAINT DF_" + acs.column() + " DEFAULT " + generateExpr(acs.value(), opt)
+            + " FOR " + quoteIdentifier(acs.column());
+    }
+
+    @Override
     protected String generateDropIndex(IRDropIndex di, GenerateOptions opt) {
         return "DROP INDEX " + (di.ifExists() ? "IF EXISTS " : "")
             + (di.tableName() != null ? quoteIdentifier(di.tableName()) + "." : "")

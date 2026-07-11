@@ -556,6 +556,12 @@ public class MySqlBackend extends AbstractDialectBackend {
         return sql;
     }
 
+    @Override
+    protected String generateAlterColumnType(IRAlterColumnType act, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(act.tableName())
+            + " MODIFY COLUMN " + quoteIdentifier(act.column()) + " " + mapType(act.newType());
+    }
+
     // ══════════════════════════════════════════════════
     //  Helpers
     // ══════════════════════════════════════════════════
