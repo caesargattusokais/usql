@@ -79,6 +79,7 @@ public class SemanticAnalyzer {
             case CreateFunctionStmt s    -> analyzeCreateFunction(s);
             case CallStmt s              -> analyzeCall(s);
             case DropTableStmt s         -> new IRDropTable(s.tableName(), s.ifExists(), s.cascade(), Set.of());
+            case DropIndexStmt s         -> new IRDropIndex(s.indexName(), s.tableName(), s.ifExists(), Set.of());
             case TruncateStmt s          -> new IRTruncateTable(s.tableName(), Set.of());
             case AlterTableStmt s        -> analyzeAlterTable(s);
             default -> throw new UnsupportedOperationException(

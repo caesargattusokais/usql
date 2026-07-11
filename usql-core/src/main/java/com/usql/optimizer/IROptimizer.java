@@ -52,6 +52,7 @@ public class IROptimizer {
             case IRCreateFunction cf    -> cf;
             case IRCall call            -> call;
             case IRDropTable dt         -> dt;
+            case IRDropIndex di         -> di;
             case IRTruncateTable tt     -> tt;
             case IRAlterTableAddColumn aa -> aa;
             case IRAlterTableDropColumn ad -> ad;

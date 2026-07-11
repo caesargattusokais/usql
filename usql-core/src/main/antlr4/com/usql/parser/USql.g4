@@ -24,6 +24,7 @@ statement
     | createFunctionStatement
     | callStatement
     | dropTableStatement
+    | dropIndexStatement
     | truncateStatement
     | alterTableStatement
     ;
@@ -614,6 +615,10 @@ BACKTICK_ID
 
 dropTableStatement
     : DROP TABLE (IF EXISTS)? tableName=identifier (CASCADE | RESTRICT)?
+    ;
+
+dropIndexStatement
+    : DROP INDEX (IF EXISTS)? indexName=identifier (ON tableName=identifier)?
     ;
 
 truncateStatement

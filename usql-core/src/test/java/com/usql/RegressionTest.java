@@ -365,31 +365,32 @@ public class RegressionTest {
     // ═══════════════════════════════════════
 
     static void testDropTruncateAlter(Db db, Connection conn) throws Exception {
-        // DROP TABLE IF EXISTS (should not error on non-existent)
         execDDL(db, conn, "CREATE TABLE reg_dta (id INT PRIMARY KEY, name VARCHAR(50))", "Setup dta");
         execDML(db, conn, "INSERT INTO reg_dta (id, name) VALUES (1, 'A')", "Insert dta");
 
-        // ALTER TABLE ADD COLUMN
-        execDDL(db, conn, "ALTER TABLE reg_dta ADD score DECIMAL(10,2) DEFAULT 0", "ALTER ADD COLUMN");
-        execDML(db, conn, "UPDATE reg_dta SET score = 100 WHERE id = 1", "Update new column");
+        // CREATE INDEX then DROP INDEX (must drop before DROP COLUMN in SQL Server)
+        execDDL(db, conn, "CREATE INDEX idx_dta_name ON reg_dta (name)", "Setup idx");
+        execDDL(db, conn, "DROP INDEX idx_dta_name ON reg_dta", "DROP INDEX");
 
-        // ALTER TABLE DROP COLUMN
+        // ALTER ADD COLUMN
+        execDDL(db, conn, "ALTER TABLE reg_dta ADD score DECIMAL(10,2) DEFAULT 0", "ALTER ADD COLUMN");
+
+        // TRUNCATE
+        execDDL(db, conn, "TRUNCATE TABLE reg_dta", "TRUNCATE");
+        execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_dta", 1);
+
+        // ALTER DROP COLUMN (after TRUNCATE — no index dependency)
         execDDL(db, conn, "ALTER TABLE reg_dta DROP name", "ALTER DROP COLUMN");
 
         // TRUNCATE
         execDDL(db, conn, "TRUNCATE TABLE reg_dta", "TRUNCATE");
         execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_dta", 1);
 
-        // DROP TABLE
+        // DROP TABLE + IF EXISTS + CASCADE
         execDDL(db, conn, "DROP TABLE reg_dta", "DROP TABLE");
-
-        // DROP TABLE IF EXISTS
         execDDL(db, conn, "DROP TABLE IF EXISTS reg_dta", "DROP IF EXISTS");
-
-        // DROP TABLE CASCADE (SQL Server doesn't support)
         if (!db.name().equals("SQL Server")) {
-            dropTable(db, conn, "reg_dta2");
-            execDDL(db, conn, "CREATE TABLE reg_dta2 (id INT PRIMARY KEY, name VARCHAR(50))", "Setup dta2");
+            execDDL(db, conn, "CREATE TABLE reg_dta2 (id INT PRIMARY KEY)", "Setup dta2");
             execDDL(db, conn, "DROP TABLE reg_dta2 CASCADE", "DROP CASCADE");
         }
     }

@@ -32,13 +32,14 @@ public class SqlServerBackend extends AbstractDialectBackend {
             case IRCreateFunction cf         -> generateCreateFunction(cf, options);
             case IRCall call                 -> generateCall(call, options);
             case IRDropTable dt              -> generateDropTable(dt, options);
+            case IRDropIndex di              -> generateDropIndex(di, options);
             case IRTruncateTable tt          -> generateTruncateTable(tt, options);
             case IRAlterTableAddColumn aa    -> generateAlterTableAddColumn(aa, options);
             case IRAlterTableDropColumn ad   -> generateAlterTableDropColumn(ad, options);
             default ->
                 throw new UnsupportedOperationException(
                     "SQL Server backend cannot generate statement '" + statement.getClass().getSimpleName()
-                    + "'. Supported: IRSelect, IRInsert, IRUpdate, IRDelete, IRMerge, IRCreateTable, IRCreateIndex, IRCreateProcedure, IRCreateFunction, IRCall, IRDropTable, IRTruncateTable, IRAlterTableAddColumn, IRAlterTableDropColumn");
+                    + "'. Supported: IRSelect, IRInsert, IRUpdate, IRDelete, IRMerge, IRCreateTable, IRCreateIndex, IRCreateProcedure, IRCreateFunction, IRCall, IRDropTable, IRDropIndex, IRTruncateTable, IRAlterTableAddColumn, IRAlterTableDropColumn");
         };
     }
 
@@ -498,6 +499,13 @@ public class SqlServerBackend extends AbstractDialectBackend {
         sb.append(tsqlParams(cp.params(), opt));
         sb.append(" AS\nBEGIN\n").append(cp.body()).append("\nEND;");
         return sb.toString();
+    }
+
+    @Override
+    protected String generateDropIndex(IRDropIndex di, GenerateOptions opt) {
+        return "DROP INDEX " + (di.ifExists() ? "IF EXISTS " : "")
+            + (di.tableName() != null ? quoteIdentifier(di.tableName()) + "." : "")
+            + quoteIdentifier(di.indexName());
     }
 
     @Override

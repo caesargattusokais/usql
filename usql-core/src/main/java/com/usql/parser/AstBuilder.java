@@ -86,6 +86,7 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         if (ctx.createFunctionStatement() != null) return visitCreateFunctionStatement(ctx.createFunctionStatement());
         if (ctx.callStatement() != null) return visitCallStatement(ctx.callStatement());
         if (ctx.dropTableStatement() != null) return visitDropTableStatement(ctx.dropTableStatement());
+        if (ctx.dropIndexStatement() != null) return visitDropIndexStatement(ctx.dropIndexStatement());
         if (ctx.truncateStatement() != null) return visitTruncateStatement(ctx.truncateStatement());
         if (ctx.alterTableStatement() != null) return visitAlterTableStatement(ctx.alterTableStatement());
         throw new IllegalStateException("Unknown statement type");
@@ -884,6 +885,13 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         boolean ifExists = ctx.EXISTS() != null;
         boolean cascade = ctx.CASCADE() != null;
         return new DropTableStmt(name, ifExists, cascade);
+    }
+
+    public DropIndexStmt visitDropIndexStatement(USqlParser.DropIndexStatementContext ctx) {
+        String indexName = getIdentifier(ctx.indexName);
+        String tableName = ctx.tableName != null ? getIdentifier(ctx.tableName) : null;
+        boolean ifExists = ctx.EXISTS() != null;
+        return new DropIndexStmt(indexName, tableName, ifExists);
     }
 
     public TruncateStmt visitTruncateStatement(USqlParser.TruncateStatementContext ctx) {

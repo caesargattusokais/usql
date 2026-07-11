@@ -128,6 +128,7 @@ public final class USqlAst {
     // ══════════════════════════════════════════════════
 
     public record DropTableStmt(String tableName, boolean ifExists, boolean cascade) implements Statement {}
+    public record DropIndexStmt(String indexName, String tableName, boolean ifExists) implements Statement {}
     public record TruncateStmt(String tableName) implements Statement {}
     public record AlterTableStmt(String tableName, AlterAction action) implements Statement {}
 

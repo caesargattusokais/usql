@@ -210,6 +210,10 @@ public abstract class AbstractDialectBackend implements DialectBackend {
             + (dt.cascade() ? " CASCADE" : "");
     }
 
+    protected String generateDropIndex(IRDropIndex di, GenerateOptions opt) {
+        return "DROP INDEX " + (di.ifExists() ? "IF EXISTS " : "") + quoteIdentifier(di.indexName());
+    }
+
     protected String generateTruncateTable(IRTruncateTable tt, GenerateOptions opt) {
         return "TRUNCATE TABLE " + quoteIdentifier(tt.name());
     }
