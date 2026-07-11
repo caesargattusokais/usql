@@ -48,6 +48,7 @@ public class RegressionTest {
                 testKEEP(db, conn);
                 testEnum(db, conn);
                 testCTE(db, conn);
+                testSetOps(db, conn);
             } catch (Exception e) {
                 System.out.println("  SKIP: " + e.getMessage().split("\n")[0]);
                 skipped++;
@@ -301,6 +302,30 @@ public class RegressionTest {
         dropTable(db, conn, "reg_cte_out");
 
         dropTable(db, conn, "reg_cte_t");
+    }
+
+    // ═══════════════════════════════════════
+    //  Set Operations (UNION / INTERSECT / EXCEPT)
+    // ═══════════════════════════════════════
+
+    static void testSetOps(Db db, Connection conn) throws Exception {
+        dropTable(db, conn, "reg_so_a");
+        dropTable(db, conn, "reg_so_b");
+        execDDL(db, conn, "CREATE TABLE reg_so_a (id INT PRIMARY KEY, name VARCHAR(50))", "Setup so_a");
+        execDDL(db, conn, "CREATE TABLE reg_so_b (id INT PRIMARY KEY, name VARCHAR(50))", "Setup so_b");
+        execDML(db, conn, "INSERT INTO reg_so_a (id, name) VALUES (1, 'A'), (2, 'B'), (3, 'C')", "Insert so_a");
+        execDML(db, conn, "INSERT INTO reg_so_b (id, name) VALUES (2, 'B'), (3, 'C'), (4, 'D')", "Insert so_b");
+
+        // UNION
+        execQuery(db, conn, "SELECT name FROM reg_so_a UNION SELECT name FROM reg_so_b", 4);
+        // UNION ALL
+        execQuery(db, conn, "SELECT name FROM reg_so_a UNION ALL SELECT name FROM reg_so_b", 6);
+        // INTERSECT
+        execQuery(db, conn, "SELECT name FROM reg_so_a INTERSECT SELECT name FROM reg_so_b", 2);
+        // EXCEPT
+        execQuery(db, conn, "SELECT name FROM reg_so_a EXCEPT SELECT name FROM reg_so_b", 1);
+
+        dropTable(db, conn, "reg_so_a"); dropTable(db, conn, "reg_so_b");
     }
 
     // ═══════════════════════════════════════

@@ -181,7 +181,9 @@ public class OracleBackend extends AbstractDialectBackend {
         }
 
         if (sel.core().setOp() != null && sel.core().setOperand() != null) {
-            sb.append(" ").append(sel.core().setOp().name().replace("_", " "));
+            String op = sel.core().setOp().name().replace("_", " ");
+            if (sel.core().setOp() == SetOp.EXCEPT) op = "MINUS"; // Oracle uses MINUS
+            sb.append(" ").append(op);
             sb.append(" ").append(generateSelectCore(sel.core().setOperand(), opt, false));
         }
 
