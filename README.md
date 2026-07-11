@@ -1,6 +1,6 @@
 # USQL — Universal SQL Compiler v3.0.0
 
-写一次 SQL，在 MySQL、PostgreSQL、Oracle、达梦 DM、SQL Server 上正确执行。
+写一次 SQL，在 MySQL、PostgreSQL、Oracle、达梦 DM、SQL Server、SQLite、MariaDB、TiDB 上正确执行。
 
 ---
 
@@ -328,6 +328,9 @@ CREATE PROCEDURE transfer(IN from_id INT, OUT status VARCHAR(20)) AS '...'
 | Oracle | `"name"` | ROWNUM 包裹 | NUMBER(1) | GENERATED AS IDENTITY | `\|\|` |
 | 达梦 DM | `"name"` | `LIMIT/OFFSET` | BIT | IDENTITY | `\|\|` |
 | SQL Server | `[name]` | `OFFSET/FETCH` | BIT | IDENTITY(1,1) | `+` |
+| SQLite | `"name"` | `LIMIT/OFFSET` | INTEGER | AUTOINCREMENT | `\|\|` |
+| MariaDB | `` `name` `` | `LIMIT/OFFSET` | TINYINT(1) | AUTO_INCREMENT | CONCAT() |
+| TiDB | `` `name` `` | `LIMIT/OFFSET` | TINYINT(1) | AUTO_INCREMENT | CONCAT() |
 
 ### 语法差异速查
 

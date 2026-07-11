@@ -141,6 +141,61 @@ public enum Dialect {
         // REPLACE_INTO, ON_DUPLICATE_KEY_UPDATE (use MERGE)
     ),
 
+    /** MySQL-compatible — same capabilities as MYSQL */
+    MARIADB("MariaDB", true,
+        Capability.LIMIT_OFFSET,
+        Capability.WINDOW_FUNCTION,
+        Capability.RECURSIVE_CTE,
+        Capability.AGGREGATE,
+        Capability.HAVING,
+        Capability.DISTINCT,
+        Capability.AUTO_INCREMENT,
+        Capability.CONCAT_WITH_NULL,
+        Capability.GENERATED_COLUMN,
+        Capability.TEMPORARY_TABLE,
+        Capability.CHECK_CONSTRAINT,
+        Capability.CTAS,
+        Capability.REPLACE_INTO,
+        Capability.ON_DUPLICATE_KEY_UPDATE,
+        Capability.TRUNCATE_TABLE,
+        Capability.OBJECT_COMMENT
+    ),
+
+    /** TiDB — MySQL protocol compatible */
+    TIDB("TiDB", true,
+        Capability.LIMIT_OFFSET,
+        Capability.WINDOW_FUNCTION,
+        Capability.RECURSIVE_CTE,
+        Capability.AGGREGATE,
+        Capability.HAVING,
+        Capability.DISTINCT,
+        Capability.AUTO_INCREMENT,
+        Capability.CONCAT_WITH_NULL,
+        Capability.GENERATED_COLUMN,
+        Capability.TEMPORARY_TABLE,
+        Capability.CHECK_CONSTRAINT,
+        Capability.CTAS,
+        Capability.REPLACE_INTO,
+        Capability.ON_DUPLICATE_KEY_UPDATE,
+        Capability.TRUNCATE_TABLE,
+        Capability.OBJECT_COMMENT
+    ),
+
+    /** SQLite — lightweight, permissive */
+    SQLITE("SQLite", false,
+        Capability.LIMIT_OFFSET,
+        Capability.WINDOW_FUNCTION,          // 3.25+
+        Capability.RECURSIVE_CTE,            // 3.8.3+
+        Capability.AGGREGATE,
+        Capability.HAVING,
+        Capability.DISTINCT,
+        Capability.CHECK_CONSTRAINT,
+        Capability.TRUNCATE_TABLE            // DELETE FROM polyfill
+        // Missing: AUTO_INCREMENT (uses AUTOINCREMENT via INTEGER PK),
+        // BOOLEAN_TYPE, FULL_OUTER_JOIN, LATERAL_JOIN, ARRAY_TYPE,
+        // ENUM_TYPE, SEQUENCE, GENERATED_COLUMN, etc.
+    ),
+
     /** Reference dialect for semantic verification */
     H2("H2", false,
         // H2 — used as reference implementation; very standards-compliant
