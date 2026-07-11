@@ -1,23 +1,56 @@
 # USQL 执行计划
 
 创建日期: 2026-06-28
-最后更新: 2026-07-10
+最后更新: 2026-07-11
 当前版本: v3.0.0
 
 ---
 
 ## 进度总览
 
-- Phase 1 MVP: 100% ✅
-- Phase 2 扩展: 100% ✅
-- Phase 3 交付: 100% ✅
-- Phase 4 高级: 100% ✅ (6/6)
-- Phase 1 MVP: 100% ✅
-- Phase 2 扩展: 100% ✅
-- Phase 3 交付: 100% ✅
-- Phase 4 高级: 100% ✅
-- Phase 5 优化: 100% ✅
-- Phase 6 收尾: 100% ✅ (5/5)
+- Phase 1-6: 全部 100% ✅
+- Phase 7 扩展方向: 33% (2/6)
+- Phase 8 待评估: 0% (0/6)
+
+---
+
+## Phase 7 - 扩展方向
+
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 7.1 | 单测覆盖率提升 | 40% | Backend 层真实库已全覆盖，纯单元空间有限 |
+| 7.2 | IROptimizer Level 3 高级优化 | ✅ | 谓词下推 + 投影裁剪，L2/L3 结果一致性验证通过 |
+| 7.3 | 更多数据库支持 | ✅ | SQLite + MariaDB + TiDB，8→8 数据库全部回归通过 |
+| 7.4 | DDL 扩展（VIEW / SCHEMA / DROP DATABASE） | TODO | CREATE VIEW, CREATE SCHEMA, DROP DATABASE |
+| 7.5 | 语法增强（LATERAL JOIN / ARRAY / EXISTS 优化） | TODO | LATERAL 语法、ARRAY 类型映射、EXISTS→JOIN 优化 |
+| 7.6 | 性能测试 / 大查询编译基准 | TODO | 复杂查询编译耗时、内存占用 |
+
+### 7.2 IROptimizer Level 3 — 详情
+
+- **谓词下推**: `SELECT * FROM (SELECT ... FROM t) s WHERE s.age > 18` → WHERE 推入子查询
+- **投影裁剪**: 外查询只用到的列才保留，子查询去掉不需要的 SELECT 列
+- **正确性验证**: L2(无优化) vs L3(有优化) 真实数据库结果比对，772 全通过
+
+### 7.3 数据库扩展 — 详情
+
+| 数据库 | Backend | 回归 |
+|--------|---------|:--:|
+| MySQL / PG / Oracle / DM / SQL Server | 各自独立 Backend | ✅ |
+| MariaDB / TiDB | 复用 MySqlBackend | ✅ |
+| SQLite | 独立 SqliteBackend (338行) | ✅ |
+
+---
+
+## Phase 8 - 待评估（低优先级）
+
+| # | 任务 | 说明 |
+|---|------|------|
+| 8.1 | DB2 / ClickHouse / DuckDB 支持 | 需求不明确 |
+| 8.2 | CREATE VIEW / CREATE SCHEMA | 语法 + IR + Backend |
+| 8.3 | DROP DATABASE | 语法 + IR + Backend |
+| 8.4 | ALTER TABLE RENAME / 完整 ALTER 语法 | SQL Server 已完成，其他方言部分支持 |
+| 8.5 | LATERAL JOIN | 语法已部分支持，需补全 Backend |
+| 8.6 | ARRAY 类型映射 | 只需 PG/SQL Server（其他方言无原生数组） |
 
 ---
 
