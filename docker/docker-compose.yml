@@ -111,9 +111,41 @@ services:
     volumes:
       - sqlserver-data:/var/opt/mssql
 
+  mariadb:
+    image: mariadb:11
+    container_name: mariadb_test
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: test_db
+      MYSQL_USER: test_user
+      MYSQL_PASSWORD: test123
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  tidb:
+    image: pingcap/tidb:v8.1.0
+    container_name: tidb_test
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    command:
+      - --store=unistore
+      - --path=/tmp/tidb
+      - --advertise-address=tidb_test
+
+  # SQLite 是嵌入式数据库，提供 CLI 工具容器
+  sqlite:
+    image: alpine:3.20
+    container_name: sqlite_test
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache sqlite && echo 'SQLite ready' && tail -f /dev/null"]
+    init: true
 
 volumes:
   postgres_data:
   oracle-enterprise-data:
   mysql-data:
   sqlserver-data:
+  mariadb-data:
