@@ -202,6 +202,37 @@ public abstract class AbstractDialectBackend implements DialectBackend {
     }
 
     // ══════════════════════════════════════════════════
+    //  DROP / TRUNCATE / ALTER TABLE (shared)
+    // ══════════════════════════════════════════════════
+
+    protected String generateDropTable(IRDropTable dt, GenerateOptions opt) {
+        return "DROP TABLE " + (dt.ifExists() ? "IF EXISTS " : "") + quoteIdentifier(dt.name());
+    }
+
+    protected String generateTruncateTable(IRTruncateTable tt, GenerateOptions opt) {
+        return "TRUNCATE TABLE " + quoteIdentifier(tt.name());
+    }
+
+    protected String generateAlterTableAddColumn(IRAlterTableAddColumn aa, GenerateOptions opt) {
+        var col = aa.column();
+        var sb = new StringBuilder("ALTER TABLE ").append(quoteIdentifier(aa.tableName()))
+            .append(" ADD ").append(quoteIdentifier(col.name())).append(" ").append(mapType(col.type()));
+        if (col.constraints() != null) {
+            for (var c : col.constraints()) {
+                if (c instanceof ColNotNull) sb.append(" NOT NULL");
+                else if (c instanceof ColPrimaryKey) sb.append(" PRIMARY KEY");
+                else if (c instanceof ColUnique) sb.append(" UNIQUE");
+            }
+        }
+        return sb.toString();
+    }
+
+    protected String generateAlterTableDropColumn(IRAlterTableDropColumn ad, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(ad.tableName())
+            + " DROP COLUMN " + quoteIdentifier(ad.columnName());
+    }
+
+    // ══════════════════════════════════════════════════
     //  Abstract methods — each dialect provides these
     // ══════════════════════════════════════════════════
 

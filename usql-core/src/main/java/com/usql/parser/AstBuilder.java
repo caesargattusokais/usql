@@ -85,6 +85,9 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         if (ctx.createProcedureStatement() != null) return visitCreateProcedureStatement(ctx.createProcedureStatement());
         if (ctx.createFunctionStatement() != null) return visitCreateFunctionStatement(ctx.createFunctionStatement());
         if (ctx.callStatement() != null) return visitCallStatement(ctx.callStatement());
+        if (ctx.dropTableStatement() != null) return visitDropTableStatement(ctx.dropTableStatement());
+        if (ctx.truncateStatement() != null) return visitTruncateStatement(ctx.truncateStatement());
+        if (ctx.alterTableStatement() != null) return visitAlterTableStatement(ctx.alterTableStatement());
         throw new IllegalStateException("Unknown statement type");
     }
 
@@ -867,6 +870,42 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         if (s == null) return null;
         if (s.startsWith("'") && s.endsWith("'")) return s.substring(1, s.length() - 1);
         return s;
+    }
+
+    // ══════════════════════════════════════════════════
+    //  DROP / TRUNCATE / ALTER TABLE
+    // ══════════════════════════════════════════════════
+
+    public DropTableStmt visitDropTableStatement(USqlParser.DropTableStatementContext ctx) {
+        String name = getIdentifier(ctx.tableName);
+        boolean ifExists = ctx.EXISTS() != null;
+        return new DropTableStmt(name, ifExists);
+    }
+
+    public TruncateStmt visitTruncateStatement(USqlParser.TruncateStatementContext ctx) {
+        return new TruncateStmt(getIdentifier(ctx.tableName));
+    }
+
+    public AlterTableStmt visitAlterTableStatement(USqlParser.AlterTableStatementContext ctx) {
+        String name = getIdentifier(ctx.tableName);
+        AlterAction action = (AlterAction) visit(ctx.alterAction());
+        return new AlterTableStmt(name, action);
+    }
+
+    public AlterAction visitAddColumn(USqlParser.AddColumnContext ctx) {
+        USqlParser.ColumnDefContext cd = ctx.columnDef();
+        String name = getIdentifier(cd.columnName);
+        DataTypeDecl type = parseDataType(cd.dataType());
+        List<ColumnConstraint> constraints = new ArrayList<>();
+        for (var cc : cd.columnConstraint()) {
+            constraints.add((ColumnConstraint) visit(cc));
+        }
+        Expression defaultVal = cd.defaultValue != null ? (Expression) visit(cd.defaultValue) : null;
+        return new AddColumn(name, type, constraints, defaultVal);
+    }
+
+    public AlterAction visitDropColumn(USqlParser.DropColumnContext ctx) {
+        return new DropColumn(getIdentifier(ctx.identifier()));
     }
 
     // ══════════════════════════════════════════════════

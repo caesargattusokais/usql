@@ -23,6 +23,9 @@ statement
     | createProcedureStatement
     | createFunctionStatement
     | callStatement
+    | dropTableStatement
+    | truncateStatement
+    | alterTableStatement
     ;
 
 // ══════════════════════════════════════════════════
@@ -396,6 +399,7 @@ keyword
     | LATERAL | IGNORE | ENGINE | TABLESPACE | CHARACTER | COLLATE | COMMENT
     | WITH | TIME | ZONE
     | PROCEDURE | FUNCTION | CALL | REPLACE | OUT | INOUT | RETURNS | LANGUAGE
+    | DROP | TRUNCATE | ALTER | ADD | COLUMN
     ;
 
 // ══════════════════════════════════════════════════
@@ -544,6 +548,11 @@ OUT:          O U T;
 INOUT:        I N O U T;
 RETURNS:      R E T U R N S;
 LANGUAGE:     L A N G U A G E;
+DROP:         D R O P;
+TRUNCATE:     T R U N C A T E;
+ALTER:        A L T E R;
+ADD:          A D D;
+COLUMN:       C O L U M N;
 LATERAL:      L A T E R A L;
 IGNORE:       I G N O R E;
 ENGINE:       E N G I N E;
@@ -597,6 +606,27 @@ IDENTIFIER
 
 BACKTICK_ID
     : '`' (~'`')* '`'
+    ;
+
+// ══════════════════════════════════════════════════
+//  DROP / TRUNCATE / ALTER TABLE
+// ══════════════════════════════════════════════════
+
+dropTableStatement
+    : DROP TABLE (IF EXISTS)? tableName=identifier (CASCADE | RESTRICT)?
+    ;
+
+truncateStatement
+    : TRUNCATE (TABLE)? tableName=identifier
+    ;
+
+alterTableStatement
+    : ALTER TABLE tableName=identifier alterAction
+    ;
+
+alterAction
+    : ADD (COLUMN)? columnDef      # AddColumn
+    | DROP (COLUMN)? identifier    # DropColumn
     ;
 
 // ══════════════════════════════════════════════════

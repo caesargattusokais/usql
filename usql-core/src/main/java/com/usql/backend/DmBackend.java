@@ -36,13 +36,17 @@ public class DmBackend extends AbstractDialectBackend {
             case IRMerge merge   -> generateMerge(merge, options);
             case IRCreateTable ct      -> generateCreateTable(ct, options);
             case IRCreateIndex ci       -> generateCreateIndex(ci, options);
-            case IRCreateProcedure cp   -> generateCreateProcedure(cp, options);
-            case IRCreateFunction cf    -> generateCreateFunction(cf, options);
-            case IRCall call            -> generateCall(call, options);
+            case IRCreateProcedure cp        -> generateCreateProcedure(cp, options);
+            case IRCreateFunction cf         -> generateCreateFunction(cf, options);
+            case IRCall call                 -> generateCall(call, options);
+            case IRDropTable dt              -> generateDropTable(dt, options);
+            case IRTruncateTable tt          -> generateTruncateTable(tt, options);
+            case IRAlterTableAddColumn aa    -> generateAlterTableAddColumn(aa, options);
+            case IRAlterTableDropColumn ad   -> generateAlterTableDropColumn(ad, options);
             default ->
                 throw new UnsupportedOperationException(
                     "DM backend cannot generate statement '" + statement.getClass().getSimpleName()
-                    + "'. Supported: IRSelect, IRInsert, IRUpdate, IRDelete, IRMerge, IRCreateTable, IRCreateIndex, IRCreateProcedure, IRCreateFunction, IRCall");
+                    + "'. Supported: IRSelect, IRInsert, IRUpdate, IRDelete, IRMerge, IRCreateTable, IRCreateIndex, IRCreateProcedure, IRCreateFunction, IRCall, IRDropTable, IRTruncateTable, IRAlterTableAddColumn, IRAlterTableDropColumn");
         };
     }
 
@@ -511,6 +515,13 @@ public class DmBackend extends AbstractDialectBackend {
             case INOUT -> "IN OUT ";
         };
         return quoteIdentifier(p.name()) + " " + mode + mapType(p.type());
+    }
+
+    @Override
+    protected String generateDropTable(IRDropTable dt, GenerateOptions opt) {
+        if (!dt.ifExists()) return "DROP TABLE " + quoteIdentifier(dt.name());
+        return "BEGIN EXECUTE IMMEDIATE 'DROP TABLE " + quoteIdentifier(dt.name()).replace("'", "''")
+            + "'; EXCEPTION WHEN OTHERS THEN NULL; END;";
     }
 
     private String escapeString(String s) {

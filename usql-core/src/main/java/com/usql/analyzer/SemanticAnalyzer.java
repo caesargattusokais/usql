@@ -78,6 +78,9 @@ public class SemanticAnalyzer {
             case CreateProcedureStmt s   -> analyzeCreateProcedure(s);
             case CreateFunctionStmt s    -> analyzeCreateFunction(s);
             case CallStmt s              -> analyzeCall(s);
+            case DropTableStmt s         -> new IRDropTable(s.tableName(), s.ifExists(), Set.of());
+            case TruncateStmt s          -> new IRTruncateTable(s.tableName(), Set.of());
+            case AlterTableStmt s        -> analyzeAlterTable(s);
             default -> throw new UnsupportedOperationException(
                 "Analysis not implemented for: " + stmt.getClass().getSimpleName());
         };
@@ -640,6 +643,34 @@ public class SemanticAnalyzer {
             ? call.args().stream().map(this::analyzeExpr).toList()
             : List.of();
         return new IRCall(call.name(), args, Set.of());
+    }
+
+    private IRStatement analyzeAlterTable(AlterTableStmt s) {
+        return switch (s.action()) {
+            case AddColumn ac -> {
+                DataType type = "ENUM".equalsIgnoreCase(ac.type().name())
+                    && ac.type().name() != null
+                    ? new DataType.VarcharType(255)
+                    : TypeInferrer.parseTypeName(ac.type().name(), ac.type().precision(), ac.type().scale());
+                IRExpr defaultVal = ac.defaultVal() != null ? analyzeExpr(ac.defaultVal()) : null;
+                List<IRColumnConstraint> constraints = new ArrayList<>();
+                if (ac.constraints() != null) {
+                    for (var c : ac.constraints()) {
+                        switch (c) {
+                            case NotNullConstraint nn -> constraints.add(new ColNotNull());
+                            case NullConstraint nc -> {} // nullable is default
+                            case PrimaryKeyConstraint pk -> constraints.add(new ColPrimaryKey(pk.autoIncrement()));
+                            case UniqueConstraint uq -> constraints.add(new ColUnique(false));
+                            case CheckConstraint chk -> constraints.add(new ColCheck(analyzeExpr(chk.condition())));
+                            default -> {}
+                        }
+                    }
+                }
+                yield new IRAlterTableAddColumn(s.tableName(),
+                    new IRColumnDef(ac.name(), type, constraints, defaultVal), Set.of());
+            }
+            case DropColumn dc -> new IRAlterTableDropColumn(s.tableName(), dc.name(), Set.of());
+        };
     }
 
     private ProcedureParam analyzeParam(ParamDef p) {

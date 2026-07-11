@@ -50,6 +50,7 @@ public class RegressionTest {
                 testCTE(db, conn);
                 testSetOps(db, conn);
                 testRollupCube(db, conn);
+                testDropTruncateAlter(db, conn);
             } catch (Exception e) {
                 System.out.println("  SKIP: " + e.getMessage().split("\n")[0]);
                 skipped++;
@@ -357,6 +358,33 @@ public class RegressionTest {
         }
 
         dropTable(db, conn, "reg_rc");
+    }
+
+    // ═══════════════════════════════════════
+    //  DROP TABLE / TRUNCATE / ALTER TABLE
+    // ═══════════════════════════════════════
+
+    static void testDropTruncateAlter(Db db, Connection conn) throws Exception {
+        // DROP TABLE IF EXISTS (should not error on non-existent)
+        execDDL(db, conn, "CREATE TABLE reg_dta (id INT PRIMARY KEY, name VARCHAR(50))", "Setup dta");
+        execDML(db, conn, "INSERT INTO reg_dta (id, name) VALUES (1, 'A')", "Insert dta");
+
+        // ALTER TABLE ADD COLUMN
+        execDDL(db, conn, "ALTER TABLE reg_dta ADD score DECIMAL(10,2) DEFAULT 0", "ALTER ADD COLUMN");
+        execDML(db, conn, "UPDATE reg_dta SET score = 100 WHERE id = 1", "Update new column");
+
+        // ALTER TABLE DROP COLUMN
+        execDDL(db, conn, "ALTER TABLE reg_dta DROP name", "ALTER DROP COLUMN");
+
+        // TRUNCATE
+        execDDL(db, conn, "TRUNCATE TABLE reg_dta", "TRUNCATE");
+        execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_dta", 1);
+
+        // DROP TABLE
+        execDDL(db, conn, "DROP TABLE reg_dta", "DROP TABLE");
+
+        // DROP TABLE IF EXISTS
+        execDDL(db, conn, "DROP TABLE IF EXISTS reg_dta", "DROP IF EXISTS");
     }
 
     // ═══════════════════════════════════════

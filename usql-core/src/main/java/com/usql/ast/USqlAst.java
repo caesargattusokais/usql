@@ -123,6 +123,18 @@ public final class USqlAst {
         int scale
     ) {}
 
+    // ══════════════════════════════════════════════════
+    //  DROP / TRUNCATE / ALTER TABLE
+    // ══════════════════════════════════════════════════
+
+    public record DropTableStmt(String tableName, boolean ifExists) implements Statement {}
+    public record TruncateStmt(String tableName) implements Statement {}
+    public record AlterTableStmt(String tableName, AlterAction action) implements Statement {}
+
+    public sealed interface AlterAction {}
+    public record AddColumn(String name, DataTypeDecl type, List<ColumnConstraint> constraints, Expression defaultVal) implements AlterAction {}
+    public record DropColumn(String name) implements AlterAction {}
+
     public sealed interface TableRef {}
     public record SimpleTable(String name, String alias) implements TableRef {}
     public record SubqueryTable(SelectStmt query, String alias) implements TableRef {}
