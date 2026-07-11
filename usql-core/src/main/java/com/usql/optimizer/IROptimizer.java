@@ -576,6 +576,15 @@ public class IROptimizer {
             return right;
         if (op == IRBinaryOp.BinaryOp.OR && isLiteral(left, false))
             return right;
+        // x * 0 → 0, 0 * x → 0
+        if (op == IRBinaryOp.BinaryOp.MUL && (isLiteral(left, 0) || isLiteral(right, 0)))
+            return new IRLiteral(0, null);
+        // x AND FALSE → FALSE, FALSE AND x → FALSE
+        if (op == IRBinaryOp.BinaryOp.AND && (isLiteral(left, false) || isLiteral(right, false)))
+            return new IRLiteral(false, null);
+        // x OR TRUE → TRUE, TRUE OR x → TRUE
+        if (op == IRBinaryOp.BinaryOp.OR && (isLiteral(left, true) || isLiteral(right, true)))
+            return new IRLiteral(true, null);
         return new IRBinaryOp(left, op, right, null);
     }
 
