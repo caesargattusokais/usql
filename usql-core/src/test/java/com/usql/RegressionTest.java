@@ -39,6 +39,7 @@ public class RegressionTest {
     );
 
     static USqlCompiler compiler = USqlCompiler.builder().build();
+    static USqlCompiler compilerL2 = USqlCompiler.builder().withOptimizeLevel(2).build(); // without pushdown/prune
     static int pass = 0, fail = 0, skipped = 0;
     static String currentDb;
 
@@ -60,6 +61,7 @@ public class RegressionTest {
                 testRollupCube(db, conn);
                 testDropTruncateAlter(db, conn);
                 testStoredProc(db, conn);
+                testOptimizerCorrectness(db, conn);
             } catch (Exception e) {
                 System.out.println("  SKIP: " + e.getMessage().split("\n")[0]);
                 skipped++;
@@ -454,6 +456,59 @@ public class RegressionTest {
         } catch (SQLException ignored) {
             try { conn.createStatement().execute("DROP PROCEDURE " + quoteName(db.dialect(), "reg_sp")); } catch (SQLException ignored2) {}
         }
+    }
+
+    // ═══════════════════════════════════════
+    //  Optimizer correctness — L2 vs L3 results must match
+    // ═══════════════════════════════════════
+
+    static void testOptimizerCorrectness(Db db, Connection conn) throws Exception {
+        dropTable(db, conn, "reg_opt");
+        execDDL(db, conn, "CREATE TABLE reg_opt (id INT PRIMARY KEY, name VARCHAR(50), val INT)", "Setup opt");
+        execDML(db, conn, "INSERT INTO reg_opt (id, name, val) VALUES (1,'A',10),(2,'B',20),(3,'C',30),(4,'D',40),(5,'E',50)", "Insert opt");
+
+        // Query with subquery that has pushable condition + prunable columns
+        String usql = "SELECT s.name, s.val FROM (SELECT id, name, val FROM reg_opt) s WHERE s.val > 20";
+
+        // Compile with Level 2 (no pushdown/prune) and Level 3 (with pushdown/prune)
+        CompilationResult r2 = compilerL2.compile(usql, db.dialect());
+        CompilationResult r3 = compiler.compile(usql, db.dialect()); // default level=1, we want 3...
+
+        // Re-compile with explicit level 3
+        USqlCompiler compilerL3 = USqlCompiler.builder().withOptimizeLevel(3).build();
+        r3 = compilerL3.compile(usql, db.dialect());
+
+        if (!r2.isSuccess() || !r3.isSuccess()) {
+            check(false, "Optimizer: compile failed L2=" + r2.isSuccess() + " L3=" + r3.isSuccess());
+            dropTable(db, conn, "reg_opt"); return;
+        }
+
+        // Execute both and compare results
+        List<List<Object>> rowsL2 = executeSQL(conn, r2.getSql());
+        List<List<Object>> rowsL3 = executeSQL(conn, r3.getSql());
+
+        boolean same = rowsL2.size() == rowsL3.size();
+        if (same && !rowsL2.isEmpty()) {
+            for (int i = 0; i < rowsL2.size(); i++) {
+                if (!rowsL2.get(i).equals(rowsL3.get(i))) { same = false; break; }
+            }
+        }
+        check(same, "L2 vs L3 results match (" + rowsL2.size() + " rows)");
+
+        dropTable(db, conn, "reg_opt");
+    }
+
+    static List<List<Object>> executeSQL(Connection conn, String sql) throws SQLException {
+        List<List<Object>> rows = new ArrayList<>();
+        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            int cols = rs.getMetaData().getColumnCount();
+            while (rs.next()) {
+                List<Object> row = new ArrayList<>();
+                for (int i = 1; i <= cols; i++) row.add(rs.getObject(i));
+                rows.add(row);
+            }
+        }
+        return rows;
     }
 
     // ═══════════════════════════════════════
