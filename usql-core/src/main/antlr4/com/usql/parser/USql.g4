@@ -400,7 +400,7 @@ keyword
     | LATERAL | IGNORE | ENGINE | TABLESPACE | CHARACTER | COLLATE | COMMENT
     | WITH | TIME | ZONE
     | PROCEDURE | FUNCTION | CALL | REPLACE | OUT | INOUT | RETURNS | LANGUAGE
-    | DROP | TRUNCATE | ALTER | ADD | COLUMN | TYPE | RENAME
+    | DROP | TRUNCATE | ALTER | ADD | COLUMN | TYPE | RENAME | TO
     ;
 
 // ══════════════════════════════════════════════════
@@ -555,6 +555,7 @@ ALTER:        A L T E R;
 ADD:          A D D;
 TYPE:         T Y P E;
 RENAME:       R E N A M E;
+TO:           T O;
 COLUMN:       C O L U M N;
 LATERAL:      L A T E R A L;
 IGNORE:       I G N O R E;

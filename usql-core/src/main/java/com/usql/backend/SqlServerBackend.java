@@ -512,6 +512,12 @@ public class SqlServerBackend extends AbstractDialectBackend {
     }
 
     @Override
+    protected String generateRenameColumn(IRRenameColumn rc, GenerateOptions opt) {
+        return "EXEC sp_rename '" + quoteIdentifier(rc.tableName()).replace("[", "").replace("]", "")
+            + "." + rc.oldName() + "', '" + rc.newName() + "', 'COLUMN'";
+    }
+
+    @Override
     protected String generateAlterColumnSetDefault(IRAlterColumnSetDefault acs, GenerateOptions opt) {
         return "ALTER TABLE " + quoteIdentifier(acs.tableName())
             + " ADD CONSTRAINT DF_" + acs.column() + " DEFAULT " + generateExpr(acs.value(), opt)

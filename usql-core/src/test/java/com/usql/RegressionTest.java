@@ -386,18 +386,15 @@ public class RegressionTest {
             execDDL(db, conn, "ALTER TABLE reg_dta ALTER score TYPE INT", "ALTER COLUMN TYPE");
         }
 
-        // RENAME COLUMN (skip — dialect-specific implementations needed)
-
-        // TRUNCATE
+        // TRUNCATE (before DROP/RENAME)
         execDDL(db, conn, "TRUNCATE TABLE reg_dta", "TRUNCATE");
         execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_dta", 1);
 
-        // ALTER DROP COLUMN (after TRUNCATE — no index dependency)
-        execDDL(db, conn, "ALTER TABLE reg_dta DROP name", "ALTER DROP COLUMN");
+        // RENAME COLUMN
+        execDDL(db, conn, "ALTER TABLE reg_dta RENAME COLUMN name TO full_name", "RENAME COLUMN");
 
-        // TRUNCATE
-        execDDL(db, conn, "TRUNCATE TABLE reg_dta", "TRUNCATE");
-        execQuery(db, conn, "SELECT COUNT(*) AS cnt FROM reg_dta", 1);
+        // ALTER DROP COLUMN (use new name after RENAME)
+        execDDL(db, conn, "ALTER TABLE reg_dta DROP full_name", "ALTER DROP COLUMN");
 
         // DROP TABLE + IF EXISTS + CASCADE
         execDDL(db, conn, "DROP TABLE reg_dta", "DROP TABLE");
