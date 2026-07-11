@@ -7,6 +7,7 @@ import com.usql.ir.IRStatement.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.Set;
 
 /**
  * IR-level optimizations.
@@ -29,6 +30,8 @@ public class IROptimizer {
         if (level >= 1) result = foldConstants(result);
         if (level >= 2) result = optimizeSubqueries(result);
         if (level >= 2) result = simplifyExpressions(result);
+        if (level >= 3) result = pushdownPredicates(result);
+        if (level >= 3) result = pruneProjections(result);
         return new SemanticIR(result);
     }
 
@@ -603,6 +606,174 @@ public class IROptimizer {
     }
     private static boolean isLiteral(IRExpr expr, boolean value) {
         return expr instanceof IRLiteral lit && lit.value() instanceof Boolean b && b == value;
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Predicate pushdown — Level 3
+    // ══════════════════════════════════════════════════
+
+    /** Push WHERE conditions into FROM-clause subqueries. */
+    private static IRStatement pushdownPredicates(IRStatement stmt) {
+        if (stmt instanceof IRSelect sel) return pushdownSelect(sel);
+        return stmt;
+    }
+
+    private static IRSelect pushdownSelect(IRSelect sel) {
+        if (sel.core().where() == null || sel.core().from() == null) return sel;
+
+        IRExpr outerWhere = sel.core().where();
+        List<IRTableRef> newFrom = new ArrayList<>();
+        IRExpr remainingWhere = outerWhere;
+
+        for (var ref : sel.core().from()) {
+            if (ref instanceof IRSubqueryTable sq) {
+                // Collect column refs that reference the subquery's alias
+                List<IRExpr> pushable = extractPushable(outerWhere, sq.alias());
+                if (!pushable.isEmpty()) {
+                    // Merge pushable conditions into subquery's WHERE
+                    IRExpr innerWhere = sq.query().core().where();
+                    for (var p : pushable) {
+                        innerWhere = innerWhere == null ? p
+                            : new IRBinaryOp(innerWhere, IRBinaryOp.BinaryOp.AND, p, null);
+                        // Remove from outer WHERE
+                        remainingWhere = removeCondition(remainingWhere, p);
+                    }
+                    // Rebuild subquery with merged WHERE
+                    var newCore = new SelectCore(sq.query().core().projections(),
+                        sq.query().core().from(), innerWhere,
+                        sq.query().core().groupBy(), sq.query().core().having(),
+                        sq.query().core().withClause(), null, null, sq.query().core().distinct());
+                    newFrom.add(new IRSubqueryTable(new IRSelect(newCore, sq.query().orderBy(),
+                        sq.query().fetch(), sq.query().capabilities()), sq.alias()));
+                    continue;
+                }
+            }
+            newFrom.add(ref);
+        }
+
+        remainingWhere = foldExpr(remainingWhere);
+        var core = new SelectCore(sel.core().projections(), newFrom, remainingWhere,
+            sel.core().groupBy(), sel.core().having(), sel.core().withClause(),
+            sel.core().setOp(), sel.core().setOperand(), sel.core().distinct());
+        return new IRSelect(core, sel.orderBy(), sel.fetch(), sel.capabilities());
+    }
+
+    /** Extract conditions from an AND-tree that reference only the given table alias. */
+    private static List<IRExpr> extractPushable(IRExpr where, String alias) {
+        List<IRExpr> result = new ArrayList<>();
+        collectPushable(where, alias, result);
+        return result;
+    }
+
+    private static void collectPushable(IRExpr expr, String alias, List<IRExpr> out) {
+        if (expr instanceof IRBinaryOp bo && bo.op() == IRBinaryOp.BinaryOp.AND) {
+            collectPushable(bo.left(), alias, out);
+            collectPushable(bo.right(), alias, out);
+        } else if (referencesOnly(expr, alias)) {
+            out.add(expr);
+        }
+    }
+
+    /** Check if an expression only references columns qualified with the given alias. */
+    private static boolean referencesOnly(IRExpr expr, String alias) {
+        return switch (expr) {
+            case IRColumnRef cr -> alias.equals(cr.qualifier());
+            case IRBinaryOp bo -> referencesOnly(bo.left(), alias) && referencesOnly(bo.right(), alias);
+            case IRUnaryOp uo -> referencesOnly(uo.operand(), alias);
+            case IRIsNull isn -> referencesOnly(isn.expr(), alias);
+            case IRBetween btw -> referencesOnly(btw.expr(), alias);
+            case IRLiteral lit -> true;
+            default -> false;
+        };
+    }
+
+    /** Remove a condition from an AND-tree. Returns the new root (may be null). */
+    private static IRExpr removeCondition(IRExpr where, IRExpr target) {
+        if (where == null) return null;
+        if (where.equals(target)) return null; // remove entirely
+        if (where instanceof IRBinaryOp bo && bo.op() == IRBinaryOp.BinaryOp.AND) {
+            IRExpr newLeft = removeCondition(bo.left(), target);
+            IRExpr newRight = removeCondition(bo.right(), target);
+            if (newLeft == null) return newRight;
+            if (newRight == null) return newLeft;
+            return new IRBinaryOp(newLeft, IRBinaryOp.BinaryOp.AND, newRight, null);
+        }
+        return where; // not found in this branch
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Projection pruning — Level 3
+    // ══════════════════════════════════════════════════
+
+    /** Reduce SELECT * from subqueries to only the columns actually used. */
+    private static IRStatement pruneProjections(IRStatement stmt) {
+        if (stmt instanceof IRSelect sel) return pruneSelect(sel);
+        return stmt;
+    }
+
+    private static IRSelect pruneSelect(IRSelect sel) {
+        if (sel.core().from() == null) return sel;
+
+        // Collect column names used in outer query (projections, WHERE, ORDER BY)
+        Set<String> usedCols = new java.util.LinkedHashSet<>();
+        if (sel.core().projections() != null)
+            sel.core().projections().forEach(p -> collectColumns(p, usedCols));
+        if (sel.core().where() != null) collectColumns(sel.core().where(), usedCols);
+        if (sel.orderBy() != null)
+            sel.orderBy().forEach(o -> collectColumns(o.expr(), usedCols));
+
+        if (usedCols.isEmpty()) return sel;
+
+        List<IRTableRef> newFrom = new ArrayList<>();
+        boolean changed = false;
+        for (var ref : sel.core().from()) {
+            if (ref instanceof IRSubqueryTable sq && sq.query().core().projections() != null) {
+                // Check if subquery has SELECT * — prune it
+                boolean hasStar = sq.query().core().projections().stream()
+                    .anyMatch(p -> p instanceof IRWildcardSelect);
+                if (hasStar) {
+                    // Replace * with specific columns needed
+                    // For simplicity: keep original (don't have schema info to expand *)
+                    newFrom.add(ref);
+                } else {
+                    // Prune unused projections from subquery
+                    List<IRSelectItem> pruned = sq.query().core().projections().stream()
+                        .filter(p -> p instanceof IRExprSelect es
+                            && (es.alias() != null && usedCols.contains(es.alias())))
+                        .toList();
+                    if (!pruned.isEmpty() && pruned.size() < sq.query().core().projections().size()) {
+                        var newCore = new SelectCore(pruned, sq.query().core().from(),
+                            sq.query().core().where(), sq.query().core().groupBy(),
+                            sq.query().core().having(), sq.query().core().withClause(),
+                            null, null, sq.query().core().distinct());
+                        newFrom.add(new IRSubqueryTable(new IRSelect(newCore,
+                            sq.query().orderBy(), sq.query().fetch(), sq.query().capabilities()), sq.alias()));
+                        changed = true;
+                    } else {
+                        newFrom.add(ref);
+                    }
+                }
+            } else {
+                newFrom.add(ref);
+            }
+        }
+
+        if (!changed) return sel;
+        var core = new SelectCore(sel.core().projections(), newFrom, sel.core().where(),
+            sel.core().groupBy(), sel.core().having(), sel.core().withClause(),
+            sel.core().setOp(), sel.core().setOperand(), sel.core().distinct());
+        return new IRSelect(core, sel.orderBy(), sel.fetch(), sel.capabilities());
+    }
+
+    private static void collectColumns(Object node, Set<String> cols) {
+        if (node instanceof IRColumnRef cr && cr.name() != null) cols.add(cr.name());
+        else if (node instanceof IRExprSelect es) collectColumns(es.expr(), cols);
+        else if (node instanceof IRExprSelect es && es.alias() != null) cols.add(es.alias());
+        else if (node instanceof IRWildcardSelect) {}
+        else if (node instanceof IRBinaryOp bo) { collectColumns(bo.left(), cols); collectColumns(bo.right(), cols); }
+        else if (node instanceof IRUnaryOp uo) collectColumns(uo.operand(), cols);
+        else if (node instanceof IRFunctionCall fc) fc.args().forEach(a -> collectColumns(a, cols));
+        else if (node instanceof IRCase cs) { cs.whens().forEach(w -> { collectColumns(w.condition(), cols); collectColumns(w.result(), cols); }); if (cs.elseExpr() != null) collectColumns(cs.elseExpr(), cols); }
     }
 
     // ── Constant evaluation ──
