@@ -385,6 +385,13 @@ public class RegressionTest {
 
         // DROP TABLE IF EXISTS
         execDDL(db, conn, "DROP TABLE IF EXISTS reg_dta", "DROP IF EXISTS");
+
+        // DROP TABLE CASCADE (SQL Server doesn't support)
+        if (!db.name().equals("SQL Server")) {
+            dropTable(db, conn, "reg_dta2");
+            execDDL(db, conn, "CREATE TABLE reg_dta2 (id INT PRIMARY KEY, name VARCHAR(50))", "Setup dta2");
+            execDDL(db, conn, "DROP TABLE reg_dta2 CASCADE", "DROP CASCADE");
+        }
     }
 
     // ═══════════════════════════════════════

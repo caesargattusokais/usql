@@ -78,7 +78,7 @@ public class SemanticAnalyzer {
             case CreateProcedureStmt s   -> analyzeCreateProcedure(s);
             case CreateFunctionStmt s    -> analyzeCreateFunction(s);
             case CallStmt s              -> analyzeCall(s);
-            case DropTableStmt s         -> new IRDropTable(s.tableName(), s.ifExists(), Set.of());
+            case DropTableStmt s         -> new IRDropTable(s.tableName(), s.ifExists(), s.cascade(), Set.of());
             case TruncateStmt s          -> new IRTruncateTable(s.tableName(), Set.of());
             case AlterTableStmt s        -> analyzeAlterTable(s);
             default -> throw new UnsupportedOperationException(

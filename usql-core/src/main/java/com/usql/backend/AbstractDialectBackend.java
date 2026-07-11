@@ -206,7 +206,8 @@ public abstract class AbstractDialectBackend implements DialectBackend {
     // ══════════════════════════════════════════════════
 
     protected String generateDropTable(IRDropTable dt, GenerateOptions opt) {
-        return "DROP TABLE " + (dt.ifExists() ? "IF EXISTS " : "") + quoteIdentifier(dt.name());
+        return "DROP TABLE " + (dt.ifExists() ? "IF EXISTS " : "") + quoteIdentifier(dt.name())
+            + (dt.cascade() ? " CASCADE" : "");
     }
 
     protected String generateTruncateTable(IRTruncateTable tt, GenerateOptions opt) {

@@ -882,7 +882,8 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
     public DropTableStmt visitDropTableStatement(USqlParser.DropTableStatementContext ctx) {
         String name = getIdentifier(ctx.tableName);
         boolean ifExists = ctx.EXISTS() != null;
-        return new DropTableStmt(name, ifExists);
+        boolean cascade = ctx.CASCADE() != null;
+        return new DropTableStmt(name, ifExists, cascade);
     }
 
     public TruncateStmt visitTruncateStatement(USqlParser.TruncateStatementContext ctx) {

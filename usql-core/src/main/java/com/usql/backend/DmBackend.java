@@ -519,9 +519,11 @@ public class DmBackend extends AbstractDialectBackend {
 
     @Override
     protected String generateDropTable(IRDropTable dt, GenerateOptions opt) {
-        if (!dt.ifExists()) return "DROP TABLE " + quoteIdentifier(dt.name());
+        String cascadeSuffix = dt.cascade() ? " CASCADE" : "";
+        if (!dt.ifExists())
+            return "DROP TABLE " + quoteIdentifier(dt.name()) + cascadeSuffix;
         return "BEGIN EXECUTE IMMEDIATE 'DROP TABLE " + quoteIdentifier(dt.name()).replace("'", "''")
-            + "'; EXCEPTION WHEN OTHERS THEN NULL; END;";
+            + cascadeSuffix + "'; EXCEPTION WHEN OTHERS THEN NULL; END;";
     }
 
     private String escapeString(String s) {

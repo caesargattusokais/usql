@@ -281,7 +281,7 @@ public sealed interface IRStatement {
     //  DROP / TRUNCATE / ALTER TABLE
     // ══════════════════════════════════════════════════
 
-    record IRDropTable(String name, boolean ifExists, Set<Capability> capabilities) implements IRStatement {}
+    record IRDropTable(String name, boolean ifExists, boolean cascade, Set<Capability> capabilities) implements IRStatement {}
     record IRTruncateTable(String name, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableAddColumn(String tableName, IRColumnDef column, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableDropColumn(String tableName, String columnName, Set<Capability> capabilities) implements IRStatement {}
