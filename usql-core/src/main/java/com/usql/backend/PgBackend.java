@@ -510,7 +510,8 @@ public class PgBackend extends AbstractDialectBackend {
         var sb = new StringBuilder("CREATE ");
         if (cp.orReplace()) sb.append("OR REPLACE ");
         sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
-        sb.append(paramsDecl(cp.params(), opt));
+        String p = paramsDecl(cp.params(), opt);
+        sb.append(p.isEmpty() ? "()" : p);
         sb.append(" LANGUAGE plpgsql AS $$\n").append(cp.body()).append("\n$$;");
         return sb.toString();
     }
@@ -520,7 +521,8 @@ public class PgBackend extends AbstractDialectBackend {
         var sb = new StringBuilder("CREATE ");
         if (cf.orReplace()) sb.append("OR REPLACE ");
         sb.append("FUNCTION ").append(quoteIdentifier(cf.name()));
-        sb.append(paramsDecl(cf.params(), opt));
+        String p = paramsDecl(cf.params(), opt);
+        sb.append(p.isEmpty() ? "()" : p);
         sb.append(" RETURNS ").append(mapType(cf.returnType()));
         sb.append(" LANGUAGE plpgsql AS $$\n").append(cf.body()).append("\n$$;");
         return sb.toString();

@@ -562,6 +562,16 @@ public class MySqlBackend extends AbstractDialectBackend {
             + " MODIFY COLUMN " + quoteIdentifier(act.column()) + " " + mapType(act.newType());
     }
 
+    @Override
+    protected String generateCreateProcedure(IRCreateProcedure cp, GenerateOptions opt) {
+        var sb = new StringBuilder("CREATE ");
+        if (cp.orReplace()) sb.append("OR REPLACE ");
+        sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
+        // MySQL requires () even when no params
+        sb.append("()\n").append(cp.body());
+        return sb.toString();
+    }
+
     // ══════════════════════════════════════════════════
     //  Helpers
     // ══════════════════════════════════════════════════

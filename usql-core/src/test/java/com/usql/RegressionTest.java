@@ -51,6 +51,7 @@ public class RegressionTest {
                 testSetOps(db, conn);
                 testRollupCube(db, conn);
                 testDropTruncateAlter(db, conn);
+                testStoredProc(db, conn);
             } catch (Exception e) {
                 System.out.println("  SKIP: " + e.getMessage().split("\n")[0]);
                 skipped++;
@@ -405,6 +406,38 @@ public class RegressionTest {
             execDDL(db, conn, "CREATE TABLE reg_dta2 (id INT PRIMARY KEY)", "Setup dta2");
             execDDL(db, conn, "DROP TABLE reg_dta2 CASCADE", "DROP CASCADE");
         }
+    }
+
+    // ═══════════════════════════════════════
+    //  Stored Procedure
+    // ═══════════════════════════════════════
+
+    static void testStoredProc(Db db, Connection conn) throws Exception {
+        String body = switch (db.dialect()) {
+            case MYSQL -> "SELECT 1";
+            case POSTGRESQL -> "BEGIN NULL; END";
+            case ORACLE -> "BEGIN NULL; END;";
+            case DM -> "BEGIN NULL; END";
+            case SQLSERVER -> "SELECT 1";
+            default -> "SELECT 1";
+        };
+
+        // Compile via IR (all dialects)
+        IRCreateProcedure proc = new IRCreateProcedure("reg_sp",
+            List.of(), body, false, Set.of());
+        CompilationResult r = compiler.compileFromIR(proc, db.dialect());
+        check(r.isSuccess(), "CREATE PROCEDURE compile");
+
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(r.getSql());
+            check(true, "CREATE PROCEDURE execute");
+        } catch (SQLException e) {
+            System.err.println("    SQL: " + r.getSql());
+            check(false, "Procedure execute: " + e.getMessage());
+        }
+
+        // Cleanup
+        try { conn.createStatement().execute("DROP PROCEDURE " + quoteName(db.dialect(), "reg_sp")); } catch (SQLException ignored) {}
     }
 
     // ═══════════════════════════════════════
