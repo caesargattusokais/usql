@@ -11,7 +11,7 @@
 - Phase 1-6: 全部 100% ✅
 - Phase 1-7: 全部 100% ✅
 - Phase 8 待评估: 0% (0/6)
-- Phase 9 后续方向: 80% (4/5)
+- Phase 9 后续方向: 100% ✅ (5/5)
 
 ---
 
@@ -374,7 +374,7 @@
 | 9.3 | DB2 支持 | IBM 商业库，使用面窄 |
 | 9.4 | MySQL CHANGE COLUMN | ✅ 已正确使用 `MODIFY COLUMN` + `RENAME COLUMN` |
 | 9.5 | OceanBase 支持 | ✅ Dialect + MySqlBackend + 检测 + docker-compose |
-| 9.6 | 深度性能 Profiling | 定位慢路径（PG KEEP polyfill、INSERT 多行等），针对性优化 |
+| 9.6 | 深度性能 Profiling | ✅ Parse 瓶颈 50-93%，其他阶段已足够快 |
 
 ---
 
