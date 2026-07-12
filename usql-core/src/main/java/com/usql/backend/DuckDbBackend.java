@@ -51,8 +51,11 @@ public class DuckDbBackend extends PgBackend {
         if (col.constraints() != null) {
             boolean isPK = false;
             for (var c : col.constraints()) {
-                if (c instanceof ColPrimaryKey pk) { isPK = true; /* DuckDB: PK=NOT NULL+auto-increment */ }
-                else if (c instanceof ColNotNull && !isPK) sb.append(" NOT NULL");
+                if (c instanceof ColPrimaryKey pk) {
+                isPK = true;
+                if (pk.autoIncrement())
+                    sb.append(" DEFAULT nextval('" + col.name() + "_seq')");
+            } else if (c instanceof ColNotNull && !isPK) sb.append(" NOT NULL");
                 else if (c instanceof ColUnique) sb.append(" UNIQUE");
                 else if (c instanceof ColCheck chk)
                     sb.append(" CHECK (").append(superGenerateExpr(chk.condition(), opt)).append(")");

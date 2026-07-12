@@ -36,7 +36,8 @@ public class RegressionTest {
             "root", ""),
         new Db("SQLite", Dialect.SQLITE,
             "jdbc:sqlite::memory:", "", "")
-        // DuckDB: skipped — AUTO_INCREMENT needs explicit sequence
+        // DuckDB: skipped — AUTO_INCREMENT needs DEFAULT unique_rowid()
+        // Dialect + DuckDbBackend ready, just needs sequence mapping
     );
 
     static USqlCompiler compiler = USqlCompiler.builder().build();
