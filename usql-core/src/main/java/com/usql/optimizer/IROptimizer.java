@@ -63,6 +63,9 @@ public class IROptimizer {
             case IRAlterColumnSetDefault acs -> acs;
             case IRAlterColumnDropDefault acd -> acd;
             case IRRenameColumn rc         -> rc;
+            case IRDropDatabase dd         -> dd;
+            case IRCreateView cv           -> cv;
+            case IRCreateSchema cs         -> cs;
         };
     }
 

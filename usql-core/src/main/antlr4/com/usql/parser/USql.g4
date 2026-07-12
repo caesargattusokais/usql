@@ -25,8 +25,11 @@ statement
     | callStatement
     | dropTableStatement
     | dropIndexStatement
+    | dropDatabaseStatement
     | truncateStatement
     | alterTableStatement
+    | createViewStatement
+    | createSchemaStatement
     ;
 
 // ══════════════════════════════════════════════════
@@ -400,7 +403,7 @@ keyword
     | LATERAL | IGNORE | ENGINE | TABLESPACE | CHARACTER | COLLATE | COMMENT
     | WITH | TIME | ZONE
     | PROCEDURE | FUNCTION | CALL | REPLACE | OUT | INOUT | RETURNS | LANGUAGE
-    | DROP | TRUNCATE | ALTER | ADD | COLUMN | TYPE | RENAME | TO
+    | DROP | TRUNCATE | ALTER | ADD | COLUMN | TYPE | RENAME | TO | VIEW | SCHEMA | DATABASE
     ;
 
 // ══════════════════════════════════════════════════
@@ -557,6 +560,9 @@ TYPE:         T Y P E;
 RENAME:       R E N A M E;
 TO:           T O;
 COLUMN:       C O L U M N;
+VIEW:         V I E W;
+SCHEMA:       S C H E M A;
+DATABASE:     D A T A B A S E;
 LATERAL:      L A T E R A L;
 IGNORE:       I G N O R E;
 ENGINE:       E N G I N E;
@@ -622,6 +628,18 @@ dropTableStatement
 
 dropIndexStatement
     : DROP INDEX (IF EXISTS)? indexName=identifier (ON tableName=identifier)?
+    ;
+
+dropDatabaseStatement
+    : DROP DATABASE (IF EXISTS)? dbName=identifier
+    ;
+
+createViewStatement
+    : CREATE VIEW viewName=identifier AS selectStatement
+    ;
+
+createSchemaStatement
+    : CREATE SCHEMA schemaName=identifier
     ;
 
 truncateStatement

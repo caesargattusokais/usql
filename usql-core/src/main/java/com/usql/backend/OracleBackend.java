@@ -41,6 +41,9 @@ public class OracleBackend extends AbstractDialectBackend {
             case IRAlterTableAddColumn aa    -> generateAlterTableAddColumn(aa, options);
             case IRAlterTableDropColumn ad   -> generateAlterTableDropColumn(ad, options);
             case IRAlterColumnType act       -> generateAlterColumnType(act, options);
+            case IRDropDatabase dd           -> generateDropDatabase(dd, options);
+            case IRCreateView cv             -> generateCreateView(cv, options);
+            case IRCreateSchema cs           -> generateCreateSchema(cs, options);
             case IRAlterColumnSetDefault acs -> generateAlterColumnSetDefault(acs, options);
             case IRAlterColumnDropDefault acd -> generateAlterColumnDropDefault(acd, options);
             case IRRenameColumn rc           -> generateRenameColumn(rc, options);

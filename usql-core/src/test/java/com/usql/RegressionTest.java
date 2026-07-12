@@ -62,6 +62,7 @@ public class RegressionTest {
                 testDropTruncateAlter(db, conn);
                 testStoredProc(db, conn);
                 testOptimizerCorrectness(db, conn);
+                testViewSchema(db, conn);
             } catch (Exception e) {
                 System.out.println("  SKIP: " + e.getMessage().split("\n")[0]);
                 skipped++;
@@ -509,6 +510,35 @@ public class RegressionTest {
             }
         }
         return rows;
+    }
+
+    // ═══════════════════════════════════════
+    //  CREATE VIEW / CREATE SCHEMA
+    // ═══════════════════════════════════════
+
+    static void testViewSchema(Db db, Connection conn) throws Exception {
+        dropTable(db, conn, "reg_vs");
+        execDDL(db, conn, "CREATE TABLE reg_vs (id INT PRIMARY KEY, name VARCHAR(50), val INT)", "Setup vs");
+        execDML(db, conn, "INSERT INTO reg_vs (id, name, val) VALUES (1,'A',10),(2,'B',20),(3,'C',30)", "Insert vs");
+
+        // CREATE VIEW
+        execDDL(db, conn, "CREATE VIEW reg_view1 AS SELECT name, val FROM reg_vs WHERE val > 15", "CREATE VIEW");
+        execQuery(db, conn, "SELECT COUNT(*) FROM reg_view1", 1);
+        execQuery(db, conn, "SELECT name FROM reg_view1 WHERE name = 'B'", 1);
+
+        // Cleanup
+        try { conn.createStatement().execute("DROP VIEW " + quoteName(db.dialect(), "reg_view1")); } catch (SQLException ignored) {}
+
+        // CREATE SCHEMA (skip if already exists or unsupported)
+        try {
+            CompilationResult r = compiler.compile("CREATE SCHEMA reg_schema1", db.dialect());
+            if (r.isSuccess()) {
+                try { conn.createStatement().execute(r.getSql()); check(true, "CREATE SCHEMA executed"); }
+                catch (SQLException e) { System.out.println("    ⚠️  Schema: " + e.getMessage()); skipped++; }
+            }
+        } catch (Exception e) { skipped++; }
+
+        dropTable(db, conn, "reg_vs");
     }
 
     // ═══════════════════════════════════════

@@ -87,6 +87,9 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         if (ctx.callStatement() != null) return visitCallStatement(ctx.callStatement());
         if (ctx.dropTableStatement() != null) return visitDropTableStatement(ctx.dropTableStatement());
         if (ctx.dropIndexStatement() != null) return visitDropIndexStatement(ctx.dropIndexStatement());
+        if (ctx.dropDatabaseStatement() != null) return visitDropDatabaseStatement(ctx.dropDatabaseStatement());
+        if (ctx.createViewStatement() != null) return visitCreateViewStatement(ctx.createViewStatement());
+        if (ctx.createSchemaStatement() != null) return visitCreateSchemaStatement(ctx.createSchemaStatement());
         if (ctx.truncateStatement() != null) return visitTruncateStatement(ctx.truncateStatement());
         if (ctx.alterTableStatement() != null) return visitAlterTableStatement(ctx.alterTableStatement());
         throw new IllegalStateException("Unknown statement type");
@@ -892,6 +895,18 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         String tableName = ctx.tableName != null ? getIdentifier(ctx.tableName) : null;
         boolean ifExists = ctx.EXISTS() != null;
         return new DropIndexStmt(indexName, tableName, ifExists);
+    }
+
+    public DropDatabaseStmt visitDropDatabaseStatement(USqlParser.DropDatabaseStatementContext ctx) {
+        return new DropDatabaseStmt(getIdentifier(ctx.dbName), ctx.EXISTS() != null);
+    }
+
+    public CreateViewStmt visitCreateViewStatement(USqlParser.CreateViewStatementContext ctx) {
+        return new CreateViewStmt(getIdentifier(ctx.viewName), visitSelectStatement(ctx.selectStatement()));
+    }
+
+    public CreateSchemaStmt visitCreateSchemaStatement(USqlParser.CreateSchemaStatementContext ctx) {
+        return new CreateSchemaStmt(getIdentifier(ctx.schemaName));
     }
 
     public TruncateStmt visitTruncateStatement(USqlParser.TruncateStatementContext ctx) {

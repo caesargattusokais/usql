@@ -283,6 +283,9 @@ public sealed interface IRStatement {
 
     record IRDropTable(String name, boolean ifExists, boolean cascade, Set<Capability> capabilities) implements IRStatement {}
     record IRDropIndex(String indexName, String tableName, boolean ifExists, Set<Capability> capabilities) implements IRStatement {}
+    record IRDropDatabase(String name, boolean ifExists, Set<Capability> capabilities) implements IRStatement {}
+    record IRCreateView(String name, IRSelect query, Set<Capability> capabilities) implements IRStatement {}
+    record IRCreateSchema(String name, Set<Capability> capabilities) implements IRStatement {}
     record IRTruncateTable(String name, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableAddColumn(String tableName, IRColumnDef column, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableDropColumn(String tableName, String columnName, Set<Capability> capabilities) implements IRStatement {}

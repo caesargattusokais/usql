@@ -29,6 +29,9 @@ public class SqliteBackend extends AbstractDialectBackend {
             case IRTruncateTable tt        -> "DELETE FROM " + quoteIdentifier(tt.name());
             case IRAlterTableAddColumn aa  -> generateAlterTableAddColumn(aa, options);
             case IRAlterTableDropColumn ad -> generateAlterTableDropColumn(ad, options);
+            case IRDropDatabase dd         -> generateDropDatabase(dd, options);
+            case IRCreateView cv           -> generateCreateView(cv, options);
+            case IRCreateSchema cs         -> generateCreateSchema(cs, options);
             case IRCreateProcedure cp      -> generateCreateProcedure(cp, options);
             case IRCreateFunction cf       -> generateCreateFunction(cf, options);
             case IRCall call               -> generateCall(call, options);

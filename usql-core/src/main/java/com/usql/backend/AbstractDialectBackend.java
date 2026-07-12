@@ -210,6 +210,18 @@ public abstract class AbstractDialectBackend implements DialectBackend {
             + (dt.cascade() ? " CASCADE" : "");
     }
 
+    protected String generateDropDatabase(IRDropDatabase dd, GenerateOptions opt) {
+        return "DROP DATABASE " + (dd.ifExists() ? "IF EXISTS " : "") + quoteIdentifier(dd.name());
+    }
+
+    protected String generateCreateView(IRCreateView cv, GenerateOptions opt) {
+        return "CREATE VIEW " + quoteIdentifier(cv.name()) + " AS " + generate(cv.query(), opt);
+    }
+
+    protected String generateCreateSchema(IRCreateSchema cs, GenerateOptions opt) {
+        return "CREATE SCHEMA " + quoteIdentifier(cs.name());
+    }
+
     protected String generateDropIndex(IRDropIndex di, GenerateOptions opt) {
         return "DROP INDEX " + (di.ifExists() ? "IF EXISTS " : "") + quoteIdentifier(di.indexName());
     }
