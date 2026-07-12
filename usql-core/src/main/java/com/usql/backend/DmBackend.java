@@ -221,7 +221,7 @@ public class DmBackend extends AbstractDialectBackend {
                 yield left + " " + joinType + " " + right + on;
             }
             case IRSubqueryTable sq -> "(" + generateSelect(sq.query(), opt) + ") " + quoteIdentifier(sq.alias());
-            case IRFunctionTable ft -> ft.funcName() + "(" +
+            case IRFunctionTable ft -> (ft.lateral() ? "LATERAL " : "") + ft.funcName() + "(" +
                 ft.args().stream().map(a -> generateExpr(a, opt)).collect(Collectors.joining(", ")) +
                 ") " + quoteIdentifier(ft.alias());
         };

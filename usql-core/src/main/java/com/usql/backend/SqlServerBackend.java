@@ -201,7 +201,7 @@ public class SqlServerBackend extends AbstractDialectBackend {
                 yield left + " " + joinType + " " + right + on;
             }
             case IRSubqueryTable sq -> "(" + generateSelect(sq.query(), opt) + ") AS " + quoteIdentifier(sq.alias());
-            case IRFunctionTable ft -> ft.funcName() + "(" + ft.args().stream().map(a -> generateExpr(a, opt)).collect(Collectors.joining(", ")) + ") AS " + quoteIdentifier(ft.alias());
+            case IRFunctionTable ft -> (ft.lateral() ? "CROSS APPLY " : "") + ft.funcName() + "(" + ft.args().stream().map(a -> generateExpr(a, opt)).collect(Collectors.joining(", ")) + ") AS " + quoteIdentifier(ft.alias());
         };
     }
 

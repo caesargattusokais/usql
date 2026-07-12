@@ -148,7 +148,7 @@ public class SqliteBackend extends AbstractDialectBackend {
                     ? " ON " + generateExpr(jn.onCondition(), opt) : "");
             }
             case IRSubqueryTable sq -> "(" + generateSelect(sq.query(), opt) + ") " + quoteIdentifier(sq.alias());
-            case IRFunctionTable ft -> ft.funcName() + "("
+            case IRFunctionTable ft -> (ft.lateral() ? "LATERAL " : "") + ft.funcName() + "("
                 + ft.args().stream().map(a -> generateExpr(a, opt)).collect(java.util.stream.Collectors.joining(", "))
                 + ") " + quoteIdentifier(ft.alias());
         };

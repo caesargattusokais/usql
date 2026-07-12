@@ -244,8 +244,7 @@ public class OracleBackend extends AbstractDialectBackend {
             }
             case IRSubqueryTable sq -> "(" + generateSelect(sq.query(), opt) + ") " + quoteIdentifier(sq.alias());
             case IRFunctionTable ft -> {
-                // Oracle uses TABLE() for table functions
-                yield "TABLE(" + ft.funcName() + "(" +
+                yield (ft.lateral() ? "LATERAL " : "") + "TABLE(" + ft.funcName() + "(" +
                     ft.args().stream().map(a -> generateExpr(a, opt)).collect(Collectors.joining(", ")) +
                     ")) " + quoteIdentifier(ft.alias());
             }
