@@ -88,6 +88,28 @@ public class BenchmarkTest {
         }
 
         System.out.println("\n✔ Profiling complete");
+
+        // Cache benchmark
+        System.out.println("\n── Cache Benchmark ──");
+        USqlCompiler cc = USqlCompiler.builder().withCache(true).build();
+        String q = "SELECT name, age FROM users WHERE age > 18";
+        Dialect d = Dialect.MYSQL;
+
+        // First compile (cache miss)
+        long t0 = System.nanoTime();
+        for (int i = 0; i < 1000; i++) cc.compile(q, d);
+        long t1 = System.nanoTime();
+        System.out.printf("  With cache (1000 iterations): %.0f μs/compile%n",
+            (t1 - t0) / 1000.0 / 1000);
+
+        // Without cache
+        USqlCompiler nc = USqlCompiler.builder().withCache(false).build();
+        long t2 = System.nanoTime();
+        for (int i = 0; i < 1000; i++) nc.compile(q, d);
+        long t3 = System.nanoTime();
+        System.out.printf("  Without cache: %.0f μs/compile%n",
+            (t3 - t2) / 1000.0 / 1000);
+        System.out.printf("  Cache entries: %d%n", cc.cacheSize());
     }
 
     static CompilationResult compile(String usql, Dialect d, FunctionCatalog fc, TypeCatalog tc) {

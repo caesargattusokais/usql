@@ -46,6 +46,11 @@ public class USqlCompiler {
     private final PolyfillEngine polyfillEngine;
     private final SemanticVerifier verifier;
 
+    /** Compiled plan cache — keyed by SQL text, stores analyzed IR. */
+    private final Map<String, SemanticIR> planCache;
+    private final int maxCacheSize;
+    private final boolean cacheEnabled;
+
     private USqlCompiler(Builder builder) {
         this.schemaProvider = builder.schemaProvider;
         this.functionCatalog = builder.functionCatalog != null
@@ -79,6 +84,13 @@ public class USqlCompiler {
         this.capabilityChecker = new CapabilityChecker();
         this.polyfillEngine = new PolyfillEngine();
         this.verifier = new SemanticVerifier();
+        this.cacheEnabled = builder.cacheEnabled;
+        this.maxCacheSize = builder.maxCacheSize;
+        this.planCache = cacheEnabled ? new LinkedHashMap<>() {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, SemanticIR> e) {
+                return size() > maxCacheSize;
+            }
+        } : null;
     }
 
     // ══════════════════════════════════════════════════
@@ -99,6 +111,19 @@ public class USqlCompiler {
      * Full pipeline: Text → Lexer → Parser → AST → Semantic Analysis → IR → Backend → SQL
      */
     public CompilationResult compile(String usql, Dialect target, GenerateOptions genOpts) {
+        // Check compiled plan cache
+        SemanticIR cachedIR = null;
+        if (cacheEnabled) {
+            synchronized (planCache) {
+                cachedIR = planCache.get(usql);
+            }
+        }
+
+        if (cachedIR != null) {
+            // Cache hit: skip Parse + Semantic Analysis, go straight to pipeline
+            return compileFromIR(cachedIR, target, genOpts);
+        }
+
         // Phase 1-2: Lex + Parse
         List<Statement> astNodes;
         try {
@@ -115,7 +140,22 @@ public class USqlCompiler {
             ));
         }
 
-        return compileFromAst(astNodes.get(0), target, genOpts);
+        // Full pipeline with cache store
+        CompilationResult result = compileFromAst(astNodes.get(0), target, genOpts);
+
+        // Store in cache if compilation succeeded
+        if (cacheEnabled && result.isSuccess()) {
+            // Re-parse to get IR (we already have it, but let's cache via the analyze step)
+            SemanticAnalyzer analyzer = new SemanticAnalyzer(schemaProvider, functionCatalog, typeCatalog);
+            var analysis = analyzer.analyze(astNodes.get(0));
+            if (analysis.errors().isEmpty() && analysis.ir() != null) {
+                synchronized (planCache) {
+                    planCache.put(usql, analysis.ir());
+                }
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -202,14 +242,21 @@ public class USqlCompiler {
     }
 
     /**
-     * Compile from IR directly (skip AST step — for testing/debugging).
+     * Compile from IR directly (skip parse + analyze — used by cache hit path).
+     */
+    public CompilationResult compileFromIR(SemanticIR ir, Dialect target, GenerateOptions genOpts) {
+        return compileFromIR(ir.rootStatement(), target, genOpts);
+    }
+
+    /**
+     * Compile from IR statement directly (skip AST step — for testing/debugging).
      */
     public CompilationResult compileFromIR(IRStatement ir, Dialect target) {
         return compileFromIR(ir, target, GenerateOptions.DEFAULTS);
     }
 
     /**
-     * Compile from IR directly with custom options.
+     * Compile from IR statement with custom options.
      */
     public CompilationResult compileFromIR(IRStatement ir, Dialect target, GenerateOptions genOpts) {
         // Phase 6: Capability check + polyfill
@@ -261,6 +308,16 @@ public class USqlCompiler {
         );
     }
 
+    /** Clear the compiled plan cache. */
+    public void clearCache() {
+        if (planCache != null) synchronized (planCache) { planCache.clear(); }
+    }
+
+    /** Number of cached plans. */
+    public int cacheSize() {
+        return planCache != null ? planCache.size() : 0;
+    }
+
     // ══════════════════════════════════════════════════
     //  Schema registration shortcut
     // ══════════════════════════════════════════════════
@@ -304,6 +361,8 @@ public class USqlCompiler {
         private boolean verify = false;
         private int optimizeLevel = 1;
         private Dialect defaultDialect = Dialect.MYSQL;
+        private boolean cacheEnabled = true;
+        private int maxCacheSize = 256;
 
         public Builder withSchema(SchemaProvider provider) {
             this.schemaProvider = provider;
@@ -332,6 +391,16 @@ public class USqlCompiler {
 
         public Builder withDefaultDialect(Dialect dialect) {
             this.defaultDialect = dialect;
+            return this;
+        }
+
+        public Builder withCache(boolean enabled) {
+            this.cacheEnabled = enabled;
+            return this;
+        }
+
+        public Builder withCacheSize(int size) {
+            this.maxCacheSize = size;
             return this;
         }
 
