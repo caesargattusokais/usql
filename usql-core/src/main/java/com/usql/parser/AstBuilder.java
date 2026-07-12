@@ -25,8 +25,22 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
     /**
      * Parse U-SQL text and return a list of AST statements.
      */
+    /** Use hand-written parser (true) or ANTLR parser (false). */
+    private static boolean USE_HAND_PARSER = false; // WIP — AST mapping incomplete
+
     @SuppressWarnings("unchecked")
     public static List<Statement> build(String usql) {
+        if (USE_HAND_PARSER) {
+            try {
+                HandLexer lexer = new HandLexer(usql);
+                List<HandLexer.Token> tokens = lexer.tokenize();
+                HandParser parser = new HandParser(tokens);
+                return parser.parseProgram();
+            } catch (Exception e) {
+                // Fallback to ANTLR if hand parser fails
+            }
+        }
+
         USqlLexer lexer = new USqlLexer(CharStreams.fromString(usql));
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         USqlParser parser = new USqlParser(tokens);
