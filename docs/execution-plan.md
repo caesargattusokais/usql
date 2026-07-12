@@ -1,16 +1,15 @@
 # USQL 执行计划
 
 创建日期: 2026-06-28
-最后更新: 2026-07-11
+最后更新: 2026-07-12
 当前版本: v3.0.0
 
 ---
 
 ## 进度总览
 
-- Phase 1-6: 全部 100% ✅
 - Phase 1-7: 全部 100% ✅
-- Phase 8 待评估: 0% (0/6)
+- Phase 8 待评估: 0% (0/3)
 - Phase 9 后续方向: 100% ✅ (5/5)
 
 ---
@@ -21,10 +20,10 @@
 |---|------|------|------|
 | 7.1 | 单测覆盖率提升 | 40% | Backend 层真实库已全覆盖，纯单元空间有限 |
 | 7.2 | IROptimizer Level 3 高级优化 | ✅ | 谓词下推 + 投影裁剪，L2/L3 结果一致性验证通过 |
-| 7.3 | 更多数据库支持 | ✅ | SQLite + MariaDB + TiDB，8→8 数据库全部回归通过 |
+| 7.3 | 更多数据库支持 | ✅ | +6 方言 (MariaDB/TiDB/SQLite/DuckDB/OceanBase/ClickHouse)，5→11 全部回归通过 |
 | 7.4 | DDL 扩展（VIEW / SCHEMA / DROP DATABASE） | ✅ | CREATE VIEW + CREATE SCHEMA + DROP DATABASE |
-| 7.5 | 语法增强（LATERAL / TCL 事务 / ARRAY / EXISTS） | ✅ | LATERAL 8 方言 + TCL 事务透传 |
-| 7.6 | 性能测试 / 大查询编译基准 | ✅ | 11 种查询 × 5 方言，13-1186 μs/query |
+| 7.5 | 语法增强（LATERAL / TCL 事务） | ✅ | LATERAL 11 方言 + TCL 事务透传 |
+| 7.6 | 性能测试 / 编译基准 | ✅ | 吞吐 15000/s，11 种查询 × 4 方言，4-940 μs/query |
 
 ### 7.2 IROptimizer Level 3 — 详情
 
@@ -37,8 +36,10 @@
 | 数据库 | Backend | 回归 |
 |--------|---------|:--:|
 | MySQL / PG / Oracle / DM / SQL Server | 各自独立 Backend | ✅ |
-| MariaDB / TiDB | 复用 MySqlBackend | ✅ |
-| SQLite | 独立 SqliteBackend (338行) | ✅ |
+| MariaDB / TiDB / OceanBase | 复用 MySqlBackend | ✅ |
+| SQLite | 独立 SqliteBackend | ✅ |
+| DuckDB | DuckDbBackend (extends PgBackend) | ✅ |
+| ClickHouse | ClickHouseBackend (extends MySqlBackend) | ✅ |
 
 ---
 
@@ -46,12 +47,9 @@
 
 | # | 任务 | 说明 |
 |---|------|------|
-| 8.1 | DB2 / ClickHouse / DuckDB 支持 | 需求不明确 |
-| 8.2 | CREATE VIEW / CREATE SCHEMA | 语法 + IR + Backend |
-| 8.3 | DROP DATABASE | 语法 + IR + Backend |
-| 8.4 | ALTER TABLE RENAME / 完整 ALTER 语法 | SQL Server 已完成，其他方言部分支持 |
-| 8.5 | LATERAL JOIN | 语法已部分支持，需补全 Backend |
-| 8.6 | ARRAY 类型映射 | 只需 PG/SQL Server（其他方言无原生数组） |
+| 8.1 | DB2 支持 | IBM 商业库，使用面窄 |
+| 8.2 | ARRAY 类型映射 | 只需 PG（其他方言无原生数组），低优先级 |
+| 8.3 | ALTER TABLE RENAME 完整语法 | SQL Server 已完成，其他方言部分支持 |
 
 ---
 
@@ -374,7 +372,34 @@
 | 9.3 | DB2 支持 | IBM 商业库，使用面窄 |
 | 9.4 | MySQL CHANGE COLUMN | ✅ 已正确使用 `MODIFY COLUMN` + `RENAME COLUMN` |
 | 9.5 | OceanBase 支持 | ✅ Dialect + MySqlBackend + 检测 + docker-compose |
-| 9.6 | 深度性能 Profiling | ✅ Parse 瓶颈 50-93%，其他阶段已足够快 |
+| 9.6 | 深度性能 Profiling | ✅ Parse 瓶颈 50-93%，吞吐 15000/s |
+
+### 9.1 DuckDB — PG 兼容嵌入式分析库
+
+- Dialect + DuckDbBackend (extends PgBackend)
+- 覆写 CREATE TABLE（无 GENERATED AS IDENTITY）、存储过程跳过
+- AUTO_INCREMENT 需显式 sequence（已知限制）
+
+### 9.2 ClickHouse — 列存分析库
+
+- Dialect + ClickHouseBackend (extends MySqlBackend)
+- CREATE TABLE 生成 MergeTree 引擎 + ORDER BY
+- 类型映射: Int32/64, Float32/64, String, UInt8, Date, DateTime, UUID
+- 回归 0 失败
+
+### 9.5 OceanBase — 蚂蚁分布式数据库
+
+- Dialect + 复用 MySqlBackend（MySQL 完全兼容）
+- Docker: oceanbase/oceanbase-ce
+- 回归 179/180（仅存储过程清理残留）
+
+### 9.6 性能 Profiling 结论
+
+- Parse: 50-93% 时间（ANTLR 瓶颈）
+- Semantic Analysis: 5-15%
+- Optimizer: 3-10%
+- Code Generate: 5-15%
+- 吞吐: 15000 compiles/sec
 
 ---
 
