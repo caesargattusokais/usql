@@ -107,6 +107,13 @@ CREATE INDEX idx_name ON users (name)
 CREATE UNIQUE INDEX idx_email ON users (email)
 CREATE INDEX IF NOT EXISTS idx_name ON users (name)
 DROP INDEX idx_name ON users
+
+-- 视图
+CREATE VIEW active_users AS SELECT id, name FROM users WHERE active = TRUE
+
+-- Schema / Database
+CREATE SCHEMA my_app
+DROP DATABASE my_db
 ```
 
 ---
@@ -314,6 +321,60 @@ CREATE PROCEDURE transfer(IN from_id INT, OUT status VARCHAR(20)) AS '...'
 ```
 
 > Body 为方言原生 SQL，不经过 USQL 翻译。MySQL 需要 `()` 括起空参数；PG 使用 `$$...$$ LANGUAGE plpgsql`；SQL Server 使用 `@param` 语法。
+
+---
+
+### 事务控制（TCL）
+
+事务语句是标准 SQL，直接透传，不翻译。
+
+```sql
+BEGIN                    -- 开始事务（PG）
+START TRANSACTION        -- 开始事务（MySQL 风格）
+COMMIT                   -- 提交
+ROLLBACK                 -- 回滚
+ROLLBACK TO SAVEPOINT sp -- 回滚到保存点
+SAVEPOINT sp             -- 创建保存点
+RELEASE SAVEPOINT sp     -- 释放保存点
+```
+
+---
+
+### LATERAL JOIN
+
+```sql
+SELECT * FROM users u, LATERAL GENERATE_SERIES(1, u.count) AS s
+```
+
+| 方言 | 语法 |
+|------|------|
+| MySQL/PG/DM/SQLite | `LATERAL func(...)` |
+| Oracle | `LATERAL TABLE(func(...))` |
+| SQL Server | `CROSS APPLY func(...)` |
+
+---
+
+### CREATE VIEW / CREATE SCHEMA / DROP DATABASE
+
+```sql
+CREATE VIEW my_view AS SELECT name, val FROM t WHERE val > 10
+CREATE SCHEMA my_schema
+DROP DATABASE my_db
+```
+
+> Oracle/DM 没有独立 Schema 概念（Schema=User），CREATE SCHEMA 会自然报错；SQLite 无 DATABASE 概念。
+
+---
+
+## 编译器优化
+
+| Level | 名称 | 示例 |
+|-------|------|------|
+| 1 | 常量折叠 | `1+2→3`, `TRUE AND FALSE→FALSE` |
+| 2 | 表达式简化 + 子查询扁平 | `x*1→x`, `NOT NOT x→x` |
+| 3 | 谓词下推 + 投影裁剪 | `WHERE s.age>18` 推入子查询，裁剪未用列 |
+
+> Level 2/3 优化结果经真实数据库验证与未优化版本完全一致。
 
 ---
 
@@ -554,11 +615,13 @@ mvn exec:java -pl usql-core -Dexec.mainClass=com.usql.RegressionTest -Dexec.clas
 | CapabilityCheckerTest | 27 能力 polyfill 判定 | 45 |
 | DialectTest | 8 方言能力集 | 40 |
 | BackendTest | Backend SQL 生成 | 112 |
+| IROptimizerTest | 常量折叠 + 表达式简化 + 谓词下推 | 34 |
 | CompilationResultTest | 错误/警告报告 | 29 |
 | PolyfillEngineTest | FULL JOIN polyfill | 15 |
 | StoredProcedureTest | 存储过程编译 | 53 |
 | SemanticAnalyzerTest | 语义分析 | 20 |
-| **总计** | | **653+** |
+| BenchmarkTest | 编译性能基准（11 查询 × 5 方言） | — |
+| **总计** | | **800+** |
 
 全部在 MySQL 8.0 / PostgreSQL 16 / Oracle 19c / 达梦 DM8 / SQL Server 2022 / MariaDB 11 / TiDB 8.1 / SQLite 3 Docker 容器上验证通过。
 
