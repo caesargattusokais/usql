@@ -644,6 +644,19 @@ public class OracleBackend extends AbstractDialectBackend {
     }
 
     @Override
+    protected String generateCreateSchema(IRCreateSchema cs, GenerateOptions opt) {
+        // Oracle doesn't have standalone CREATE SCHEMA — use CREATE USER
+        String name = cs.name();
+        return "CREATE USER " + quoteIdentifier(name) + " IDENTIFIED BY \"usql_default\"";
+    }
+
+    @Override
+    protected String generateDropDatabase(IRDropDatabase dd, GenerateOptions opt) {
+        // Oracle: DROP USER CASCADE for DROP DATABASE
+        return "DROP USER " + quoteIdentifier(dd.name()) + " CASCADE";
+    }
+
+    @Override
     protected String generateDropTable(IRDropTable dt, GenerateOptions opt) {
         String cascadeSuffix = dt.cascade() ? " CASCADE CONSTRAINTS" : "";
         if (!dt.ifExists())
