@@ -1,9 +1,20 @@
 package com.usql;
 
+import com.usql.analyzer.SemanticAnalyzer;
+import com.usql.ast.USqlAst;
+import com.usql.backend.*;
+import com.usql.capability.CapabilityChecker;
+import com.usql.capability.PolyfillEngine;
+import com.usql.catalog.FunctionCatalog;
+import com.usql.catalog.TypeCatalog;
 import com.usql.dialect.Dialect;
+import com.usql.ir.SemanticIR;
+import com.usql.optimizer.IROptimizer;
+import com.usql.parser.AstBuilder;
+import com.usql.SchemaProvider;
 
 /**
- * Compilation performance benchmark.
+ * Compilation performance benchmark with phase breakdown.
  * Run: mvn exec:java -pl usql-core -Dexec.mainClass=com.usql.BenchmarkTest -Dexec.classpathScope=test
  */
 public class BenchmarkTest {
@@ -12,72 +23,90 @@ public class BenchmarkTest {
     static final int ITERATIONS = 500;
 
     static String[] QUERIES = {
-        // Simple SELECT
         "SELECT name, age FROM users WHERE age > 18",
-        // JOIN + aggregate
-        "SELECT d.name, COUNT(*) AS cnt, AVG(e.salary) AS avg_sal FROM departments d JOIN employees e ON d.id = e.dept_id GROUP BY d.name HAVING COUNT(*) > 2",
-        // Window function
+        "SELECT d.name, COUNT(*) AS cnt, AVG(e.salary) AS avg_sal FROM departments d JOIN employees e ON d.id = e.dept_id GROUP BY d.name",
         "SELECT name, salary, ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rn FROM employees",
-        // CTE
-        "WITH hi AS (SELECT name, salary FROM employees WHERE salary > 70000) SELECT name FROM hi",
-        // Recursive CTE
-        "WITH RECURSIVE nums AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM nums WHERE n < 10) SELECT n FROM nums",
-        // Complex with subquery + KEEP
-        "SELECT dept_id, MAX(salary) KEEP (DENSE_RANK LAST ORDER BY hire_date) FROM (SELECT * FROM employees WHERE active = TRUE) e GROUP BY dept_id",
-        // MERGE
-        "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.name = s.name WHEN NOT MATCHED THEN INSERT (id, name) VALUES (s.id, s.name)",
-        // CREATE TABLE DDL
-        "CREATE TABLE t (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100) NOT NULL, score DECIMAL(10,2) DEFAULT 0, active BOOLEAN DEFAULT TRUE, created DATE, updated DATETIME, bio TEXT)",
-        // INSERT multi-row
-        "INSERT INTO t (name, score) VALUES ('A', 10), ('B', 20), ('C', 30), ('D', 40), ('E', 50)",
-        // TCL
+        "WITH RECURSIVE nums AS (SELECT 1 AS n UNION ALL SELECT n+1 FROM nums WHERE n<10) SELECT n FROM nums",
+        "INSERT INTO t (name, score) VALUES ('A',10),('B',20),('C',30),('D',40),('E',50)",
         "BEGIN",
     };
 
-    static Dialect[] DIALECTS = {Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE, Dialect.SQLSERVER, Dialect.SQLITE};
+    static Dialect[] DIALECTS = {Dialect.MYSQL, Dialect.POSTGRESQL, Dialect.ORACLE, Dialect.CLICKHOUSE};
 
     public static void main(String[] args) {
-        USqlCompiler compiler = USqlCompiler.builder().build();
+        System.out.println("=== USQL Phase Breakdown (μs) ===\n");
 
-        System.out.println("=== USQL Compilation Benchmark ===\n");
-        System.out.printf("%-50s %10s %10s %10s %10s %10s%n", "Query", "MySQL", "PG", "Oracle", "SQLSrv", "SQLite");
-        System.out.println("─".repeat(110));
+        FunctionCatalog fc = new FunctionCatalog();
+        TypeCatalog tc = new TypeCatalog();
 
-        for (String q : QUERIES) {
-            String label = q.substring(0, Math.min(45, q.length())).replace("\n", " ");
-            System.out.printf("%-50s", label);
-
-            for (Dialect d : DIALECTS) {
-                // Warmup
-                for (int i = 0; i < WARMUP; i++) compiler.compile(q, d);
-
-                // Measure
-                long start = System.nanoTime();
-                for (int i = 0; i < ITERATIONS; i++) compiler.compile(q, d);
-                long elapsed = System.nanoTime() - start;
-
-                double avgUs = elapsed / 1000.0 / ITERATIONS;
-                System.out.printf(" %7.0f μs", avgUs);
-            }
-            System.out.println();
-        }
-
-        // Throughput summary
-        System.out.println("\n── Throughput (compiles/sec) ──");
         for (Dialect d : DIALECTS) {
-            long start = System.nanoTime();
-            int count = 0;
-            while (System.nanoTime() - start < 2_000_000_000L) { // 2 seconds
-                for (String q : QUERIES) {
-                    compiler.compile(q, d);
-                    count++;
+            System.out.println("── " + d.displayName() + " ──");
+            System.out.printf("  %-45s %8s %8s %8s %8s%n", "Query", "Parse", "Analyze", "Optimize", "Generate");
+
+            for (String q : QUERIES) {
+                String label = q.substring(0, Math.min(40, q.length()));
+
+                // Warmup
+                for (int i = 0; i < WARMUP; i++) compile(q, d, fc, tc);
+
+                // Measure phases
+                long parseNs = 0, analyzeNs = 0, optNs = 0, genNs = 0;
+
+                for (int i = 0; i < ITERATIONS; i++) {
+                    // Phase 1: Parse
+                    long t0 = System.nanoTime();
+                    USqlAst.Statement ast = AstBuilder.buildSingle(q);
+                    long t1 = System.nanoTime();
+                    parseNs += (t1 - t0);
+
+                    // Phase 2: Semantic Analysis
+                    SemanticAnalyzer analyzer = new SemanticAnalyzer(SchemaProvider.EMPTY, fc, tc);
+                    var analysis = analyzer.analyze(ast);
+                    long t2 = System.nanoTime();
+                    analyzeNs += (t2 - t1);
+
+                    // Phase 3: IR Optimization
+                    SemanticIR ir = analysis.ir();
+                    ir = IROptimizer.optimize(ir, 3);
+                    long t3 = System.nanoTime();
+                    optNs += (t3 - t2);
+
+                    // Phase 4: Backend generation
+                    DialectBackend backend = getBackend(d);
+                    String sql = backend.generate(ir.rootStatement(), GenerateOptions.DEFAULTS);
+                    long t4 = System.nanoTime();
+                    genNs += (t4 - t3);
                 }
+
+                System.out.printf("  %-45s %7.0f %8.0f %8.0f %8.0f%n",
+                    label,
+                    parseNs / 1000.0 / ITERATIONS,
+                    analyzeNs / 1000.0 / ITERATIONS,
+                    optNs / 1000.0 / ITERATIONS,
+                    genNs / 1000.0 / ITERATIONS);
             }
-            long elapsed = System.nanoTime() - start;
-            double rate = count * 1_000_000_000.0 / elapsed;
-            System.out.printf("  %-10s %8.0f compiles/sec%n", d.displayName(), rate);
         }
 
-        System.out.println("\n✔ Benchmark complete");
+        System.out.println("\n✔ Profiling complete");
+    }
+
+    static CompilationResult compile(String usql, Dialect d, FunctionCatalog fc, TypeCatalog tc) {
+        USqlAst.Statement ast = AstBuilder.buildSingle(usql);
+        SemanticAnalyzer analyzer = new SemanticAnalyzer(SchemaProvider.EMPTY, fc, tc);
+        var analysis = analyzer.analyze(ast);
+        SemanticIR ir = IROptimizer.optimize(analysis.ir(), 3);
+        DialectBackend backend = getBackend(d);
+        String sql = backend.generate(ir.rootStatement(), GenerateOptions.DEFAULTS);
+        return CompilationResult.success(sql);
+    }
+
+    static DialectBackend getBackend(Dialect d) {
+        return switch (d) {
+            case MYSQL -> new MySqlBackend();
+            case POSTGRESQL -> new PgBackend();
+            case ORACLE -> new OracleBackend();
+            case CLICKHOUSE -> new ClickHouseBackend();
+            default -> new MySqlBackend();
+        };
     }
 }
