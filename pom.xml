@@ -6,7 +6,7 @@
 
     <groupId>com.usql</groupId>
     <artifactId>usql-parent</artifactId>
-    <version>3.0.0-SNAPSHOT</version>
+    <version>4.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>USQL - Universal SQL Compiler</name>

@@ -23,7 +23,7 @@
         <dependency>
             <groupId>com.usql</groupId>
             <artifactId>usql-jdbc</artifactId>
-            <version>3.0.0-SNAPSHOT</version>
+            <version>4.0.0-SNAPSHOT</version>
         </dependency>
         <!-- Backend driver (already included in usql-jdbc, explicit for clarity) -->
         <dependency>
