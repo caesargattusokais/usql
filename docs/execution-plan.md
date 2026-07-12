@@ -11,7 +11,7 @@
 - Phase 1-6: 全部 100% ✅
 - Phase 1-7: 全部 100% ✅
 - Phase 8 待评估: 0% (0/6)
-- Phase 9 后续方向: 20% (1/5)
+- Phase 9 后续方向: 40% (2/5)
 
 ---
 
@@ -366,7 +366,7 @@
 | 9.1 | DuckDB 支持 | ✅ Dialect + PgBackend + 检测已完成 |
 | 9.2 | ClickHouse 支持 | 列存分析库，语法差异大，需独立完整 Backend |
 | 9.3 | DB2 支持 | IBM 商业库，使用面窄 |
-| 9.4 | MySQL CHANGE COLUMN | ALTER COLUMN TYPE 用 `CHANGE old new TYPE` 语法 |
+| 9.4 | MySQL CHANGE COLUMN | ✅ 已正确使用 `MODIFY COLUMN` + `RENAME COLUMN` |
 | 9.5 | 深度性能 Profiling | 定位慢路径（PG KEEP polyfill、INSERT 多行等），针对性优化 |
 
 ---
