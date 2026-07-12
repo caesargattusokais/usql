@@ -11,7 +11,7 @@
 - Phase 1-6: 全部 100% ✅
 - Phase 1-7: 全部 100% ✅
 - Phase 8 待评估: 0% (0/6)
-- Phase 9 后续方向: 60% (3/5)
+- Phase 9 后续方向: 80% (4/5)
 
 ---
 
@@ -370,7 +370,7 @@
 | # | 任务 | 说明 |
 |---|------|------|
 | 9.1 | DuckDB 支持 | ✅ Dialect + PgBackend + 检测已完成 |
-| 9.2 | ClickHouse 支持 | 列存分析库，语法差异大，需独立完整 Backend |
+| 9.2 | ClickHouse 支持 | ✅ ClickHouseBackend + MergeTree + 零失败回归 |
 | 9.3 | DB2 支持 | IBM 商业库，使用面窄 |
 | 9.4 | MySQL CHANGE COLUMN | ✅ 已正确使用 `MODIFY COLUMN` + `RENAME COLUMN` |
 | 9.5 | OceanBase 支持 | ✅ Dialect + MySqlBackend + 检测 + docker-compose |
