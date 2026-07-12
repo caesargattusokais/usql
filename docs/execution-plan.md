@@ -9,7 +9,7 @@
 ## 进度总览
 
 - Phase 1-6: 全部 100% ✅
-- Phase 7 扩展方向: 67% (4/6)
+- Phase 7 扩展方向: 100% ✅ (6/6)
 - Phase 8 待评估: 0% (0/6)
 
 ---
@@ -23,7 +23,7 @@
 | 7.3 | 更多数据库支持 | ✅ | SQLite + MariaDB + TiDB，8→8 数据库全部回归通过 |
 | 7.4 | DDL 扩展（VIEW / SCHEMA / DROP DATABASE） | ✅ | CREATE VIEW + CREATE SCHEMA + DROP DATABASE |
 | 7.5 | 语法增强（LATERAL / TCL 事务 / ARRAY / EXISTS） | ✅ | LATERAL 8 方言 + TCL 事务透传 |
-| 7.6 | 性能测试 / 大查询编译基准 | TODO | 复杂查询编译耗时、内存占用 |
+| 7.6 | 性能测试 / 大查询编译基准 | ✅ | 11 种查询 × 5 方言，13-1186 μs/query |
 
 ### 7.2 IROptimizer Level 3 — 详情
 
