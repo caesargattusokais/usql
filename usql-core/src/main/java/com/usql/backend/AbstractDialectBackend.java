@@ -28,33 +28,35 @@ public abstract class AbstractDialectBackend implements DialectBackend {
     //  KEEP polyfill — shared by MySQL/PG/DM/SQL Server
     // ══════════════════════════════════════════════════
 
-    /** Scan expression tree for KEEP aggregates, collect sort column info. */
+    /** Scan expression tree for KEEP aggregates — only recurses into function arguments. */
     protected void scanKeep(IRExpr expr) {
         if (expr == null) return;
-        if (expr instanceof IRFunctionCall fc && fc.keep() != null) {
-            var o = fc.keep().orderBy().get(0);
-            boolean isFirst = fc.keep() instanceof KeepSpec.First;
-            boolean desc = (isFirst && o.dir() == OrderDir.DESC) || (!isFirst && o.dir() == OrderDir.ASC);
-            keepCols.add(new KeepCol(generateExpr(o.expr(), GenerateOptions.MINIMAL), desc));
-            return;
+        if (expr instanceof IRFunctionCall fc) {
+            if (fc.keep() != null) {
+                var o = fc.keep().orderBy().get(0);
+                boolean isFirst = fc.keep() instanceof KeepSpec.First;
+                boolean desc = (isFirst && o.dir() == OrderDir.DESC) || (!isFirst && o.dir() == OrderDir.ASC);
+                keepCols.add(new KeepCol(generateExpr(o.expr(), GenerateOptions.MINIMAL), desc));
+            } else {
+                // Only recurse into function arguments (most expressions don't contain KEEP)
+                fc.args().forEach(this::scanKeep);
+            }
         }
-        if (expr instanceof IRFunctionCall fc) fc.args().forEach(this::scanKeep);
-        else if (expr instanceof IRBinaryOp bo) { scanKeep(bo.left()); scanKeep(bo.right()); }
-        else if (expr instanceof IRUnaryOp uo) scanKeep(uo.operand());
-        else if (expr instanceof IRCase cs) { cs.whens().forEach(w -> { scanKeep(w.condition()); scanKeep(w.result()); }); if (cs.elseExpr() != null) scanKeep(cs.elseExpr()); }
-        else if (expr instanceof IRCast ct) scanKeep(ct.expr());
-        else if (expr instanceof IRBetween bt) { scanKeep(bt.expr()); scanKeep(bt.low()); scanKeep(bt.high()); }
-        else if (expr instanceof IRInList il) { scanKeep(il.expr()); il.values().forEach(this::scanKeep); }
-        else if (expr instanceof IRIsNull isn) scanKeep(isn.expr());
     }
 
     /** Scan all projections, HAVING, ORDER BY for KEEP aggregates. */
     protected void scanKeepFromSelect(IRSelect sel) {
         keepCols = new ArrayList<>();
-        if (sel.core().projections() != null)
-            sel.core().projections().forEach(p -> { if (p instanceof IRExprSelect es) scanKeep(es.expr()); });
-        if (sel.core().having() != null) scanKeep(sel.core().having());
-        if (sel.orderBy() != null) sel.orderBy().forEach(o -> scanKeep(o.expr()));
+        if (sel.core().projections() != null) {
+            for (var p : sel.core().projections()) {
+                if (p instanceof IRExprSelect es) scanKeep(es.expr());
+            }
+        }
+        // Only scan HAVING/ORDER BY if we found KEEP in projections
+        if (!keepCols.isEmpty()) {
+            if (sel.core().having() != null) scanKeep(sel.core().having());
+            if (sel.orderBy() != null) sel.orderBy().forEach(o -> scanKeep(o.expr()));
+        }
     }
 
     /** Generate the outer aggregate: AGG(CASE WHEN _keep_N = 1 THEN valueExpr END) */
