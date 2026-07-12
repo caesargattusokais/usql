@@ -35,9 +35,11 @@ public class RegressionTest {
             "jdbc:mysql://localhost:4000/test?allowPublicKeyRetrieval=true&useSSL=false",
             "root", ""),
         new Db("SQLite", Dialect.SQLITE,
-            "jdbc:sqlite::memory:", "", "")
+            "jdbc:sqlite::memory:", "", ""),
+        new Db("OceanBase", Dialect.OCEANBASE,
+            "jdbc:mysql://localhost:2881/test?useSSL=false&allowPublicKeyRetrieval=true",
+            "root", "")
         // DuckDB: skipped — AUTO_INCREMENT needs DEFAULT unique_rowid()
-        // Dialect + DuckDbBackend ready, just needs sequence mapping
     );
 
     static USqlCompiler compiler = USqlCompiler.builder().build();
@@ -370,8 +372,8 @@ public class RegressionTest {
                 + "GROUP BY ROLLUP(dept, city)", 7);
         }
 
-        // CUBE (MySQL/MariaDB/TiDB/SQLite don't support)
-        if (!Set.of("MySQL", "MariaDB", "TiDB", "SQLite").contains(db.name())) {
+        // CUBE (MySQL/MariaDB/TiDB/SQLite/OceanBase don't support)
+        if (!Set.of("MySQL", "MariaDB", "TiDB", "SQLite", "OceanBase").contains(db.name())) {
             execQuery(db, conn,
                 "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
                 + "GROUP BY CUBE(dept, city)", 9);
