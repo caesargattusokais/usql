@@ -236,6 +236,20 @@ public enum Dialect {
         Capability.OBJECT_COMMENT
     ),
 
+    /** ClickHouse — columnar analytical database */
+    CLICKHOUSE("ClickHouse", true,
+        Capability.LIMIT_OFFSET,
+        Capability.WINDOW_FUNCTION,
+        Capability.RECURSIVE_CTE,
+        Capability.AGGREGATE,
+        Capability.HAVING,
+        Capability.DISTINCT,
+        Capability.CHECK_CONSTRAINT,
+        Capability.TRUNCATE_TABLE
+        // Missing: AUTO_INCREMENT, BOOLEAN_TYPE (UInt8), MERGE_INTO,
+        // FULL_OUTER_JOIN, LATERAL_JOIN, ENUM_TYPE, TEMPORARY_TABLE, etc.
+    ),
+
     /** Reference dialect for semantic verification */
     H2("H2", false,
         // H2 — used as reference implementation; very standards-compliant

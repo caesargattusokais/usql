@@ -136,6 +136,15 @@ services:
       - --path=/tmp/tidb
       - --advertise-address=tidb_test
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: clickhouse_test
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+    ulimits:
+      nofile: 262144
+
   oceanbase:
     image: oceanbase/oceanbase-ce
     container_name: oceanbase_test

@@ -38,7 +38,9 @@ public class RegressionTest {
             "jdbc:sqlite::memory:", "", ""),
         new Db("OceanBase", Dialect.OCEANBASE,
             "jdbc:mysql://localhost:2881/test?useSSL=false&allowPublicKeyRetrieval=true",
-            "root", "")
+            "root", ""),
+        new Db("ClickHouse", Dialect.CLICKHOUSE,
+            "jdbc:clickhouse://localhost:8123/default", "", "")
         // DuckDB: skipped — AUTO_INCREMENT needs DEFAULT unique_rowid()
     );
 

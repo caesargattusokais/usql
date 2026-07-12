@@ -90,6 +90,7 @@ public class USqlDriver implements java.sql.Driver {
         if (url.contains(":sqlite:")) return Dialect.SQLITE;
         if (url.contains(":duckdb:")) return Dialect.DUCKDB;
         if (url.contains(":oceanbase:")) return Dialect.OCEANBASE;
+        if (url.contains(":clickhouse:")) return Dialect.CLICKHOUSE;
         throw new IllegalArgumentException("Cannot detect dialect from: " + jdbcUrl);
     }
 

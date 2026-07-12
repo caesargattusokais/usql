@@ -74,6 +74,14 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- ClickHouse JDBC -->
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>0.6.5</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- DuckDB JDBC -->
         <dependency>
             <groupId>org.duckdb</groupId>
