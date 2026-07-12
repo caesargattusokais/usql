@@ -222,6 +222,10 @@ public abstract class AbstractDialectBackend implements DialectBackend {
         return "CREATE SCHEMA " + quoteIdentifier(cs.name());
     }
 
+    protected String generateTCL(IRTCL tcl, GenerateOptions opt) {
+        return tcl.sql(); // pass-through — TCL is standard across databases
+    }
+
     protected String generateDropIndex(IRDropIndex di, GenerateOptions opt) {
         return "DROP INDEX " + (di.ifExists() ? "IF EXISTS " : "") + quoteIdentifier(di.indexName());
     }

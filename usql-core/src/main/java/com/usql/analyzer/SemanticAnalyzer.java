@@ -83,6 +83,7 @@ public class SemanticAnalyzer {
             case DropDatabaseStmt s      -> new IRDropDatabase(s.dbName(), s.ifExists(), Set.of());
             case CreateViewStmt s        -> new IRCreateView(s.viewName(), analyzeSelect(s.query()), Set.of());
             case CreateSchemaStmt s      -> new IRCreateSchema(s.schemaName(), Set.of());
+            case TCLStmt s               -> new IRTCL(s.sql(), Set.of());
             case TruncateStmt s          -> new IRTruncateTable(s.tableName(), Set.of());
             case AlterTableStmt s        -> analyzeAlterTable(s);
             default -> throw new UnsupportedOperationException(

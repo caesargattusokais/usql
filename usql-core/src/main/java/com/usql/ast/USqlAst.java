@@ -132,6 +132,7 @@ public final class USqlAst {
     public record DropDatabaseStmt(String dbName, boolean ifExists) implements Statement {}
     public record CreateViewStmt(String viewName, SelectStmt query) implements Statement {}
     public record CreateSchemaStmt(String schemaName) implements Statement {}
+    public record TCLStmt(String sql) implements Statement {}  // pass-through TCL
     public record TruncateStmt(String tableName) implements Statement {}
     public record AlterTableStmt(String tableName, AlterAction action) implements Statement {}
 

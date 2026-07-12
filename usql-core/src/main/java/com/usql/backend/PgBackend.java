@@ -40,6 +40,7 @@ public class PgBackend extends AbstractDialectBackend {
             case IRDropDatabase dd           -> generateDropDatabase(dd, options);
             case IRCreateView cv             -> generateCreateView(cv, options);
             case IRCreateSchema cs           -> generateCreateSchema(cs, options);
+            case IRTCL tcl                  -> generateTCL(tcl, options);
             case IRAlterColumnSetDefault acs -> generateAlterColumnSetDefault(acs, options);
             case IRAlterColumnDropDefault acd -> generateAlterColumnDropDefault(acd, options);
             case IRRenameColumn rc           -> generateRenameColumn(rc, options);

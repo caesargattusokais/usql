@@ -32,6 +32,7 @@ public class SqliteBackend extends AbstractDialectBackend {
             case IRDropDatabase dd         -> generateDropDatabase(dd, options);
             case IRCreateView cv           -> generateCreateView(cv, options);
             case IRCreateSchema cs         -> generateCreateSchema(cs, options);
+            case IRTCL tcl                -> generateTCL(tcl, options);
             case IRCreateProcedure cp      -> generateCreateProcedure(cp, options);
             case IRCreateFunction cf       -> generateCreateFunction(cf, options);
             case IRCall call               -> generateCall(call, options);

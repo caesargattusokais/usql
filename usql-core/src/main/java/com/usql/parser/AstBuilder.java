@@ -90,6 +90,10 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         if (ctx.dropDatabaseStatement() != null) return visitDropDatabaseStatement(ctx.dropDatabaseStatement());
         if (ctx.createViewStatement() != null) return visitCreateViewStatement(ctx.createViewStatement());
         if (ctx.createSchemaStatement() != null) return visitCreateSchemaStatement(ctx.createSchemaStatement());
+        if (ctx.beginTransactionStatement() != null) return new TCLStmt(ctx.beginTransactionStatement().getText());
+        if (ctx.commitStatement() != null) return new TCLStmt(ctx.commitStatement().getText());
+        if (ctx.rollbackStatement() != null) return new TCLStmt(ctx.rollbackStatement().getText());
+        if (ctx.savepointStatement() != null) return new TCLStmt(ctx.savepointStatement().getText());
         if (ctx.truncateStatement() != null) return visitTruncateStatement(ctx.truncateStatement());
         if (ctx.alterTableStatement() != null) return visitAlterTableStatement(ctx.alterTableStatement());
         throw new IllegalStateException("Unknown statement type");

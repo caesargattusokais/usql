@@ -30,6 +30,10 @@ statement
     | alterTableStatement
     | createViewStatement
     | createSchemaStatement
+    | beginTransactionStatement
+    | commitStatement
+    | rollbackStatement
+    | savepointStatement
     ;
 
 // ══════════════════════════════════════════════════
@@ -404,6 +408,7 @@ keyword
     | WITH | TIME | ZONE
     | PROCEDURE | FUNCTION | CALL | REPLACE | OUT | INOUT | RETURNS | LANGUAGE
     | DROP | TRUNCATE | ALTER | ADD | COLUMN | TYPE | RENAME | TO | VIEW | SCHEMA | DATABASE
+    | BEGIN | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSACTION | WORK | START
     ;
 
 // ══════════════════════════════════════════════════
@@ -563,6 +568,14 @@ COLUMN:       C O L U M N;
 VIEW:         V I E W;
 SCHEMA:       S C H E M A;
 DATABASE:     D A T A B A S E;
+BEGIN:        B E G I N;
+COMMIT:       C O M M I T;
+ROLLBACK:     R O L L B A C K;
+SAVEPOINT:    S A V E P O I N T;
+RELEASE:      R E L E A S E;
+TRANSACTION:  T R A N S A C T I O N;
+WORK:         W O R K;
+START:        S T A R T;
 LATERAL:      L A T E R A L;
 IGNORE:       I G N O R E;
 ENGINE:       E N G I N E;
@@ -640,6 +653,28 @@ createViewStatement
 
 createSchemaStatement
     : CREATE SCHEMA schemaName=identifier
+    ;
+
+// ══════════════════════════════════════════════════
+//  TCL — Transaction Control
+// ══════════════════════════════════════════════════
+
+beginTransactionStatement
+    : BEGIN (TRANSACTION | WORK)?
+    | START TRANSACTION
+    ;
+
+commitStatement
+    : COMMIT (TRANSACTION | WORK)?
+    ;
+
+rollbackStatement
+    : ROLLBACK (TRANSACTION | WORK)? (TO SAVEPOINT? identifier)?
+    ;
+
+savepointStatement
+    : SAVEPOINT identifier                  # Savepoint
+    | RELEASE SAVEPOINT? identifier         # ReleaseSavepoint
     ;
 
 truncateStatement

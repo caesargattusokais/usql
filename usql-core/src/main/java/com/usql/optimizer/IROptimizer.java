@@ -66,6 +66,7 @@ public class IROptimizer {
             case IRDropDatabase dd         -> dd;
             case IRCreateView cv           -> cv;
             case IRCreateSchema cs         -> cs;
+            case IRTCL tcl                -> tcl;
         };
     }
 
