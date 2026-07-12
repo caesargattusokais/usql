@@ -5,6 +5,8 @@ import com.usql.ast.USqlAst.*;
 import com.usql.ir.IRExpr.WindowFrame;
 import com.usql.ir.IRExpr.WindowFrame.Bound;
 import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.atn.PredictionMode;
+import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.antlr.v4.runtime.tree.*;
 
 import java.util.*;
@@ -29,7 +31,6 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         USqlParser parser = new USqlParser(tokens);
 
-        // Collect syntax errors
         List<String> parseErrors = new ArrayList<>();
         parser.removeErrorListeners();
         parser.addErrorListener(new BaseErrorListener() {
