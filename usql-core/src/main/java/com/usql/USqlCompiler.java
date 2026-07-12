@@ -66,6 +66,7 @@ public class USqlCompiler {
         this.backends.put(Dialect.MARIADB,    new MySqlBackend()); // MySQL-compatible
         this.backends.put(Dialect.TIDB,       new MySqlBackend()); // MySQL protocol
         this.backends.put(Dialect.SQLITE,     new com.usql.backend.SqliteBackend());
+        this.backends.put(Dialect.DUCKDB,     new PgBackend());  // PostgreSQL-compatible
         this.backends.put(Dialect.H2,         new MySqlBackend()); // H2 ≈ MySQL for now
 
         // Inject function catalog for name translation

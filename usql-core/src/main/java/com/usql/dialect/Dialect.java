@@ -196,6 +196,26 @@ public enum Dialect {
         // ENUM_TYPE, SEQUENCE, GENERATED_COLUMN, etc.
     ),
 
+    /** DuckDB — PostgreSQL-compatible embedded analytics */
+    DUCKDB("DuckDB", false,
+        Capability.LIMIT_OFFSET,
+        Capability.WINDOW_FUNCTION,
+        Capability.RECURSIVE_CTE,
+        Capability.AGGREGATE,
+        Capability.HAVING,
+        Capability.DISTINCT,
+        Capability.BOOLEAN_TYPE,
+        Capability.FULL_OUTER_JOIN,
+        Capability.CHECK_CONSTRAINT,
+        Capability.CTAS,
+        Capability.TEMPORARY_TABLE,
+        Capability.INTERVAL_ARITHMETIC,
+        Capability.SEQUENCE,
+        Capability.TRUNCATE_TABLE,
+        Capability.SELECT_WITHOUT_FROM,
+        Capability.OBJECT_COMMENT
+    ),
+
     /** Reference dialect for semantic verification */
     H2("H2", false,
         // H2 — used as reference implementation; very standards-compliant

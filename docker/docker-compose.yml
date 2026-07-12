@@ -136,6 +136,12 @@ services:
       - --path=/tmp/tidb
       - --advertise-address=tidb_test
 
+  duckdb:
+    image: duckdb/duckdb:v1.2.0
+    container_name: duckdb_test
+    entrypoint: ["/bin/sh", "-c", "tail -f /dev/null"]
+    init: true
+
   # SQLite 是嵌入式数据库，提供 CLI 工具容器
   sqlite:
     image: alpine:3.20

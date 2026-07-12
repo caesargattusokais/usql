@@ -35,7 +35,9 @@ public class RegressionTest {
             "jdbc:mysql://localhost:4000/test?allowPublicKeyRetrieval=true&useSSL=false",
             "root", ""),
         new Db("SQLite", Dialect.SQLITE,
-            "jdbc:sqlite::memory:", "", "")
+            "jdbc:sqlite::memory:", "", ""),
+        new Db("DuckDB", Dialect.DUCKDB,
+            "jdbc:duckdb:", "", "")
     );
 
     static USqlCompiler compiler = USqlCompiler.builder().build();
@@ -602,6 +604,10 @@ public class RegressionTest {
     // ═══════════════════════════════════════
     //  Helpers
     // ═══════════════════════════════════════
+
+    static String autoIncPK(Db db) {
+        return db.dialect() == Dialect.DUCKDB ? "id INT PRIMARY KEY" : "id INT PRIMARY KEY AUTO_INCREMENT";
+    }
 
     static void execDDL(Db db, Connection conn, String usql, String label) throws Exception {
         CompilationResult r = compiler.compile(usql, db.dialect());
