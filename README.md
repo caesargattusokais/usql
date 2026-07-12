@@ -1,6 +1,6 @@
 # USQL — Universal SQL Compiler v3.0.0
 
-写一次 SQL，在 MySQL、PostgreSQL、Oracle、达梦 DM、SQL Server、MariaDB、TiDB、SQLite、DuckDB、OceanBase 上正确执行。
+写一次 SQL，在 MySQL、PostgreSQL、Oracle、达梦 DM、SQL Server、MariaDB、TiDB、SQLite、DuckDB、OceanBase、ClickHouse 上正确执行。
 
 ---
 
@@ -348,7 +348,7 @@ SELECT * FROM users u, LATERAL GENERATE_SERIES(1, u.count) AS s
 
 | 方言 | 语法 |
 |------|------|
-| MySQL/MariaDB/TiDB/OceanBase/PG/DM/SQLite/DuckDB | `LATERAL func(...)` |
+| MySQL/MariaDB/TiDB/OceanBase/PG/DM/SQLite/DuckDB/ClickHouse | `LATERAL func(...)` |
 | Oracle | `LATERAL TABLE(func(...))` |
 | SQL Server | `CROSS APPLY func(...)` |
 
@@ -394,6 +394,7 @@ DROP DATABASE my_db
 | TiDB | `` `name` `` | `LIMIT/OFFSET` | TINYINT(1) | AUTO_INCREMENT | CONCAT() |
 | DuckDB | `"name"` | `LIMIT/OFFSET` | BOOLEAN | DEFAULT | `\|\|` |
 | OceanBase | `` `name` `` | `LIMIT/OFFSET` | TINYINT(1) | AUTO_INCREMENT | CONCAT() |
+| ClickHouse | `` `name` `` | `LIMIT/OFFSET` | UInt8 | — | CONCAT() |
 
 ### 语法差异速查
 
@@ -607,22 +608,21 @@ mvn exec:java -pl usql-core -Dexec.mainClass=com.usql.RegressionTest -Dexec.clas
 
 | 套件 | 内容 | 测试数 |
 |------|------|--------|
-| RegressionTest | DDL/DML/Query/MERGE/CTE/窗口/KEEP/ENUM/存储过程 × 8 方言 | 267 |
+| RegressionTest | DDL/DML/Query/MERGE/CTE/窗口/KEEP/ENUM/存储过程 × 11 方言 | 180 |
 | FunctionCatalogTest | YAML 加载 + 110+ 函数查找 | 20 |
 | TypeInferrerTest | 类型推导 | 21 |
-| IROptimizerTest | 常量折叠 + 表达式简化 | 31 |
-| CapabilityCheckerTest | 27 能力 polyfill 判定 | 45 |
-| DialectTest | 8 方言能力集 | 40 |
-| BackendTest | Backend SQL 生成 | 112 |
 | IROptimizerTest | 常量折叠 + 表达式简化 + 谓词下推 | 34 |
+| CapabilityCheckerTest | 27 能力 polyfill 判定 | 45 |
+| DialectTest | 11 方言能力集 | 50 |
+| BackendTest | Backend SQL 生成 | 112 |
 | CompilationResultTest | 错误/警告报告 | 29 |
 | PolyfillEngineTest | FULL JOIN polyfill | 15 |
 | StoredProcedureTest | 存储过程编译 | 53 |
 | SemanticAnalyzerTest | 语义分析 | 20 |
-| BenchmarkTest | 编译性能基准（11 查询 × 5 方言） | — |
-| **总计** | | **800+** |
+| BenchmarkTest | 编译性能基准（6 查询 × 4 方言 × 阶段拆解） | — |
+| **总计** | | **579+** |
 
-全部在 MySQL 8.0 / PostgreSQL 16 / Oracle 19c / 达梦 DM8 / SQL Server 2022 / MariaDB 11 / TiDB 8.1 / SQLite 3 Docker 容器上验证通过。
+全部在 11 种数据库 Docker 容器上验证通过。
 
 ---
 
