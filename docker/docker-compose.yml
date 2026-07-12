@@ -136,15 +136,15 @@ services:
       - --path=/tmp/tidb
       - --advertise-address=tidb_test
 
-  # OceanBase — 镜像不可用，暂注释
-  # oceanbase:
-  #   image: oceanbase/oceanbase-ce:4.2.2-lts
-  #   container_name: oceanbase_test
-  #   ports:
-  #     - "2881:2881"
-  #   environment:
-  #     MODE: mini
-  #     OB_TENANT_PASSWORD: "ob123456"
+  oceanbase:
+    image: oceanbase/oceanbase-ce
+    container_name: oceanbase_test
+    restart: unless-stopped
+    ports:
+      - "2881:2881"
+    environment:
+      MODE: mini
+      OB_TENANT_PASSWORD: "ob123456"
 
   # SQLite 是嵌入式数据库，提供 CLI 工具容器
   sqlite:
