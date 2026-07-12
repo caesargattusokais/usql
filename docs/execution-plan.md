@@ -11,7 +11,7 @@
 - Phase 1-6: 全部 100% ✅
 - Phase 1-7: 全部 100% ✅
 - Phase 8 待评估: 0% (0/6)
-- Phase 9 后续方向: 40% (2/5)
+- Phase 9 后续方向: 60% (3/5)
 
 ---
 
@@ -346,22 +346,22 @@
 
 ## 方言能力矩阵
 
-| 能力 | MySQL | PG | Oracle | DM | SQL Server | MariaDB | TiDB | SQLite | DuckDB |
-|------|-------|----|--------|-----|-----------|---------|------|--------|-------|
-| LIMIT/OFFSET | ✅ | ✅ | polyfill | polyfill | ✅ | ✅ | ✅ | ✅ | ✅ |
-| WINDOW_FUNCTION | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| RECURSIVE_CTE | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| MERGE_INTO | polyfill | polyfill | ✅ | ✅ | ✅ | polyfill | — | — | polyfill |
-| BOOLEAN_TYPE | — | ✅ | — | — | — | — | — | — | ✅ |
-| FULL_OUTER_JOIN | polyfill | ✅ | ✅ | ✅ | ✅ | polyfill | — | — | ✅ |
-| LATERAL_JOIN | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| ARRAY_TYPE | — | ✅ | — | — | — | — | — | — | — |
-| AUTO_INCREMENT | ✅ | IDENTITY | IDENTITY | IDENTITY | IDENTITY | ✅ | ✅ | — | ⚠️ |
-| ENUM_TYPE | ✅ | polyfill | polyfill | polyfill | polyfill | ✅ | — | — | polyfill |
-| DROP IF EXISTS | ✅ | ✅ | PL/SQL | PL/SQL | ✅ | ✅ | ✅ | ✅ | ✅ |
-| CREATE IF NOT EXISTS | ✅ | ✅ | PL/SQL | PL/SQL | T-SQL | ✅ | ✅ | ✅ | ✅ |
-| 存储过程 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | — |
-| TCL 事务 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 能力 | MySQL | PG | Oracle | DM | SQL Server | MariaDB | TiDB | SQLite | DuckDB | OceanBase |
+|------|-------|----|--------|-----|-----------|---------|------|--------|-------|----------|
+| LIMIT/OFFSET | ✅ | ✅ | polyfill | polyfill | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| WINDOW_FUNCTION | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| RECURSIVE_CTE | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| MERGE_INTO | polyfill | polyfill | ✅ | ✅ | ✅ | polyfill | — | — | polyfill | polyfill |
+| BOOLEAN_TYPE | — | ✅ | — | — | — | — | — | — | ✅ | — |
+| FULL_OUTER_JOIN | polyfill | ✅ | ✅ | ✅ | ✅ | polyfill | — | — | ✅ | polyfill |
+| LATERAL_JOIN | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ARRAY_TYPE | — | ✅ | — | — | — | — | — | — | — | — |
+| AUTO_INCREMENT | ✅ | IDENTITY | IDENTITY | IDENTITY | IDENTITY | ✅ | ✅ | — | ⚠️ | ✅ |
+| ENUM_TYPE | ✅ | polyfill | polyfill | polyfill | polyfill | ✅ | — | — | polyfill | ✅ |
+| DROP IF EXISTS | ✅ | ✅ | PL/SQL | PL/SQL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| CREATE IF NOT EXISTS | ✅ | ✅ | PL/SQL | PL/SQL | T-SQL | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 存储过程 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | — | ✅ |
+| TCL 事务 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
@@ -373,7 +373,8 @@
 | 9.2 | ClickHouse 支持 | 列存分析库，语法差异大，需独立完整 Backend |
 | 9.3 | DB2 支持 | IBM 商业库，使用面窄 |
 | 9.4 | MySQL CHANGE COLUMN | ✅ 已正确使用 `MODIFY COLUMN` + `RENAME COLUMN` |
-| 9.5 | 深度性能 Profiling | 定位慢路径（PG KEEP polyfill、INSERT 多行等），针对性优化 |
+| 9.5 | OceanBase 支持 | ✅ Dialect + MySqlBackend + 检测 + docker-compose |
+| 9.6 | 深度性能 Profiling | 定位慢路径（PG KEEP polyfill、INSERT 多行等），针对性优化 |
 
 ---
 

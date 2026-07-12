@@ -1,6 +1,6 @@
 # USQL — Universal SQL Compiler v3.0.0
 
-写一次 SQL，在 MySQL、PostgreSQL、Oracle、达梦 DM、SQL Server、MariaDB、TiDB、SQLite、DuckDB 上正确执行。
+写一次 SQL，在 MySQL、PostgreSQL、Oracle、达梦 DM、SQL Server、MariaDB、TiDB、SQLite、DuckDB、OceanBase 上正确执行。
 
 ---
 
@@ -348,7 +348,7 @@ SELECT * FROM users u, LATERAL GENERATE_SERIES(1, u.count) AS s
 
 | 方言 | 语法 |
 |------|------|
-| MySQL/PG/DM/SQLite/DuckDB | `LATERAL func(...)` |
+| MySQL/MariaDB/TiDB/OceanBase/PG/DM/SQLite/DuckDB | `LATERAL func(...)` |
 | Oracle | `LATERAL TABLE(func(...))` |
 | SQL Server | `CROSS APPLY func(...)` |
 
@@ -393,6 +393,7 @@ DROP DATABASE my_db
 | MariaDB | `` `name` `` | `LIMIT/OFFSET` | TINYINT(1) | AUTO_INCREMENT | CONCAT() |
 | TiDB | `` `name` `` | `LIMIT/OFFSET` | TINYINT(1) | AUTO_INCREMENT | CONCAT() |
 | DuckDB | `"name"` | `LIMIT/OFFSET` | BOOLEAN | DEFAULT | `\|\|` |
+| OceanBase | `` `name` `` | `LIMIT/OFFSET` | TINYINT(1) | AUTO_INCREMENT | CONCAT() |
 
 ### 语法差异速查
 

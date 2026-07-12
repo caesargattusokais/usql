@@ -216,6 +216,26 @@ public enum Dialect {
         Capability.OBJECT_COMMENT
     ),
 
+    /** OceanBase — MySQL-compatible distributed database */
+    OCEANBASE("OceanBase", true,
+        Capability.LIMIT_OFFSET,
+        Capability.WINDOW_FUNCTION,
+        Capability.RECURSIVE_CTE,
+        Capability.AGGREGATE,
+        Capability.HAVING,
+        Capability.DISTINCT,
+        Capability.AUTO_INCREMENT,
+        Capability.CONCAT_WITH_NULL,
+        Capability.GENERATED_COLUMN,
+        Capability.TEMPORARY_TABLE,
+        Capability.CHECK_CONSTRAINT,
+        Capability.CTAS,
+        Capability.REPLACE_INTO,
+        Capability.ON_DUPLICATE_KEY_UPDATE,
+        Capability.TRUNCATE_TABLE,
+        Capability.OBJECT_COMMENT
+    ),
+
     /** Reference dialect for semantic verification */
     H2("H2", false,
         // H2 — used as reference implementation; very standards-compliant
