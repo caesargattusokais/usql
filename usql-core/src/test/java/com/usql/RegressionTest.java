@@ -468,35 +468,47 @@ public class RegressionTest {
         execDDL(db, conn, "CREATE TABLE reg_opt (id INT PRIMARY KEY, name VARCHAR(50), val INT)", "Setup opt");
         execDML(db, conn, "INSERT INTO reg_opt (id, name, val) VALUES (1,'A',10),(2,'B',20),(3,'C',30),(4,'D',40),(5,'E',50)", "Insert opt");
 
-        // Query with subquery that has pushable condition + prunable columns
-        String usql = "SELECT s.name, s.val FROM (SELECT id, name, val FROM reg_opt) s WHERE s.val > 20";
+        // Test 1: simple pushdown
+        compareL2vsL3(db, conn, "SELECT s.name, s.val FROM (SELECT id, name, val FROM reg_opt) s WHERE s.val > 20");
 
-        // Compile with Level 2 (no pushdown/prune) and Level 3 (with pushdown/prune)
-        CompilationResult r2 = compilerL2.compile(usql, db.dialect());
-        CompilationResult r3 = compiler.compile(usql, db.dialect()); // default level=1, we want 3...
+        // Test 2: predicate pushdown with AND
+        compareL2vsL3(db, conn, "SELECT s.name FROM (SELECT name, val FROM reg_opt) s WHERE s.val > 10 AND s.val < 50");
 
-        // Re-compile with explicit level 3
+        // Test 3: multi-table — WHERE on outer table shouldn't push into wrong subquery
+        execDDL(db, conn, "CREATE TABLE reg_opt2 (id INT PRIMARY KEY, label VARCHAR(50))", "Setup opt2");
+        execDML(db, conn, "INSERT INTO reg_opt2 (id, label) VALUES (1,'X'),(2,'Y')", "Insert opt2");
+        compareL2vsL3(db, conn, "SELECT s.name, t.label FROM (SELECT id, name, val FROM reg_opt) s, reg_opt2 t WHERE s.val > 20 AND t.id = 1");
+        dropTable(db, conn, "reg_opt2");
+
+        // Test 4: DISTINCT subquery (not flattened by L2) with pushable WHERE
+        compareL2vsL3(db, conn, "SELECT s.name FROM (SELECT DISTINCT name, val FROM reg_opt) s WHERE s.val > 10");
+
+        // Test 5: projection pruning — unused column
+        compareL2vsL3(db, conn, "SELECT s.name FROM (SELECT id, name, val FROM reg_opt) s WHERE s.id < 4");
+
+        // Test 6: subquery with GROUP BY — not flattenable, but pushable
+        compareL2vsL3(db, conn, "SELECT s.cnt FROM (SELECT val, COUNT(*) AS cnt FROM reg_opt GROUP BY val) s WHERE s.val > 15");
+
+        dropTable(db, conn, "reg_opt");
+    }
+
+    static void compareL2vsL3(Db db, Connection conn, String usql) throws Exception {
         USqlCompiler compilerL3 = USqlCompiler.builder().withOptimizeLevel(3).build();
-        r3 = compilerL3.compile(usql, db.dialect());
-
+        CompilationResult r2 = compilerL2.compile(usql, db.dialect());
+        CompilationResult r3 = compilerL3.compile(usql, db.dialect());
         if (!r2.isSuccess() || !r3.isSuccess()) {
-            check(false, "Optimizer: compile failed L2=" + r2.isSuccess() + " L3=" + r3.isSuccess());
-            dropTable(db, conn, "reg_opt"); return;
+            check(false, "Optimizer: compile failed");
+            return;
         }
-
-        // Execute both and compare results
         List<List<Object>> rowsL2 = executeSQL(conn, r2.getSql());
         List<List<Object>> rowsL3 = executeSQL(conn, r3.getSql());
-
         boolean same = rowsL2.size() == rowsL3.size();
         if (same && !rowsL2.isEmpty()) {
             for (int i = 0; i < rowsL2.size(); i++) {
                 if (!rowsL2.get(i).equals(rowsL3.get(i))) { same = false; break; }
             }
         }
-        check(same, "L2 vs L3 results match (" + rowsL2.size() + " rows)");
-
-        dropTable(db, conn, "reg_opt");
+        check(same, "L2==L3: " + rowsL2.size() + " rows same");
     }
 
     static List<List<Object>> executeSQL(Connection conn, String sql) throws SQLException {
