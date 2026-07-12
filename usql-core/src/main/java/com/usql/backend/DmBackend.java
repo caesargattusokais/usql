@@ -532,16 +532,6 @@ public class DmBackend extends AbstractDialectBackend {
     }
 
     @Override
-    protected String generateCreateSchema(IRCreateSchema cs, GenerateOptions opt) {
-        return "CREATE USER " + quoteIdentifier(cs.name()) + " IDENTIFIED BY \"usql_default\"";
-    }
-
-    @Override
-    protected String generateDropDatabase(IRDropDatabase dd, GenerateOptions opt) {
-        return "DROP USER " + quoteIdentifier(dd.name()) + " CASCADE";
-    }
-
-    @Override
     protected String generateDropTable(IRDropTable dt, GenerateOptions opt) {
         String cascadeSuffix = dt.cascade() ? " CASCADE" : "";
         if (!dt.ifExists())
