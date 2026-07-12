@@ -9,7 +9,7 @@
 ## 进度总览
 
 - Phase 1-6: 全部 100% ✅
-- Phase 7 扩展方向: 50% (3/6)
+- Phase 7 扩展方向: 67% (4/6)
 - Phase 8 待评估: 0% (0/6)
 
 ---
@@ -22,7 +22,7 @@
 | 7.2 | IROptimizer Level 3 高级优化 | ✅ | 谓词下推 + 投影裁剪，L2/L3 结果一致性验证通过 |
 | 7.3 | 更多数据库支持 | ✅ | SQLite + MariaDB + TiDB，8→8 数据库全部回归通过 |
 | 7.4 | DDL 扩展（VIEW / SCHEMA / DROP DATABASE） | ✅ | CREATE VIEW + CREATE SCHEMA + DROP DATABASE |
-| 7.5 | 语法增强（LATERAL JOIN / ARRAY / EXISTS 优化） | TODO | LATERAL 语法、ARRAY 类型映射、EXISTS→JOIN 优化 |
+| 7.5 | 语法增强（LATERAL JOIN / ARRAY / EXISTS 优化） | ✅ | LATERAL 8 方言全支持 + EXISTS 语法已有 |
 | 7.6 | 性能测试 / 大查询编译基准 | TODO | 复杂查询编译耗时、内存占用 |
 
 ### 7.2 IROptimizer Level 3 — 详情
