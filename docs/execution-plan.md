@@ -346,16 +346,22 @@
 
 ## 方言能力矩阵
 
-| 能力 | MySQL | PG | Oracle | DM | SQL Server |
-|------|-------|----|--------|-----|-----------|
-| LIMIT/OFFSET | ✅ | ✅ | polyfill | polyfill | ✅ |
-| WINDOW_FUNCTION | ✅ 8.0+ | ✅ | ✅ | ✅ | ✅ |
-| RECURSIVE_CTE | ✅ 8.0+ | ✅ | ✅ | ✅ | ✅ |
-| MERGE_INTO | polyfill | polyfill | ✅ | ✅ | ✅ |
-| BOOLEAN_TYPE | — | ✅ | — | — | — |
-| FULL_OUTER_JOIN | — | ✅ | ✅ | ✅ | ✅ |
-| LATERAL_JOIN | — | ✅ | ✅ | — | ✅ |
-| ARRAY_TYPE | — | ✅ | — | — | — |
+| 能力 | MySQL | PG | Oracle | DM | SQL Server | MariaDB | TiDB | SQLite | DuckDB |
+|------|-------|----|--------|-----|-----------|---------|------|--------|-------|
+| LIMIT/OFFSET | ✅ | ✅ | polyfill | polyfill | ✅ | ✅ | ✅ | ✅ | ✅ |
+| WINDOW_FUNCTION | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| RECURSIVE_CTE | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| MERGE_INTO | polyfill | polyfill | ✅ | ✅ | ✅ | polyfill | — | — | polyfill |
+| BOOLEAN_TYPE | — | ✅ | — | — | — | — | — | — | ✅ |
+| FULL_OUTER_JOIN | polyfill | ✅ | ✅ | ✅ | ✅ | polyfill | — | — | ✅ |
+| LATERAL_JOIN | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ARRAY_TYPE | — | ✅ | — | — | — | — | — | — | — |
+| AUTO_INCREMENT | ✅ | IDENTITY | IDENTITY | IDENTITY | IDENTITY | ✅ | ✅ | — | ⚠️ |
+| ENUM_TYPE | ✅ | polyfill | polyfill | polyfill | polyfill | ✅ | — | — | polyfill |
+| DROP IF EXISTS | ✅ | ✅ | PL/SQL | PL/SQL | ✅ | ✅ | ✅ | ✅ | ✅ |
+| CREATE IF NOT EXISTS | ✅ | ✅ | PL/SQL | PL/SQL | T-SQL | ✅ | ✅ | ✅ | ✅ |
+| 存储过程 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | — |
+| TCL 事务 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
