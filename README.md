@@ -397,26 +397,23 @@ DROP DATABASE my_db
 
 ### 语法差异速查
 
-| 特性 | U-SQL | MySQL | PG | Oracle | DM | SQL Server |
-|------|-------|-------|----|--------|-----|-----------|
-| 分页 | `LIMIT n OFFSET m` | 原生 | 原生 | ROWNUM | 原生 | OFFSET/FETCH |
-| 布尔 | `TRUE`/`FALSE` | TINYINT(1) | 原生 | NUMBER(1) | BIT | BIT |
-| 自增 | `AUTO_INCREMENT` | 原生 | IDENTITY | IDENTITY | IDENTITY | IDENTITY |
-| 无FROM | `SELECT expr` | 原生 | 原生 | FROM DUAL | FROM DUAL | 原生 |
-| 空值 | `NVL(a,b)` | IFNULL | COALESCE | 原生 | 原生 | ISNULL |
-| 字符串长度 | `LENGTH(s)` | 原生 | 原生 | 原生 | 原生 | LEN |
-| 子串 | `SUBSTR(s,pos,len)` | 原生 | 原生 | 原生 | 原生 | SUBSTRING |
-| 上取整 | `CEIL(n)` | 原生 | 原生 | 原生 | 原生 | CEILING |
-| 当前时间 | `NOW()` | 原生 | 原生 | SYSDATE | SYSDATE | GETDATE |
-| 字符串拼接 | `CONCAT(a,b)` | 原生 | 原生 | 原生 | 原生 | polyfill |
-| KEEP | `AGG(x) KEEP(...)` | DENSE_RANK | DENSE_RANK | 原生 | DENSE_RANK | DENSE_RANK |
-| EXCEPT | `EXCEPT` | 原生 | 原生 | MINUS | EXCEPT | 原生 |
-| FULL JOIN | `FULL JOIN` | polyfill | 原生 | 原生 | 原生 | 原生 |
-| CREATE IF NOT EXISTS | `IF NOT EXISTS` | 原生 | 原生 | PL/SQL | PL/SQL | OBJECT_ID |
-| DROP IF EXISTS | `IF EXISTS` | 原生 | 原生 | PL/SQL | PL/SQL | 原生 |
-| ROLLUP | `ROLLUP(a,b)` | WITH ROLLUP | 原生 | 原生 | 原生 | 原生 |
-| CUBE | `CUBE(a,b)` | 不支持 | 原生 | 原生 | 原生 | 原生 |
-| 递归CTE | `WITH RECURSIVE` | 原生 | 原生 | WITH | WITH | WITH |
+| 特性 | U-SQL | MySQL | PG | Oracle | DM | SQL Server | MariaDB | TiDB | SQLite | DuckDB | OceanBase | ClickHouse |
+|------|-------|-------|----|--------|-----|-----------|---------|------|--------|-------|----------|-----------|
+| 分页 | `LIMIT/OFFSET` | 原生 | 原生 | ROWNUM | 原生 | OFFSET/FETCH | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 |
+| 布尔 | `TRUE`/`FALSE` | TINYINT(1) | 原生 | NUMBER(1) | BIT | BIT | TINYINT(1) | TINYINT(1) | INTEGER | 原生 | TINYINT(1) | UInt8 |
+| 自增 | `AUTO_INCREMENT` | 原生 | IDENTITY | IDENTITY | IDENTITY | IDENTITY | 原生 | 原生 | AUTOINCREMENT | DEFAULT | 原生 | — |
+| 无FROM | `SELECT expr` | 原生 | 原生 | FROM DUAL | FROM DUAL | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 |
+| 空值 | `NVL(a,b)` | IFNULL | COALESCE | 原生 | 原生 | ISNULL | IFNULL | IFNULL | IFNULL | COALESCE | IFNULL | IFNULL |
+| 字符串长度 | `LENGTH(s)` | 原生 | 原生 | 原生 | 原生 | LEN | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 |
+| 子串 | `SUBSTR(s,pos,len)` | 原生 | 原生 | 原生 | 原生 | SUBSTRING | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 |
+| 字符串拼接 | `CONCAT(a,b)` | 原生 | 原生 | 原生 | 原生 | polyfill | 原生 | 原生 | \|\| | \|\| | 原生 | 原生 |
+| EXCEPT | `EXCEPT` | 原生 | 原生 | MINUS | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 |
+| FULL JOIN | `FULL JOIN` | polyfill | 原生 | 原生 | 原生 | 原生 | polyfill | — | — | 原生 | polyfill | — |
+| CREATE IF NOT EXISTS | `IF NOT EXISTS` | 原生 | 原生 | PL/SQL | PL/SQL | OBJECT_ID | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 |
+| DROP IF EXISTS | `IF EXISTS` | 原生 | 原生 | PL/SQL | PL/SQL | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 |
+| ROLLUP | `ROLLUP(a,b)` | WITH ROLLUP | 原生 | 原生 | 原生 | 原生 | 原生 | — | — | 原生 | 原生 | — |
+| CUBE | `CUBE(a,b)` | — | 原生 | 原生 | 原生 | 原生 | — | — | — | 原生 | — | — |
+| 递归CTE | `WITH RECURSIVE` | 原生 | 原生 | WITH | WITH | WITH | 原生 | 原生 | 原生 | 原生 | 原生 | 原生 |
 
 ### 函数目录
 
