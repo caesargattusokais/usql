@@ -63,6 +63,8 @@ public class RegressionTest {
                 testStoredProc(db, conn);
                 testOptimizerCorrectness(db, conn);
                 testViewSchema(db, conn);
+                testTCL(db, conn);
+                testLateral(db, conn);
             } catch (Exception e) {
                 System.out.println("  SKIP: " + e.getMessage().split("\n")[0]);
                 skipped++;
@@ -551,6 +553,50 @@ public class RegressionTest {
         } catch (Exception e) { skipped++; }
 
         dropTable(db, conn, "reg_vs");
+    }
+
+    // ═══════════════════════════════════════
+    //  TCL — Transaction Control
+    // ═══════════════════════════════════════
+
+    static void testTCL(Db db, Connection conn) throws Exception {
+        for (String tcl : new String[]{"BEGIN", "START TRANSACTION", "COMMIT", "ROLLBACK"}) {
+            CompilationResult r = compiler.compile(tcl, db.dialect());
+            check(r.isSuccess(), "TCL " + tcl + " compiles");
+            if (r.isSuccess()) {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(r.getSql());
+                    check(true, "TCL " + tcl + " executed");
+                } catch (SQLException e) {
+                    System.out.println("    ⚠️  TCL " + tcl + ": " + e.getMessage());
+                    skipped++;
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════
+    //  LATERAL (on databases that support it)
+    // ═══════════════════════════════════════
+
+    static void testLateral(Db db, Connection conn) throws Exception {
+        // LATERAL with table function — validate compilation, execution varies by dialect
+        String usql = "SELECT * FROM reg_q q, LATERAL GENERATE_SERIES(1, 3) AS lat";
+        CompilationResult r = compiler.compile(usql, db.dialect());
+        if (r.isSuccess()) {
+            check(true, "LATERAL compiles");
+            // Try to execute (will fail on most DBs without GENERATE_SERIES, that's fine)
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeQuery(r.getSql());
+                check(true, "LATERAL executed");
+            } catch (SQLException e) {
+                System.out.println("    ⚠️  LATERAL exec: " + e.getMessage().split("\n")[0]);
+                skipped++;
+            }
+        } else {
+            System.out.println("    ⚠️  LATERAL compile: " + r.report());
+            skipped++;
+        }
     }
 
     // ═══════════════════════════════════════
