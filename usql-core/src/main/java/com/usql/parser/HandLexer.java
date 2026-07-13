@@ -116,7 +116,9 @@ public class HandLexer {
             case ';': advance(); return tok(TokenType.SEMI, ";");
             case '.': advance(); return tok(TokenType.DOT, ".");
             case '*': advance(); return tok(TokenType.STAR, "*");
-            case '/': advance(); return tok(TokenType.DIV, "/");
+            case '/': advance();
+                if (peek() == '*') { skipBlockComment(); return nextToken(); }
+                return tok(TokenType.DIV, "/");
             case '%': advance(); return tok(TokenType.MOD, "%");
             case '+': advance(); return tok(TokenType.PLUS, "+");
             case ':': advance(); return tok(TokenType.COLON, ":");
@@ -127,9 +129,6 @@ public class HandLexer {
             case '-': advance();
                 if (peek() == '-') { skipLineComment(); return nextToken(); }
                 return tok(TokenType.MINUS, "-");
-            case '/': advance();
-                if (peek() == '*') { skipBlockComment(); return nextToken(); }
-                return tok(TokenType.DIV, "/");
             case '=': advance(); return tok(TokenType.EQ, "=");
             case '!': advance();
                 if (peek() == '=') { advance(); return tok(TokenType.NEQ, "!="); }
