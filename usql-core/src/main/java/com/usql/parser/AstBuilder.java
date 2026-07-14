@@ -26,7 +26,7 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
      * Parse U-SQL text and return a list of AST statements.
      */
     /** Use hand-written parser (true) or ANTLR parser (false). */
-    private static boolean USE_HAND_PARSER = false; // WIP — record field access fixes needed
+    private static boolean USE_HAND_PARSER = true;
 
     @SuppressWarnings("unchecked")
     public static List<Statement> build(String usql) {
