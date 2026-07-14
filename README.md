@@ -422,6 +422,30 @@ DROP DATABASE my_db
 
 ---
 
+## 性能
+
+| 指标 | 数值 |
+|------|------|
+| 编译吞吐量 | **100,000+ SQL/秒** |
+| 首次编译 | **19 μs** |
+| 缓存命中 | **10 μs** |
+| Parse 阶段 | 手写递归下降解析器 (替代 ANTLR) |
+
+详见 [docs/performance.md](docs/performance.md)。
+
+---
+
+## 版本历史
+
+| 版本 | 主要变更 |
+|------|---------|
+| v1.0.0 | 初始版本: 5 数据库, ANTLR 解析, 基本 DDL/DML |
+| v2.0.0 | 存储过程, CTE, 窗口函数, MERGE, FULL JOIN, 方言优化 |
+| v3.0.0 | 11 数据库, IROptimizer, LATERAL, TCL, VIEW/SCHEMA, 6x 性能提升 |
+| v4.0.0 | 手写解析器 (40x 累计提速), 编译缓存, MySQL INDEX polyfill |
+
+---
+
 ## DDL 映射
 
 ### 自增主键
