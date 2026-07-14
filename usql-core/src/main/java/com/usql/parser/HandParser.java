@@ -179,16 +179,16 @@ public class HandParser {
             if (prec <= minPrec) break;
             TokenType t = peek().type;
             if (t == TokenType.IS) { advance(); boolean not = is(TokenType.NOT); if (not) advance(); if (is(TokenType.NULL)) { advance(); left = new IsNullExpr(left, not); } else { advance(); } continue; }
-            if (t == TokenType.NOT) { if (peek2() != null && (peek2().is(TokenType.IN) || peek2().is(TokenType.LIKE) || peek2().is(TokenType.BETWEEN))) { advance(); if (is(TokenType.IN)) { advance(); expect(TokenType.LPAREN); List<Expression> vs = new ArrayList<>(); do { vs.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); left = new InListExpr(left, vs, null, true); } else if (is(TokenType.LIKE)) { advance(); left = new BinaryOp(left, BinOp.NOT_LIKE, parseExpr(prec)); } else { advance(); Expression lo = parseExpr(); expect(TokenType.AND); left = new BetweenExpr(left, lo, parseExpr(), true); } continue; } }
-            if (t == TokenType.BETWEEN) { advance(); Expression lo = parseExpr(); expect(TokenType.AND); left = new BetweenExpr(left, lo, parseExpr(), false); continue; }
-            if (t == TokenType.IN) { advance(); expect(TokenType.LPAREN); List<Expression> vs = new ArrayList<>(); do { vs.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); left = new InListExpr(left, vs, null, false); continue; }
+            if (t == TokenType.NOT) { if (peek2() != null && (peek2().is(TokenType.IN) || peek2().is(TokenType.LIKE) || peek2().is(TokenType.BETWEEN))) { advance(); if (is(TokenType.IN)) { advance(); expect(TokenType.LPAREN); if (is(TokenType.SELECT)) { SelectStmt sq = parseSelect(); expect(TokenType.RPAREN); left = new InListExpr(left, null, sq, true); } else { List<Expression> vs = new ArrayList<>(); do { vs.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); left = new InListExpr(left, vs, null, true); } } else if (is(TokenType.LIKE)) { advance(); left = new BinaryOp(left, BinOp.NOT_LIKE, parseExpr(prec)); } else { advance(); Expression lo = parseExpr(30); expect(TokenType.AND); left = new BetweenExpr(left, lo, parseExpr(30), true); } continue; } }
+            if (t == TokenType.BETWEEN) { advance(); Expression lo = parseExpr(30); expect(TokenType.AND); left = new BetweenExpr(left, lo, parseExpr(30), false); continue; }
+            if (t == TokenType.IN) { advance(); expect(TokenType.LPAREN); if (is(TokenType.SELECT)) { SelectStmt sq = parseSelect(); expect(TokenType.RPAREN); left = new InListExpr(left, null, sq, false); } else { List<Expression> vs = new ArrayList<>(); do { vs.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); left = new InListExpr(left, vs, null, false); } continue; }
             if (t == TokenType.LIKE) { advance(); left = new BinaryOp(left, BinOp.LIKE, parseExpr(prec)); continue; }
             Token op = advance(); BinOp bop = mapBinOp(op.type); Expression right = parseExpr(prec); left = new BinaryOp(left, bop, right);
         }
         return left;
     }
 
-    int infixPrec(TokenType t) { return switch (t) { case OR -> 10; case AND -> 20; case EQ, NEQ, LT, GT, LTE, GTE, IS, LIKE, IN, BETWEEN -> 30; case PLUS, MINUS, CONCAT -> 40; case STAR, DIV, MOD -> 50; default -> 0; }; }
+    int infixPrec(TokenType t) { return switch (t) { case OR -> 10; case AND -> 20; case EQ, NEQ, LT, GT, LTE, GTE, IS, LIKE, IN -> 30; case BETWEEN -> 35; case PLUS, MINUS, CONCAT -> 40; case STAR, DIV, MOD -> 50; default -> 0; }; }
 
     BinOp mapBinOp(TokenType t) { return switch (t) { case PLUS -> BinOp.ADD; case MINUS -> BinOp.SUB; case STAR -> BinOp.MUL; case DIV -> BinOp.DIV; case MOD -> BinOp.MOD; case EQ -> BinOp.EQ; case NEQ -> BinOp.NEQ; case LT -> BinOp.LT; case GT -> BinOp.GT; case LTE -> BinOp.LTE; case GTE -> BinOp.GTE; case AND -> BinOp.AND; case OR -> BinOp.OR; case CONCAT -> BinOp.CONCAT; default -> throw error("Unknown binop: " + t); }; }
 
@@ -211,11 +211,18 @@ public class HandParser {
             case CAST -> { yield parseCast(); }
             case IDENTIFIER -> { yield parseIdentOrFunc(); }
             case QMARK, COLON -> { advance(); yield new ParamRef("?"); }
-            default -> throw error("Unexpected: " + t.type);
+            default -> {
+                if (t.type.ordinal() < TokenType.LPAREN.ordinal()) yield parseIdentOrFunc();
+                throw error("Unexpected: " + t.type);
+            }
         };
     }
 
     Expression parseIdentOrFunc() {
+        Token t = peek();
+        // Accept both IDENTIFIER and keywords as function/column names
+        if (!t.is(TokenType.IDENTIFIER) && t.type.ordinal() >= TokenType.LPAREN.ordinal())
+            throw error("Expected identifier, got " + t.type);
         String name = advance().text;
         if (is(TokenType.LPAREN)) {
             advance(); List<Expression> args = new ArrayList<>(); boolean star = false;
