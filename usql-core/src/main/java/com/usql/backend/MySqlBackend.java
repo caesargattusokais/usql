@@ -536,20 +536,24 @@ public class MySqlBackend extends AbstractDialectBackend {
         var sb = new StringBuilder("CREATE ");
         if (idx.unique()) sb.append("UNIQUE ");
         sb.append("INDEX ");
-        // MySQL doesn't support IF NOT EXISTS for indexes (skip it)
         sb.append(quoteIdentifier(idx.name()));
         sb.append(" ON ").append(quoteIdentifier(idx.table().name()));
-
         sb.append(" (");
         sb.append(idx.columns().stream()
             .map(c -> quoteIdentifier(c.name()) + (c.dir() == OrderDir.DESC ? " DESC" : ""))
             .collect(Collectors.joining(", ")));
         sb.append(")");
-
         if (idx.type() != null && idx.type() != IndexType.BTREE) {
             sb.append(" USING ").append(idx.type().name());
         }
 
+        if (idx.ifNotExists()) {
+            String ddl = sb.toString().replace("'", "\\'");
+            return "CREATE PROCEDURE _idx_guard() "
+                + "BEGIN DECLARE EXIT HANDLER FOR 1061 BEGIN END; "
+                + "EXECUTE IMMEDIATE '" + ddl + "'; END; "
+                + "CALL _idx_guard(); DROP PROCEDURE _idx_guard;";
+        }
         return sb.toString();
     }
 

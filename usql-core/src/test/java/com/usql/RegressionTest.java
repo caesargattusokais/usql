@@ -94,6 +94,7 @@ public class RegressionTest {
         execDDL(db, conn, "CREATE TABLE reg_b (id INT NOT NULL, code VARCHAR(20) NOT NULL, amount DECIMAL(10,2) CHECK (amount > 0), PRIMARY KEY (id, code))", "Multi PK + CHECK");
         // 4. CREATE INDEX
         execDDL(db, conn, "CREATE INDEX idx_a_name ON reg_a (name)", "CREATE INDEX");
+        execDDL(db, conn, "CREATE INDEX IF NOT EXISTS idx_a_name ON reg_a (name)", "INDEX IF NOT EXISTS idempotent");
         // 5. CREATE UNIQUE INDEX
         execDDL(db, conn, "CREATE UNIQUE INDEX idx_b_code ON reg_b (code)", "CREATE UNIQUE INDEX");
         // 6. Verify
