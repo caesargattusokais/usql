@@ -28,7 +28,20 @@ public class DuckDbBackend extends PgBackend {
     }
 
     private String duckCreateTable(IRCreateTable ct, GenerateOptions opt) {
-        var sb = new StringBuilder("CREATE TABLE ");
+        // Generate sequences for auto-increment columns
+        var preSeq = new StringBuilder();
+        for (var col : ct.columns()) {
+            if (col.constraints() != null) {
+                for (var c : col.constraints()) {
+                    if (c instanceof ColPrimaryKey pk && pk.autoIncrement()) {
+                        preSeq.append("CREATE SEQUENCE IF NOT EXISTS ")
+                            .append(col.name()).append("_seq;\n");
+                    }
+                }
+            }
+        }
+        var sb = new StringBuilder(preSeq.toString());
+        sb.append("CREATE TABLE ");
         if (ct.ifNotExists()) sb.append("IF NOT EXISTS ");
         sb.append(quoteIdentifier(ct.name().name())).append(" (\n");
         sb.append(ct.columns().stream()

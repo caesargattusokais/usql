@@ -40,8 +40,8 @@ public class RegressionTest {
             "jdbc:mysql://localhost:2881/test?useSSL=false&allowPublicKeyRetrieval=true",
             "root", ""),
         new Db("ClickHouse", Dialect.CLICKHOUSE,
-            "jdbc:clickhouse://localhost:8123/default", "", "")
-        // DuckDB: skipped — AUTO_INCREMENT needs DEFAULT unique_rowid()
+            "jdbc:clickhouse://localhost:8123/default", "", ""),
+        new Db("DuckDB", Dialect.DUCKDB, "jdbc:duckdb:", "", "")
     );
 
     static USqlCompiler compiler = USqlCompiler.builder().build();
