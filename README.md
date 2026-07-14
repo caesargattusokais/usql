@@ -422,6 +422,12 @@ DROP DATABASE my_db
 
 ---
 
+## API 参考
+
+详见 [docs/api.md](docs/api.md)
+
+---
+
 ## 性能
 
 | 指标 | 数值 |
