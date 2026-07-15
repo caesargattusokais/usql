@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
  * Key adaptations:
  *   - LIMIT/OFFSET → ROWNUM wrapping
  *   - BOOLEAN → NUMBER(1) comparison
- *   - Identifiers use double-quotes
+ *   - Identifiers use uppercase double-quotes (matches Oracle's auto-fold behavior)
  *   - VARCHAR → VARCHAR2
  */
 public class OracleBackend extends AbstractDialectBackend {
@@ -57,7 +57,10 @@ public class OracleBackend extends AbstractDialectBackend {
 
     @Override
     public String quoteIdentifier(String id) {
-        return "\"" + id.replace("\"", "\"\"") + "\"";
+        // Oracle auto-folds unquoted identifiers to UPPERCASE.
+        // We uppercase + double-quote to match that behavior, while still
+        // allowing reserved words (like COMMENT) that can't be used unquoted.
+        return "\"" + id.toUpperCase().replace("\"", "\"\"") + "\"";
     }
 
     @Override

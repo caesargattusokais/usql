@@ -999,7 +999,7 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
             String s = ctx.BACKTICK_ID().getText();
             return s.substring(1, s.length() - 1);
         }
-        return ctx.getText().toUpperCase();
+        return ctx.getText();
     }
 
     /** Extract precision and scale from a dataType context */
