@@ -28,6 +28,16 @@ public class ClickHouseBackend extends MySqlBackend {
     }
 
     @Override
+    protected String generateAlterTableAddColumn(IRAlterTableAddColumn aa, GenerateOptions opt) {
+        var col = aa.column();
+        var sb = new StringBuilder("ALTER TABLE ").append(quoteIdentifier(aa.tableName()))
+            .append(" ADD COLUMN ");
+        if (aa.ifNotExists()) sb.append("IF NOT EXISTS ");
+        sb.append(quoteIdentifier(col.name())).append(" ").append(mapType(col.type()));
+        return sb.toString();
+    }
+
+    @Override
     public String mapType(DataType type) {
         return switch (type) {
             case DataType.IntType t -> switch (t.bits()) {

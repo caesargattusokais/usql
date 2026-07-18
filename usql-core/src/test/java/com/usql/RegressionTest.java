@@ -400,6 +400,12 @@ public class RegressionTest {
         // ALTER ADD COLUMN
         execDDL(db, conn, "ALTER TABLE reg_dta ADD score DECIMAL(10,2) DEFAULT 0", "ALTER ADD COLUMN");
 
+        // ALTER ADD COLUMN IF NOT EXISTS — MariaDB / ClickHouse / PG / DuckDB only
+        if (Set.of("MariaDB", "ClickHouse", "PostgreSQL", "DuckDB").contains(db.name())) {
+            execDDL(db, conn, "ALTER TABLE reg_dta ADD COLUMN IF NOT EXISTS ifne_col VARCHAR(64)", "ADD IF NOT EXISTS #1");
+            execDDL(db, conn, "ALTER TABLE reg_dta ADD COLUMN IF NOT EXISTS ifne_col VARCHAR(64)", "ADD IF NOT EXISTS #2 (idempotent)");
+        }
+
         // ALTER COLUMN SET DEFAULT (skip SQL Server — ADD CONSTRAINT syntax)
         if (!db.name().equals("SQL Server")) {
             execDDL(db, conn, "ALTER TABLE reg_dta ALTER score SET DEFAULT 100", "ALTER SET DEFAULT");
