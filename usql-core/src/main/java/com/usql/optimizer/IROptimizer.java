@@ -297,6 +297,19 @@ public class IROptimizer {
             case IRBinaryOp bo -> {
                 IRExpr left = foldExpr(bo.left());
                 IRExpr right = foldExpr(bo.right());
+                // Simplify boolean AND/OR when one side folded to a literal
+                if (bo.op() == IRBinaryOp.BinaryOp.AND) {
+                    if (left instanceof IRLiteral l && l.value() instanceof Boolean b)
+                        yield b ? right : left;  // TRUE AND x → x, FALSE AND x → FALSE
+                    if (right instanceof IRLiteral r && r.value() instanceof Boolean b)
+                        yield b ? left : right;  // x AND TRUE → x, x AND FALSE → FALSE
+                }
+                if (bo.op() == IRBinaryOp.BinaryOp.OR) {
+                    if (left instanceof IRLiteral l && l.value() instanceof Boolean b)
+                        yield b ? left : right;  // TRUE OR x → TRUE, FALSE OR x → x
+                    if (right instanceof IRLiteral r && r.value() instanceof Boolean b)
+                        yield b ? right : left;  // x OR TRUE → TRUE, x OR FALSE → x
+                }
                 yield tryEvaluateBinary(left, bo.op(), right);
             }
 
