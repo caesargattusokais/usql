@@ -56,7 +56,7 @@ public class AllBackendsTest {
 
     static void testAlter() {
         var col = new IRColumnDef("c", DataType.IntType.INT, List.of(), null);
-        all("ALTER ADD", new IRAlterTableAddColumn("x", col, Set.of()));
+        all("ALTER ADD", new IRAlterTableAddColumn("x", col, false, Set.of()));
         all("ALTER DROP", new IRAlterTableDropColumn("x", "c", Set.of()));
         all("ALTER TYPE", new IRAlterColumnType("x", "c", DataType.IntType.BIGINT, Set.of()));
     }

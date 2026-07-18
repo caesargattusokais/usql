@@ -60,6 +60,9 @@ public class SqlGenerationTest {
             r = c.compile("ALTER TABLE t ADD c INT", d);
             chk(r.isSuccess(), d+" ALTER ADD");
 
+            r = c.compile("ALTER TABLE t ADD COLUMN IF NOT EXISTS c VARCHAR(64)", d);
+            chk(r.isSuccess(), d+" ALTER ADD COLUMN IF NOT EXISTS");
+
             r = c.compile("CREATE INDEX i ON t (id)", d);
             chk(r.isSuccess(), d+" CREATE INDEX");
 

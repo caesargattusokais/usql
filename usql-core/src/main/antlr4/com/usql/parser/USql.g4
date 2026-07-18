@@ -686,7 +686,7 @@ alterTableStatement
     ;
 
 alterAction
-    : ADD (COLUMN)? columnDef                     # AddColumn
+    : ADD (COLUMN)? (IF NOT EXISTS)? columnDef    # AddColumn
     | DROP (COLUMN)? identifier                    # DropColumn
     | ALTER (COLUMN)? col=identifier TYPE dataType  # AlterColumnType
     | ALTER (COLUMN)? col=identifier SET DEFAULT expr # AlterColumnSetDefault

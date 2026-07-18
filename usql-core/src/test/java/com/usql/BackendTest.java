@@ -50,7 +50,7 @@ public class BackendTest {
     static void testAlter() {
         for (Dialect d : Dialect.values()) { if(d==Dialect.H2)continue;
             IRColumnDef col = new IRColumnDef("score",new DataType.VarcharType(100),List.of(new ColNotNull()),null);
-            CompilationResult r = compiler.compileFromIR(new IRAlterTableAddColumn("t",col,Set.of()),d);
+            CompilationResult r = compiler.compileFromIR(new IRAlterTableAddColumn("t",col,false,Set.of()),d);
             chk(r.isSuccess() && r.getSql().contains("ADD"),d.displayName()+" ALTER ADD COLUMN compiles");
 
             r = compiler.compileFromIR(new IRAlterTableDropColumn("t","col",Set.of()),d);

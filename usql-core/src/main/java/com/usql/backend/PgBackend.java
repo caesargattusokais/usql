@@ -402,6 +402,27 @@ public class PgBackend extends AbstractDialectBackend {
     }
 
     // ══════════════════════════════════════════════════
+    //  ALTER TABLE
+    // ══════════════════════════════════════════════════
+
+    @Override
+    protected String generateAlterTableAddColumn(IRAlterTableAddColumn aa, GenerateOptions opt) {
+        var col = aa.column();
+        var sb = new StringBuilder("ALTER TABLE ").append(quoteIdentifier(aa.tableName()))
+            .append(" ADD ");
+        if (aa.ifNotExists()) sb.append("IF NOT EXISTS ");
+        sb.append(quoteIdentifier(col.name())).append(" ").append(mapType(col.type()));
+        if (col.constraints() != null) {
+            for (var c : col.constraints()) {
+                if (c instanceof ColNotNull) sb.append(" NOT NULL");
+                else if (c instanceof ColPrimaryKey) sb.append(" PRIMARY KEY");
+                else if (c instanceof ColUnique) sb.append(" UNIQUE");
+            }
+        }
+        return sb.toString();
+    }
+
+    // ══════════════════════════════════════════════════
     //  CREATE TABLE
     // ══════════════════════════════════════════════════
 

@@ -113,6 +113,16 @@ public class HandParserTest {
 
         stmts = parse("ALTER TABLE t ADD score DECIMAL(10,2)");
         chk(stmts.get(0) instanceof AlterTableStmt, "ALTER ADD COLUMN");
+
+        stmts = parse("ALTER TABLE t ADD COLUMN IF NOT EXISTS c VARCHAR(64)");
+        chk(stmts.get(0) instanceof AlterTableStmt ats
+            && ats.action() instanceof AddColumn ac
+            && ac.ifNotExists(), "ALTER ADD COLUMN IF NOT EXISTS");
+
+        stmts = parse("ALTER TABLE t ADD IF NOT EXISTS c INT");
+        chk(stmts.get(0) instanceof AlterTableStmt ats
+            && ats.action() instanceof AddColumn ac
+            && ac.ifNotExists(), "ALTER ADD IF NOT EXISTS (no COLUMN)");
     }
 
     static void testFunctions() {

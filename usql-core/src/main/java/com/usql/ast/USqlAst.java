@@ -137,7 +137,7 @@ public final class USqlAst {
     public record AlterTableStmt(String tableName, AlterAction action) implements Statement {}
 
     public sealed interface AlterAction {}
-    public record AddColumn(String name, DataTypeDecl type, List<ColumnConstraint> constraints, Expression defaultVal) implements AlterAction {}
+    public record AddColumn(String name, DataTypeDecl type, List<ColumnConstraint> constraints, Expression defaultVal, boolean ifNotExists) implements AlterAction {}
     public record DropColumn(String name) implements AlterAction {}
     public record AlterColumnType(String column, DataTypeDecl newType) implements AlterAction {}
     public record AlterColumnSetDefault(String column, Expression defaultVal) implements AlterAction {}

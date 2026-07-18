@@ -947,7 +947,8 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
             constraints.add((ColumnConstraint) visit(cc));
         }
         Expression defaultVal = cd.defaultValue != null ? (Expression) visit(cd.defaultValue) : null;
-        return new AddColumn(name, type, constraints, defaultVal);
+        boolean ifNotExists = ctx.EXISTS() != null;
+        return new AddColumn(name, type, constraints, defaultVal, ifNotExists);
     }
 
     public AlterAction visitDropColumn(USqlParser.DropColumnContext ctx) {

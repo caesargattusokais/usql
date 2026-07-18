@@ -288,7 +288,7 @@ public sealed interface IRStatement {
     record IRCreateSchema(String name, Set<Capability> capabilities) implements IRStatement {}
     record IRTCL(String sql, Set<Capability> capabilities) implements IRStatement {}  // pass-through TCL
     record IRTruncateTable(String name, Set<Capability> capabilities) implements IRStatement {}
-    record IRAlterTableAddColumn(String tableName, IRColumnDef column, Set<Capability> capabilities) implements IRStatement {}
+    record IRAlterTableAddColumn(String tableName, IRColumnDef column, boolean ifNotExists, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableDropColumn(String tableName, String columnName, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterColumnType(String tableName, String column, DataType newType, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterColumnSetDefault(String tableName, String column, IRExpr value, Set<Capability> capabilities) implements IRStatement {}

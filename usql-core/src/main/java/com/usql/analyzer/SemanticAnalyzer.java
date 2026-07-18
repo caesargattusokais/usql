@@ -672,7 +672,7 @@ public class SemanticAnalyzer {
                     }
                 }
                 yield new IRAlterTableAddColumn(s.tableName(),
-                    new IRColumnDef(ac.name(), type, constraints, defaultVal), Set.of());
+                    new IRColumnDef(ac.name(), type, constraints, defaultVal), ac.ifNotExists(), Set.of());
             }
             case DropColumn dc -> new IRAlterTableDropColumn(s.tableName(), dc.name(), Set.of());
             case AlterColumnType act -> new IRAlterColumnType(s.tableName(), act.column(),
