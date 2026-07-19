@@ -11,7 +11,7 @@
 - Phase 1-7: 全部 100% ✅
 - Phase 8 待评估: 0% (0/3)
 - Phase 9 后续方向: 100% ✅ (5/5)
-- Phase 10 Bug 修复: 42/46+28低 (🔴 10/10, 🟠 11/11, 🟡 21/25)
+- Phase 10 Bug 修复: 69/46+28低 (🔴 10/10, 🟠 11/11, 🟡 21/25, 🟢 27/28)
 
 ---
 
@@ -430,36 +430,38 @@
 | 10.3.24 | Backend | OracleBackend:63 | `quoteIdentifier` 始终大写，破坏大小写敏感标识符（`"myCol"` → `"MYCOL"`） | ✅ |
 | 10.3.25 | IR | IRStatement:156-159,232-235 | IRMerge/IRCreateIndex compact 构造器 `capabilities` 为 null 时 NPE | ✅ |
 
-### 10.4 🟢 低 — 设计问题/死代码/小不一致（不单独列表）
+### 10.4 🟢 低 — 设计问题/死代码/小不一致
 
-- IROptimizer: 重复 import `java.util.Set`
-- IROptimizer: 整数溢出未检测（常量折叠）
-- IROptimizer: `addValues` 字符串+数字混合类型折叠
-- IROptimizer: `foldEquals` 用 doubleValue 比较大数 — 精度丢失
-- IROptimizer: `tryEvaluateBinary/tryEvaluateUnary` 吞掉所有异常
-- IROptimizer: `simplifyBinary` 中 `x * 0 → 0` 对非数值类型不安全
-- IROptimizer: 投影裁剪只检查 alias 不检查 column name
-- IROptimizer: 投影裁剪不检查子查询自身的 GROUP BY/HAVING/ORDER BY 需要的列
-- IROptimizer: `collectColumns` 不处理 IRIsNull/IRBetween/IRInList/IRCast/IRSubquery
-- HandLexer: 不支持科学计数法 (`1e10`)、十六进制 (`0x1A`)、`$` 标识符
-- DataType: DecimalType 允许 precision < scale 等无效值；IntType 允许负数 bits
-- USqlCompiler: `cacheSize()` 非线程安全读取
-- USqlCompiler: `compileFromAst` 和 `compileFromIR` 逻辑重复
-- GenerateOptions.QuoteStyle 从未被任何 Backend 使用
-- PolyfillEngine 3 个 polyfill 是空操作（boolean/FROM DUAL/CONCAT NULL）
-- Dialect.caseSensitive 误导性且从未使用
-- SchemaProvider `getTable(schema, name)` 忽略 schema 参数
-- SemanticAnalyzer: `SELECT *` 不解析列（StarItem 直接透传）
-- SemanticAnalyzer: `extractSubqueryColumns` 忽略 StarItem 投影
-- SemanticAnalyzer: 歧义列引用静默选择第一个匹配
-- TypeInferrer: DECIMAL 算术始终返回 `DecimalType(20,4)`
-- TypeInferrer: FLOAT + INT 提升为 DOUBLE（应为 FLOAT）
-- TypeInferrer: `inferExpressionType` 对 FunctionCall 返回 NullType
-- CapabilityChecker: 多个 Capability 未注册 severity，默认 WARNING 应为 ERROR
-- ClickHouse: chColumnDef 忽略所有约束（NOT NULL/PRIMARY KEY 等）
-- Oracle: SELECT alias 省略 AS 关键字（与其他 backend 不一致）
-- Oracle: DROP TABLE IF EXISTS `EXCEPTION WHEN OTHERS THEN NULL` 吞掉所有错误
-- MySQL/PG: escapeString 替换顺序可能导致双重转义
+| # | 模块 | 问题 | 状态 |
+|---|------|------|------|
+| 10.4.1 | IROptimizer | 重复 import `java.util.Set` | ✅ |
+| 10.4.2 | IROptimizer | 整数溢出未检测（常量折叠） | ✅ |
+| 10.4.3 | IROptimizer | `addValues` 字符串+数字混合类型折叠（ADD≠CONCAT） | ✅ |
+| 10.4.4 | IROptimizer | `foldEquals` 用 doubleValue 比较大数 — 精度丢失 | ✅ |
+| 10.4.5 | IROptimizer | `tryEvaluateBinary` 吞掉异常，调试困难 | ✅ |
+| 10.4.6 | IROptimizer | `simplifyBinary` 中 `x * 0 → 0` 对非数值类型不安全 | ✅ |
+| 10.4.7 | IROptimizer | 投影裁剪只检查 alias 不检查 column name | ✅ |
+| 10.4.8 | IROptimizer | 投影裁剪不检查子查询自身的 GROUP BY/HAVING/ORDER BY 需要的列 | ✅ |
+| 10.4.9 | IROptimizer | `collectColumns` 不处理 IRIsNull/IRBetween/IRInList/IRCast/IRSubquery | ✅ |
+| 10.4.10 | HandLexer | 不支持科学计数法/十六进制/`$`标识符 | ❌ 新特性 |
+| 10.4.11 | DataType | DecimalType 允许 precision < scale；IntType 允许负数 bits | ✅ |
+| 10.4.12 | USqlCompiler | `cacheSize()` 非线程安全读取 | ✅ |
+| 10.4.13 | USqlCompiler | `compileFromAst` 和 `compileFromIR` 逻辑重复 | ❌ 需重构 |
+| 10.4.14 | GenerateOptions | QuoteStyle 从未被任何 Backend 使用 | ✅ 文档标记 |
+| 10.4.15 | PolyfillEngine | 3 个 polyfill 是空操作 | ✅ 文档标记为 intentional no-op |
+| 10.4.16 | Dialect | `caseSensitive` 误导性且从未使用 | ✅ @Deprecated |
+| 10.4.17 | SchemaProvider | `getTable(schema, name)` 忽略 schema 参数 | ✅ 文档标记 |
+| 10.4.18 | SemanticAnalyzer | `SELECT *` 不解析列（StarItem 直接透传） | ❌ 需 schema |
+| 10.4.19 | SemanticAnalyzer | `extractSubqueryColumns` 忽略 StarItem 投影 | ❌ 需 schema |
+| 10.4.20 | SemanticAnalyzer | 歧义列引用静默选择第一个匹配 | ✅ 已在 10.2.6 修复 |
+| 10.4.21 | TypeInferrer | DECIMAL 算术始终返回 `DecimalType(20,4)` | ✅ |
+| 10.4.22 | TypeInferrer | FLOAT + INT 提升为 DOUBLE（应为 FLOAT） | ✅ |
+| 10.4.23 | TypeInferrer | `inferExpressionType` 对 FunctionCall 返回 NullType | ✅ |
+| 10.4.24 | CapabilityChecker | 多个 Capability 未注册 severity，默认 WARNING | ✅ |
+| 10.4.25 | ClickHouse | chColumnDef 忽略所有约束（NOT NULL/PRIMARY KEY） | ✅ |
+| 10.4.26 | Oracle | SELECT alias 省略 AS 关键字 | ✅ |
+| 10.4.27 | Oracle | DROP TABLE IF EXISTS 吞掉所有错误 | ✅ |
+| 10.4.28 | MySQL/PG | escapeString 替换顺序可能导致双重转义 | ✅ |
 
 ---
 

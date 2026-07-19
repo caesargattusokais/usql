@@ -344,7 +344,8 @@ public class USqlCompiler {
 
     /** Number of cached plans. */
     public int cacheSize() {
-        return planCache != null ? planCache.size() : 0;
+        if (planCache != null) synchronized (planCache) { return planCache.size(); }
+        return 0;
     }
 
     // ══════════════════════════════════════════════════

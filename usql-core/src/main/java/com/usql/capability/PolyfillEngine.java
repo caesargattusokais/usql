@@ -149,23 +149,24 @@ public class PolyfillEngine {
     /** Convert BOOLEAN references for dialects without native boolean.
      *  Handled at the backend level (e.g. SQL Server maps to BIT + 1/0,
      *  Oracle maps to NUMBER(1)) — no IR rewrite needed here. */
+    /** BOOLEAN_TYPE polyfill — intentional no-op.
+     *  Boolean values are handled at the backend level (e.g. TINYINT(1) in MySQL,
+     *  NUMBER(1) in Oracle). No IR rewrite is needed. */
     private IRStatement polyfillBoolean(IRStatement statement) {
         return statement;
     }
 
-    /** Add FROM DUAL for databases that require it (Oracle, DM).
+    /** SELECT_WITHOUT_FROM polyfill — intentional no-op.
      *  Handled at the backend level (OracleBackend/DmBackend append " FROM DUAL"
-     *  when from() is null) — no IR rewrite or marker needed here. */
+     *  when from() is null) — no IR rewrite needed. */
     private IRStatement polyfillSelectWithoutFrom(IRStatement statement) {
         return statement;
     }
 
-    /** Normalize CONCAT NULL semantics across dialects.
-     *  Currently a no-op: every backend already emits dialect-appropriate
-     *  concatenation (MySQL CONCAT(), PG/Oracle/DM/SQL Server ||) and all share
-     *  standard NULL-propagation behavior. If a future usql contract requires
-     *  "NULL treated as empty string" uniformly, wrap each arg with
-     *  COALESCE(arg, '') here. */
+    /** CONCAT_WITH_NULL polyfill — intentional no-op.
+     *  All backends already emit dialect-appropriate concatenation with standard
+     *  NULL-propagation. If a future USQL contract requires "NULL treated as empty
+     *  string" uniformly, wrap each arg with COALESCE(arg, '') here. */
     private IRStatement polyfillConcatNull(IRStatement statement) {
         return statement;
     }

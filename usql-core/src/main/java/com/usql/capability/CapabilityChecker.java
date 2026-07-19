@@ -44,6 +44,17 @@ public class CapabilityChecker {
         fatalCapabilities.put(Capability.ON_DUPLICATE_KEY_UPDATE, Severity.INFO);
         fatalCapabilities.put(Capability.INTERVAL_ARITHMETIC, Severity.INFO);
         fatalCapabilities.put(Capability.MERGE_INTO, Severity.INFO);
+        fatalCapabilities.put(Capability.SEQUENCE, Severity.INFO);
+        fatalCapabilities.put(Capability.CTAS, Severity.INFO);
+        fatalCapabilities.put(Capability.TEMPORARY_TABLE, Severity.INFO);
+        fatalCapabilities.put(Capability.OBJECT_COMMENT, Severity.INFO);
+        fatalCapabilities.put(Capability.CHECK_CONSTRAINT, Severity.INFO);
+
+        // ── WARNING: functional limitation or approximation ──
+        fatalCapabilities.put(Capability.AGGREGATE, Severity.WARNING);
+        fatalCapabilities.put(Capability.DISTINCT, Severity.WARNING);
+        fatalCapabilities.put(Capability.GROUPING_SETS, Severity.WARNING);
+        fatalCapabilities.put(Capability.LATERAL_JOIN, Severity.WARNING);
     }
 
     /**

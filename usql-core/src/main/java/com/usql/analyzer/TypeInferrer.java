@@ -23,8 +23,16 @@ public final class TypeInferrer {
             case EQ, NEQ, LT, GT, LTE, GTE, AND, OR, LIKE, NOT_LIKE -> new DataType.BooleanType();
             case CONCAT -> new DataType.VarcharType(255);
             case ADD, SUB, MUL, DIV, MOD -> {
+                if (left instanceof DataType.FloatType lf && right instanceof DataType.FloatType rf)
+                    yield (lf.bits() >= 64 || rf.bits() >= 64) ? DataType.FloatType.DOUBLE : DataType.FloatType.FLOAT;
                 if (left instanceof DataType.FloatType || right instanceof DataType.FloatType)
-                    yield DataType.FloatType.DOUBLE;
+                    yield left instanceof DataType.FloatType lft ? lft : (DataType.FloatType) right;
+                if (left instanceof DataType.DecimalType ld && right instanceof DataType.DecimalType rd) {
+                    // Preserve precision from operands when possible
+                    int prec = Math.max(ld.precision(), rd.precision());
+                    int scale = Math.max(ld.scale(), rd.scale());
+                    yield new DataType.DecimalType(prec, scale);
+                }
                 if (left instanceof DataType.DecimalType || right instanceof DataType.DecimalType)
                     yield new DataType.DecimalType(20, 4);
                 if (left instanceof DataType.IntType li && right instanceof DataType.IntType ri)
@@ -83,7 +91,7 @@ public final class TypeInferrer {
             case com.usql.ast.USqlAst.BoolLiteral b     -> new DataType.BooleanType();
             case com.usql.ast.USqlAst.NullLiteral n     -> new DataType.NullType();
             case com.usql.ast.USqlAst.ColumnRef c       -> new DataType.NullType();
-            case com.usql.ast.USqlAst.FunctionCall fc   -> new DataType.NullType();
+            case com.usql.ast.USqlAst.FunctionCall fc   -> new DataType.VarcharType(255); // best-effort
             default -> new DataType.NullType();
         };
     }

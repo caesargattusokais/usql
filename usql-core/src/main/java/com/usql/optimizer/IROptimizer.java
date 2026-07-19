@@ -7,7 +7,6 @@ import com.usql.ir.IRStatement.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.Set;
 
 /**
  * IR-level optimizations.
@@ -639,8 +638,9 @@ public class IROptimizer {
             return right;
         if (op == IRBinaryOp.BinaryOp.OR && isLiteral(left, false))
             return right;
-        // x * 0 → 0, 0 * x → 0
-        if (op == IRBinaryOp.BinaryOp.MUL && (isLiteral(left, 0) || isLiteral(right, 0)))
+        // x * 0 → 0, 0 * x → 0 (only for numeric types)
+        if (op == IRBinaryOp.BinaryOp.MUL && (isLiteral(left, 0) || isLiteral(right, 0))
+            && isNumericType(left) && isNumericType(right))
             return new IRLiteral(0, inferBinaryType(op, left, right));
         // x AND FALSE → FALSE, FALSE AND x → FALSE
         if (op == IRBinaryOp.BinaryOp.AND && (isLiteral(left, false) || isLiteral(right, false)))
@@ -666,6 +666,22 @@ public class IROptimizer {
     }
     private static boolean isLiteral(IRExpr expr, boolean value) {
         return expr instanceof IRLiteral lit && lit.value() instanceof Boolean b && b == value;
+    }
+
+    /** Check if an expression has a numeric type (safe for x*0 → 0).
+     *  Returns true for null/unknown types (optimistic assumption). */
+    private static boolean isNumericType(IRExpr expr) {
+        DataType t = expr.getType();
+        return t == null || t instanceof DataType.NullType
+            || t instanceof DataType.IntType || t instanceof DataType.FloatType
+            || t instanceof DataType.DecimalType;
+    }
+
+    /** Extract a column name from an IR expression (for projection pruning). */
+    private static String extractColumnName(IRExpr expr) {
+        if (expr instanceof IRColumnRef cr) return cr.name();
+        if (expr instanceof IRFunctionCall fc) return fc.funcName();
+        return null;
     }
 
     // ── Type inference helpers for optimizer-generated nodes ──
@@ -859,9 +875,21 @@ public class IROptimizer {
                     newFrom.add(ref);
                 } else {
                     // Prune unused projections from subquery
+                    // But keep columns needed by subquery's own GROUP BY/HAVING/ORDER BY
+                    Set<String> subqueryNeeded = new java.util.LinkedHashSet<>();
+                    if (sq.query().core().groupBy() != null)
+                        sq.query().core().groupBy().forEach(g -> collectColumns(g.expr(), subqueryNeeded));
+                    if (sq.query().core().having() != null)
+                        collectColumns(sq.query().core().having(), subqueryNeeded);
+                    if (sq.query().orderBy() != null)
+                        sq.query().orderBy().forEach(o -> collectColumns(o.expr(), subqueryNeeded));
+
                     List<IRSelectItem> pruned = sq.query().core().projections().stream()
                         .filter(p -> p instanceof IRExprSelect es
-                            && (es.alias() != null && usedCols.contains(es.alias())))
+                            && (usedCols.contains(es.alias())
+                                || (es.alias() == null && usedCols.contains(extractColumnName(es.expr())))
+                                || subqueryNeeded.contains(es.alias())
+                                || (es.alias() == null && subqueryNeeded.contains(extractColumnName(es.expr())))))
                         .toList();
                     if (!pruned.isEmpty() && pruned.size() < sq.query().core().projections().size()) {
                         var newCore = new SelectCore(pruned, sq.query().core().from(),
@@ -898,6 +926,11 @@ public class IROptimizer {
         else if (node instanceof IRUnaryOp uo) collectColumns(uo.operand(), cols);
         else if (node instanceof IRFunctionCall fc) fc.args().forEach(a -> collectColumns(a, cols));
         else if (node instanceof IRCase cs) { cs.whens().forEach(w -> { collectColumns(w.condition(), cols); collectColumns(w.result(), cols); }); if (cs.elseExpr() != null) collectColumns(cs.elseExpr(), cols); }
+        else if (node instanceof IRIsNull isn) collectColumns(isn.expr(), cols);
+        else if (node instanceof IRBetween btw) { collectColumns(btw.expr(), cols); collectColumns(btw.low(), cols); collectColumns(btw.high(), cols); }
+        else if (node instanceof IRInList in) { collectColumns(in.expr(), cols); if (in.values() != null) in.values().forEach(v -> collectColumns(v, cols)); }
+        else if (node instanceof IRCast ct) collectColumns(ct.expr(), cols);
+        else if (node instanceof IRSubquery sq) { /* subquery columns not tracked at outer level */ }
     }
 
     // ── Constant evaluation ──
@@ -937,18 +970,26 @@ public class IROptimizer {
             if (result != null) {
                 return new IRLiteral(result, inferLiteralType(result));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // Constant folding failed — keep original expression
+            if (!(e instanceof ArithmeticException))
+                System.err.println("[IROptimizer] fold failed: " + e.getMessage());
+        }
 
         return new IRBinaryOp(left, op, right, inferBinaryType(op, left, right));
     }
 
     private static Object addValues(Object l, Object r) {
-        if (l instanceof String || r instanceof String)
-            return String.valueOf(l) + r;
+        // String + Number is CONCAT, not arithmetic — don't fold here
+        if (l instanceof String || r instanceof String) return null;
         if (l instanceof Number ln && r instanceof Number rn) {
             if (l instanceof Double || r instanceof Double || l instanceof Float || r instanceof Float)
                 return ln.doubleValue() + rn.doubleValue();
-            return ln.longValue() + rn.longValue();
+            long result = ln.longValue() + rn.longValue();
+            // Overflow check: if signs are same and result has different sign, overflow occurred
+            long a = ln.longValue(), b = rn.longValue();
+            if (((a ^ result) & (b ^ result)) < 0) return ln.doubleValue() + rn.doubleValue(); // promote to double
+            return result;
         }
         return null;
     }
@@ -973,8 +1014,12 @@ public class IROptimizer {
     private static Boolean foldEquals(Object l, Object r) {
         if (l == null && r == null) return true;
         if (l == null || r == null) return false;
-        if (l instanceof Number ln && r instanceof Number rn)
+        if (l instanceof Number ln && r instanceof Number rn) {
+            // Use longValue for integer types to avoid double precision loss
+            if ((l instanceof Long || l instanceof Integer) && (r instanceof Long || r instanceof Integer))
+                return ln.longValue() == rn.longValue();
             return ln.doubleValue() == rn.doubleValue();
+        }
         return l.equals(r);
     }
 
@@ -1003,7 +1048,9 @@ public class IROptimizer {
                 default -> null;
             };
             if (result != null) return new IRLiteral(result, inferLiteralType(result));
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // Constant folding failed — keep original expression
+        }
         return new IRUnaryOp(op, operand, inferUnaryType(op, operand));
     }
 

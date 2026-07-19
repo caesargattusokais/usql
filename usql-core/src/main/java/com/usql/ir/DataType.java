@@ -18,6 +18,10 @@ public sealed interface DataType {
         public static final IntType INT       = new IntType(32);
         public static final IntType BIGINT    = new IntType(64);
 
+        public IntType {
+            if (bits <= 0) bits = 32; // sanitize: default to INT for invalid values
+        }
+
         public String typeName() {
             return switch (bits) {
                 case 8  -> "TINYINT";
@@ -31,6 +35,11 @@ public sealed interface DataType {
 
     // ── Fixed-point ──
     record DecimalType(int precision, int scale) implements DataType {
+        public DecimalType {
+            if (precision <= 0) precision = 10;
+            if (scale < 0) scale = 0;
+            if (scale > precision) scale = precision; // scale cannot exceed precision
+        }
         public String typeName() { return "DECIMAL(" + precision + "," + scale + ")"; }
     }
 

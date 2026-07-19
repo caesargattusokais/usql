@@ -4,7 +4,11 @@ package com.usql.backend;
  * Options controlling SQL generation output.
  */
 public record GenerateOptions(
-    /** Identifier quoting style */
+    /**
+     * Identifier quoting style.
+     * Currently unused — all backends use their default quoting.
+     * Reserved for future use when per-statement quoting control is needed.
+     */
     QuoteStyle quoteStyle,
 
     /** Whether to add newlines/indentation */

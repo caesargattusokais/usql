@@ -93,6 +93,12 @@ public class ClickHouseBackend extends MySqlBackend {
         var sb = new StringBuilder("  ").append(quoteIdentifier(col.name())).append(" ").append(mapType(col.type()));
         if (col.defaultValue() != null)
             sb.append(" DEFAULT ").append(superGenerateExpr(col.defaultValue(), opt));
+        if (col.constraints() != null) {
+            for (var c : col.constraints()) {
+                if (c instanceof ColNotNull) sb.append(" NOT NULL");
+                else if (c instanceof ColPrimaryKey) sb.append(" PRIMARY KEY");
+            }
+        }
         return sb.toString();
     }
 

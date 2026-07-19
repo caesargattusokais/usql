@@ -48,7 +48,8 @@ public class IROptimizerTest {
     }
 
     static void testString() {
-        chk(fold1(new IRBinaryOp(new IRLiteral("a",null),IRBinaryOp.BinaryOp.ADD,new IRLiteral("b",null),null)) instanceof IRLiteral l && "ab".equals(l.value()),"'a'+'b'→'ab'");
+        // ADD should NOT fold strings (that's CONCAT semantics, not arithmetic)
+        chk(fold1(new IRBinaryOp(new IRLiteral("a",null),IRBinaryOp.BinaryOp.ADD,new IRLiteral("b",null),null)) instanceof IRBinaryOp,"'a'+'b' not folded (ADD ≠ CONCAT)");
     }
 
     static void testIsNull() {

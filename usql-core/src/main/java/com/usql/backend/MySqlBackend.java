@@ -613,6 +613,7 @@ public class MySqlBackend extends AbstractDialectBackend {
     }
 
     private String escapeString(String s) {
-        return s.replace("'", "''").replace("\\", "\\\\");
+        // Order matters: escape backslashes first, then quotes
+        return s.replace("\\", "\\\\").replace("'", "''");
     }
 }

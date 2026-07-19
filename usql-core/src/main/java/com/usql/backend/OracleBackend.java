@@ -206,7 +206,7 @@ public class OracleBackend extends AbstractDialectBackend {
         return switch (item) {
             case IRExprSelect es -> {
                 String expr = generateExpr(es.expr(), opt);
-                if (es.alias() != null) expr += " " + quoteIdentifier(es.alias()); // Oracle prefers no AS
+                if (es.alias() != null) expr += " AS " + quoteIdentifier(es.alias());
                 yield expr;
             }
             case IRWildcardSelect ws -> {
@@ -529,9 +529,10 @@ public class OracleBackend extends AbstractDialectBackend {
         if (!ct.ifNotExists()) return sb.toString();
 
         // Oracle doesn't support IF NOT EXISTS — PL/SQL wrapper
+        // Only swallow ORA-00955 (name already used), re-raise everything else
         String ddl = sb.toString().replace("'", "''");
         return "BEGIN EXECUTE IMMEDIATE '" + ddl + "'; " +
-               "EXCEPTION WHEN OTHERS THEN NULL; END;";
+               "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -955 THEN RAISE; END IF; END;";
     }
 
     private String generateColumnDef(IRColumnDef col, GenerateOptions opt) {
@@ -613,7 +614,7 @@ public class OracleBackend extends AbstractDialectBackend {
 
         String ddl = sb.toString().replace("'", "''");
         return "BEGIN EXECUTE IMMEDIATE '" + ddl + "'; " +
-               "EXCEPTION WHEN OTHERS THEN NULL; END;";
+               "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -955 THEN RAISE; END IF; END;";
     }
 
     // ══════════════════════════════════════════════════
@@ -689,7 +690,7 @@ public class OracleBackend extends AbstractDialectBackend {
         if (!dt.ifExists())
             return "DROP TABLE " + quoteIdentifier(dt.name()) + cascadeSuffix;
         return "BEGIN EXECUTE IMMEDIATE 'DROP TABLE " + quoteIdentifier(dt.name()).replace("'", "''")
-            + cascadeSuffix + "'; EXCEPTION WHEN OTHERS THEN NULL; END;";
+            + cascadeSuffix + "'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;";
     }
 
     private String escapeString(String s) {

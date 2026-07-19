@@ -289,6 +289,9 @@ public enum Dialect {
     }
 
     public String displayName() { return displayName; }
+    /** @deprecated Misleading — SQL identifier case sensitivity depends on quoting and
+     *  database configuration, not a dialect-level boolean. Do not use. */
+    @Deprecated
     public boolean isCaseSensitive() { return caseSensitive; }
 
     public boolean supports(Capability cap) {

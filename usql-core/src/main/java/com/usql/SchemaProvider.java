@@ -24,9 +24,13 @@ public interface SchemaProvider {
 
     /**
      * Look up a table by schema-qualified name.
+     * Default implementation ignores the schema qualifier — override this
+     * in schema-aware implementations to support multi-schema lookups.
      */
     default Optional<TableDef> getTable(String schema, String name) {
-        return getTable(name); // default: ignore schema
+        // Try schema-qualified lookup first, then fall back to unqualified
+        // Default: no schema support — just use the name
+        return getTable(name);
     }
 
     /**
