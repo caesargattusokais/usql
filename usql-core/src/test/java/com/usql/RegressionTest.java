@@ -17,7 +17,7 @@ public class RegressionTest {
 
     static List<Db> databases = List.of(
         new Db("MySQL", Dialect.MYSQL,
-            "jdbc:mysql://localhost:3306/login_db?useSSL=false&allowPublicKeyRetrieval=true",
+            "jdbc:mysql://localhost:3306/login_db?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true",
             "login_user", "login123"),
         new Db("PostgreSQL", Dialect.POSTGRESQL,
             "jdbc:postgresql://localhost:5432/mydb", "postgres", "postgres123"),
@@ -32,13 +32,13 @@ public class RegressionTest {
             "jdbc:mariadb://localhost:3307/test_db",
             "test_user", "test123"),
         new Db("TiDB", Dialect.TIDB,
-            "jdbc:mysql://localhost:4000/test?allowPublicKeyRetrieval=true&useSSL=false",
+            "jdbc:mysql://localhost:4000/test?allowPublicKeyRetrieval=true&useSSL=false&allowMultiQueries=true",
             "root", ""),
         new Db("SQLite", Dialect.SQLITE,
             "jdbc:sqlite::memory:", "", ""),
         new Db("OceanBase", Dialect.OCEANBASE,
-            "jdbc:mysql://localhost:2881/test?useSSL=false&allowPublicKeyRetrieval=true",
-            "root", ""),
+            "jdbc:mysql://localhost:2881/test?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true",
+            "root", "ob123456"),
         new Db("ClickHouse", Dialect.CLICKHOUSE,
             "jdbc:clickhouse://localhost:8123/default", "", ""),
         new Db("DuckDB", Dialect.DUCKDB, "jdbc:duckdb:", "", "")
@@ -440,8 +440,9 @@ public class RegressionTest {
     // ═══════════════════════════════════════
 
     static void testStoredProc(Db db, Connection conn) throws Exception {
-        // TiDB and SQLite don't support stored procedures; MariaDB uses MySQL body
-        if (Set.of(Dialect.TIDB, Dialect.SQLITE).contains(db.dialect())) { skipped++; return; }
+        // TiDB/SQLite/DuckDB/ClickHouse don't support stored procedures;
+        // their backends emit a "not supported" comment that JDBC rejects on execute.
+        if (Set.of(Dialect.TIDB, Dialect.SQLITE, Dialect.DUCKDB, Dialect.CLICKHOUSE).contains(db.dialect())) { skipped++; return; }
         String body = switch (db.dialect()) {
             case MYSQL, MARIADB -> "SELECT 1";
             case POSTGRESQL -> "BEGIN NULL; END";
@@ -465,13 +466,10 @@ public class RegressionTest {
             check(false, "Procedure execute: " + e.getMessage());
         }
 
-        // Cleanup
-        try {
-            String qn = quoteName(db.dialect(), "reg_sp");
-            conn.createStatement().execute("DROP PROCEDURE IF EXISTS " + qn);
-        } catch (SQLException ignored) {
-            try { conn.createStatement().execute("DROP PROCEDURE " + quoteName(db.dialect(), "reg_sp")); } catch (SQLException ignored2) {}
-        }
+        // Cleanup — Oracle 19c has no "DROP ... IF EXISTS", so just attempt the plain
+        // DROP and swallow the "object does not exist" error (same pattern as dropTable).
+        for (String qn : new String[]{quoteName(db.dialect(), "reg_sp"), "reg_sp"})
+            try { conn.createStatement().execute("DROP PROCEDURE " + qn); } catch (SQLException ignored) {}
     }
 
     // ═══════════════════════════════════════
@@ -517,13 +515,16 @@ public class RegressionTest {
         }
         List<List<Object>> rowsL2 = executeSQL(conn, r2.getSql());
         List<List<Object>> rowsL3 = executeSQL(conn, r3.getSql());
-        boolean same = rowsL2.size() == rowsL3.size();
-        if (same && !rowsL2.isEmpty()) {
-            for (int i = 0; i < rowsL2.size(); i++) {
-                if (!rowsL2.get(i).equals(rowsL3.get(i))) { same = false; break; }
-            }
-        }
-        check(same, "L2==L3: " + rowsL2.size() + " rows same");
+        // Without ORDER BY, row order is unspecified — L2 and L3 use different
+        // execution plans (L3 pushes predicates into subqueries) so the returned
+        // order may differ even when the result set is identical. Compare as
+        // multisets (sort by stringified row) rather than positionally.
+        java.util.Comparator<List<Object>> byStr =
+            java.util.Comparator.comparing(row -> row == null ? "" : row.toString());
+        List<List<Object>> s2 = new ArrayList<>(rowsL2); s2.sort(byStr);
+        List<List<Object>> s3 = new ArrayList<>(rowsL3); s3.sort(byStr);
+        boolean same = s2.equals(s3);
+        check(same, "L2==L3: " + rowsL2.size() + "/" + rowsL3.size() + " rows same");
     }
 
     static List<List<Object>> executeSQL(Connection conn, String sql) throws SQLException {
@@ -544,6 +545,11 @@ public class RegressionTest {
     // ═══════════════════════════════════════
 
     static void testViewSchema(Db db, Connection conn) throws Exception {
+        // Pre-clean any residual view from a prior run. Oracle stores unquoted
+        // identifiers uppercased, so DROP with a quoted lowercase name won't match
+        // a previously-created unquoted REG_VIEW1 — try several spellings.
+        for (String vn : new String[]{quoteName(db.dialect(), "reg_view1"), "reg_view1", "REG_VIEW1"})
+            try { conn.createStatement().execute("DROP VIEW " + vn); } catch (SQLException ignored) {}
         dropTable(db, conn, "reg_vs");
         execDDL(db, conn, "CREATE TABLE reg_vs (id INT PRIMARY KEY, name VARCHAR(50), val INT)", "Setup vs");
         execDML(db, conn, "INSERT INTO reg_vs (id, name, val) VALUES (1,'A',10),(2,'B',20),(3,'C',30)", "Insert vs");

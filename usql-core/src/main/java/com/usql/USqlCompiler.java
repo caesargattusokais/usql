@@ -69,7 +69,7 @@ public class USqlCompiler {
         this.backends.put(Dialect.DM,         new DmBackend());
         this.backends.put(Dialect.SQLSERVER,  new com.usql.backend.SqlServerBackend());
         this.backends.put(Dialect.MARIADB,    new MariaDbBackend()); // MySQL + IF NOT EXISTS
-        this.backends.put(Dialect.TIDB,       new MySqlBackend()); // MySQL protocol
+        this.backends.put(Dialect.TIDB,       new com.usql.backend.TiDbBackend()); // MySQL protocol, native CREATE INDEX IF NOT EXISTS
         this.backends.put(Dialect.SQLITE,     new com.usql.backend.SqliteBackend());
         this.backends.put(Dialect.DUCKDB,     new com.usql.backend.DuckDbBackend());
         this.backends.put(Dialect.OCEANBASE,  new MySqlBackend());
@@ -111,7 +111,7 @@ public class USqlCompiler {
      * Full pipeline: Text → Lexer → Parser → AST → Semantic Analysis → IR → Backend → SQL
      */
     public CompilationResult compile(String usql, Dialect target, GenerateOptions genOpts) {
-        // Check compiled plan cache
+        // Check compiled plan cache (stores the *optimized* analyzed IR)
         SemanticIR cachedIR = null;
         if (cacheEnabled) {
             synchronized (planCache) {
@@ -120,7 +120,7 @@ public class USqlCompiler {
         }
 
         if (cachedIR != null) {
-            // Cache hit: skip Parse + Semantic Analysis, go straight to pipeline
+            // Cache hit: skip Parse + Semantic Analysis, reuse the optimized IR
             return compileFromIR(cachedIR, target, genOpts);
         }
 
@@ -140,19 +140,35 @@ public class USqlCompiler {
             ));
         }
 
-        // Full pipeline with cache store
-        CompilationResult result = compileFromAst(astNodes.get(0), target, genOpts);
+        // Phase 4: Semantic analysis (AST → IR)
+        SemanticAnalyzer analyzer = new SemanticAnalyzer(schemaProvider, functionCatalog, typeCatalog);
+        SemanticAnalyzer.AnalysisResult analysis = analyzer.analyze(astNodes.get(0));
+        if (!analysis.errors().isEmpty()) {
+            return CompilationResult.failed(analysis.errors());
+        }
 
-        // Store in cache if compilation succeeded
-        if (cacheEnabled && result.isSuccess()) {
-            // Re-parse to get IR (we already have it, but let's cache via the analyze step)
-            SemanticAnalyzer analyzer = new SemanticAnalyzer(schemaProvider, functionCatalog, typeCatalog);
-            var analysis = analyzer.analyze(astNodes.get(0));
-            if (analysis.errors().isEmpty() && analysis.ir() != null) {
-                synchronized (planCache) {
-                    planCache.put(usql, analysis.ir());
-                }
+        // Phase 5: IR optimization — done once here so the optimized IR can be cached
+        // and reused, keeping cache-hit and cache-miss results identical.
+        SemanticIR optimizedIR = analysis.ir();
+        if (optimizeLevel > 0) {
+            optimizedIR = com.usql.optimizer.IROptimizer.optimize(optimizedIR, optimizeLevel);
+        }
+
+        // Store the OPTIMIZED IR in cache (only if analysis succeeded)
+        if (cacheEnabled) {
+            synchronized (planCache) {
+                planCache.put(usql, optimizedIR);
             }
+        }
+
+        // Phase 6-8: capability → polyfill → generate (via the IR path)
+        CompilationResult result = compileFromIR(optimizedIR, target, genOpts);
+
+        // Forward semantic warnings (compileFromIR only surfaces capability findings)
+        if (!analysis.warnings().isEmpty() && result.isSuccess()) {
+            var allWarnings = new ArrayList<>(analysis.warnings());
+            allWarnings.addAll(result.getWarnings());
+            return CompilationResult.success(result.getSql(), result.getReferenceSql(), allWarnings);
         }
 
         return result;
@@ -259,6 +275,13 @@ public class USqlCompiler {
      * Compile from IR statement with custom options.
      */
     public CompilationResult compileFromIR(IRStatement ir, Dialect target, GenerateOptions genOpts) {
+        // Phase 5: IR optimization — applied here so every entry point (text, AST, raw IR)
+        // produces identical output. Constant folding is idempotent, so re-optimizing an
+        // already-optimized IR (e.g. from the plan cache) is a harmless no-op.
+        if (optimizeLevel > 0) {
+            ir = com.usql.optimizer.IROptimizer.optimize(new SemanticIR(ir), optimizeLevel).rootStatement();
+        }
+
         // Phase 6: Capability check + polyfill
         CapabilityChecker.CapabilityReport capReport = capabilityChecker.check(ir, target);
         if (capReport.hasFatal()) {
@@ -282,13 +305,22 @@ public class USqlCompiler {
         }
         String sql = backend.generate(ir, genOpts);
 
+        // Phase 8: Verification (optional — generates H2 reference SQL)
+        String refSql = null;
+        if (verify) {
+            DialectBackend refBackend = backends.get(Dialect.H2);
+            refSql = refBackend.generate(ir, GenerateOptions.MINIMAL);
+        }
+
         List<CompilationResult.Warning> warnings = new ArrayList<>();
         for (var finding : capReport.findings()) {
             warnings.add(CompilationResult.Warning.of(0, 0,
                 "[" + target.displayName() + "] " + finding.message()));
         }
 
-        return CompilationResult.success(sql, warnings);
+        return refSql != null
+            ? CompilationResult.success(sql, refSql, warnings)
+            : CompilationResult.success(sql, warnings);
     }
 
     // ══════════════════════════════════════════════════

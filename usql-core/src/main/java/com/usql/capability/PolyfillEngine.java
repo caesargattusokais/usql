@@ -146,25 +146,27 @@ public class PolyfillEngine {
         };
     }
 
-    /** Convert BOOLEAN references for dialects without native boolean. */
+    /** Convert BOOLEAN references for dialects without native boolean.
+     *  Handled at the backend level (e.g. SQL Server maps to BIT + 1/0,
+     *  Oracle maps to NUMBER(1)) — no IR rewrite needed here. */
     private IRStatement polyfillBoolean(IRStatement statement) {
-        // Backend-level: maps TRUE/FALSE literals and IS_TRUE/IS_FALSE operators.
         return statement;
     }
 
-    /** Add FROM DUAL for databases that require it (Oracle, DM). */
+    /** Add FROM DUAL for databases that require it (Oracle, DM).
+     *  Handled at the backend level (OracleBackend/DmBackend append " FROM DUAL"
+     *  when from() is null) — no IR rewrite or marker needed here. */
     private IRStatement polyfillSelectWithoutFrom(IRStatement statement) {
-        if (statement instanceof IRSelect sel && sel.core().from() == null) {
-            // Mark it — the Backend generates FROM DUAL
-        }
         return statement;
     }
 
-    /** Wrap CONCAT args with COALESCE for databases where CONCAT returns NULL on null input. */
+    /** Normalize CONCAT NULL semantics across dialects.
+     *  Currently a no-op: every backend already emits dialect-appropriate
+     *  concatenation (MySQL CONCAT(), PG/Oracle/DM/SQL Server ||) and all share
+     *  standard NULL-propagation behavior. If a future usql contract requires
+     *  "NULL treated as empty string" uniformly, wrap each arg with
+     *  COALESCE(arg, '') here. */
     private IRStatement polyfillConcatNull(IRStatement statement) {
-        // Backend-level: Oracle/PG use || which returns NULL on null;
-        // MySQL CONCAT treats NULL as empty string.
-        // The polyfill wraps each arg: COALESCE(arg, '') to normalize behavior.
         return statement;
     }
 

@@ -121,7 +121,7 @@ public class CompilerE2ETest {
             List.of(new OrderBy(new IRFunctionCall("AVG", List.of(
                 new IRColumnRef("salary", "e", new DataType.DecimalType(10, 2))
             ), new DataType.DecimalType(14, 4), null, null), OrderDir.DESC, NullsOrder.LAST)),
-            new FetchClause(new IRLiteral(10, DataType.IntType.INT), new IRLiteral(0, DataType.IntType.INT)),
+            new FetchClause(new IRLiteral(10, DataType.IntType.INT), new IRLiteral(5, DataType.IntType.INT)),
             Set.of(Capability.LIMIT_OFFSET, Capability.AGGREGATE, Capability.HAVING)
         );
     }

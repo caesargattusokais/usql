@@ -649,8 +649,13 @@ public class IROptimizer {
                     // Merge pushable conditions into subquery's WHERE
                     IRExpr innerWhere = sq.query().core().where();
                     for (var p : pushable) {
-                        innerWhere = innerWhere == null ? p
-                            : new IRBinaryOp(innerWhere, IRBinaryOp.BinaryOp.AND, p, null);
+                        // Strip the outer alias qualifier before pushing in: the predicate
+                        // "s.col > 10" references the subquery alias "s", but inside the
+                        // subquery the FROM is the inner table (no "s" alias in scope) —
+                        // so rewrite "s.col" → "col" to keep the reference valid there.
+                        IRExpr pushed = stripQualifier(p, sq.alias());
+                        innerWhere = innerWhere == null ? pushed
+                            : new IRBinaryOp(innerWhere, IRBinaryOp.BinaryOp.AND, pushed, null);
                         // Remove from outer WHERE
                         remainingWhere = removeCondition(remainingWhere, p);
                     }
@@ -700,6 +705,24 @@ public class IROptimizer {
             case IRBetween btw -> referencesOnly(btw.expr(), alias);
             case IRLiteral lit -> true;
             default -> false;
+        };
+    }
+
+    /** Strip the given alias qualifier from column references in a predicate tree,
+     *  so it can be pushed into a subquery whose FROM does not expose that alias.
+     *  e.g. stripQualifier("s.col > 10", "s") → "col > 10". */
+    private static IRExpr stripQualifier(IRExpr expr, String alias) {
+        return switch (expr) {
+            case IRColumnRef cr -> alias.equals(cr.qualifier())
+                ? new IRColumnRef(cr.name(), null, cr.type())
+                : cr;
+            case IRBinaryOp bo -> new IRBinaryOp(stripQualifier(bo.left(), alias),
+                bo.op(), stripQualifier(bo.right(), alias), bo.type());
+            case IRUnaryOp uo -> new IRUnaryOp(uo.op(), stripQualifier(uo.operand(), alias), uo.type());
+            case IRIsNull isn -> new IRIsNull(stripQualifier(isn.expr(), alias), isn.not(), isn.type());
+            case IRBetween btw -> new IRBetween(stripQualifier(btw.expr(), alias),
+                btw.low(), btw.high(), btw.not(), btw.type());
+            default -> expr;
         };
     }
 

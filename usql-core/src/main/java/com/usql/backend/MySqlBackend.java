@@ -279,6 +279,13 @@ public class MySqlBackend extends AbstractDialectBackend {
     private String generateBinaryOp(IRBinaryOp op, GenerateOptions opt) {
         String left = generateExpr(op.left(), opt);
         String right = generateExpr(op.right(), opt);
+        // MySQL's || is logical OR by default (only string concat under PIPES_AS_CONCAT,
+        // which cannot be assumed). Use the CONCAT() function for string concatenation —
+        // it also matches standard-SQL || semantics (NULL propagates). Nested binary
+        // CONCATs become CONCAT(CONCAT(a,b),c), which is semantically correct.
+        if (op.op() == IRBinaryOp.BinaryOp.CONCAT) {
+            return "CONCAT(" + left + ", " + right + ")";
+        }
         String operator = switch (op.op()) {
             case ADD    -> " + ";
             case SUB    -> " - ";
@@ -293,17 +300,13 @@ public class MySqlBackend extends AbstractDialectBackend {
             case GTE    -> " >= ";
             case AND    -> " AND ";
             case OR     -> " OR ";
-            case CONCAT -> {
-                // MySQL CONCAT: treat null as empty string? Depends on mode.
-                // For now, use CONCAT function
-                yield " || "; // MySQL: || is OR by default unless PIPES_AS_CONCAT mode
-            }
             case LIKE             -> " LIKE ";
             case NOT_LIKE         -> " NOT LIKE ";
             case IS_DISTINCT_FROM -> " <=> "; // MySQL's null-safe equals
             case IN               -> " IN ";
             case NOT_IN           -> " NOT IN ";
             case BETWEEN          -> " BETWEEN ";
+            case CONCAT           -> throw new IllegalStateException("handled above");
         };
         return "(" + left + operator + right + ")";
     }
@@ -532,7 +535,7 @@ public class MySqlBackend extends AbstractDialectBackend {
     //  CREATE INDEX
     // ══════════════════════════════════════════════════
 
-    private String generateCreateIndex(IRCreateIndex idx, GenerateOptions opt) {
+    protected String generateCreateIndex(IRCreateIndex idx, GenerateOptions opt) {
         var sb = new StringBuilder("CREATE ");
         if (idx.unique()) sb.append("UNIQUE ");
         sb.append("INDEX ");
@@ -548,11 +551,22 @@ public class MySqlBackend extends AbstractDialectBackend {
         }
 
         if (idx.ifNotExists()) {
-            String ddl = sb.toString().replace("'", "\\'");
-            return "CREATE PROCEDURE _idx_guard() "
-                + "BEGIN DECLARE EXIT HANDLER FOR 1061 BEGIN END; "
-                + "EXECUTE IMMEDIATE '" + ddl + "'; END; "
-                + "CALL _idx_guard(); DROP PROCEDURE _idx_guard;";
+            // MySQL/MariaDB/TiDB have no "CREATE INDEX IF NOT EXISTS". Wrap the DDL in a
+            // stored procedure that swallows error 1061 (index already exists).
+            // Use PREPARE/EXECUTE (NOT EXECUTE IMMEDIATE — that is Oracle/PG syntax and
+            // a syntax error here). Escape single quotes by doubling ('' — SQL standard),
+            // NOT backslash — backslash-escaping mangles '' sequences already produced
+            // by escapeString and breaks the literal.
+            String ddl = sb.toString().replace("'", "''");
+            return "CREATE PROCEDURE `_idx_guard`() "
+                + "BEGIN "
+                + "DECLARE EXIT HANDLER FOR 1061 BEGIN END; "
+                + "SET @s = '" + ddl + "'; "
+                + "PREPARE stmt FROM @s; "
+                + "EXECUTE stmt; "
+                + "DEALLOCATE PREPARE stmt; "
+                + "END; "
+                + "CALL `_idx_guard`(); DROP PROCEDURE `_idx_guard`;";
         }
         return sb.toString();
     }

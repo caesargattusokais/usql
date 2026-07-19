@@ -82,7 +82,10 @@ public class HandParser {
             else if (is(TokenType.FULL)) { advance(); if (is(TokenType.OUTER)) advance(); if (is(TokenType.JOIN)) advance(); jt = JoinType.FULL; }
             else if (is(TokenType.CROSS)) { advance(); if (is(TokenType.JOIN)) advance(); jt = JoinType.CROSS; }
             else if (is(TokenType.JOIN)) { advance(); jt = JoinType.INNER; }
-            else if (is(TokenType.COMMA)) { advance(); jt = JoinType.INNER; }
+            // NOTE: top-level comma (FROM a, b) is handled by parseSelect's FROM loop,
+            // producing a multi-table list (implicit cross product). Do NOT consume it
+            // here as a join — that would collapse "a, b" into a single JoinTable and
+            // emit "a INNER JOIN b" with no ON clause (a syntax error in most dialects).
             else break;
             TableRef right = parseTablePrimary();
             Expression on = null; if (is(TokenType.ON)) { advance(); on = parseExpr(); }
@@ -124,9 +127,9 @@ public class HandParser {
     // ═══════════════ DML ═══════════════
 
     InsertStmt parseInsert() { advance(); boolean ig = is(TokenType.IGNORE); if (ig) advance(); expect(TokenType.INTO); String tn = expectIdentifier(); String ta = null; if (is(TokenType.AS)) advance(); if (is(TokenType.IDENTIFIER)) ta = advance().text; TableRef tab = new SimpleTable(tn, ta); List<String> cols = null; if (is(TokenType.LPAREN)) { advance(); cols = idList(); expect(TokenType.RPAREN); } if (is(TokenType.VALUES)) { advance(); List<List<Expression>> vals = new ArrayList<>(); do { expect(TokenType.LPAREN); List<Expression> row = new ArrayList<>(); do { row.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); vals.add(row); } while (is(TokenType.COMMA) && advance() != null); return new InsertStmt(ig, tab, cols, vals, null); } else { return new InsertStmt(ig, tab, cols, null, parseSelect()); } }
-    UpdateStmt parseUpdate() { advance(); String tn = expectIdentifier(); String ta = null; if (is(TokenType.AS)) advance(); if (is(TokenType.IDENTIFIER)) ta = advance().text; TableRef tab = new SimpleTable(tn, ta); expect(TokenType.SET); List<SetClause> sets = new ArrayList<>(); do { String c = expectIdentifier(); expect(TokenType.EQ); sets.add(new SetClause(c, parseExpr())); } while (is(TokenType.COMMA) && advance() != null); Expression w = null; if (is(TokenType.WHERE)) { advance(); w = parseExpr(); } return new UpdateStmt(tab, sets, w); }
+    UpdateStmt parseUpdate() { advance(); String tn = expectIdentifier(); String ta = null; if (is(TokenType.AS)) advance(); if (is(TokenType.IDENTIFIER)) ta = advance().text; TableRef tab = new SimpleTable(tn, ta); expect(TokenType.SET); List<SetClause> sets = new ArrayList<>(); do { String c = parseSetColumn(); expect(TokenType.EQ); sets.add(new SetClause(c, parseExpr())); } while (is(TokenType.COMMA) && advance() != null); Expression w = null; if (is(TokenType.WHERE)) { advance(); w = parseExpr(); } return new UpdateStmt(tab, sets, w); }
     DeleteStmt parseDelete() { advance(); expect(TokenType.FROM); String tn = expectIdentifier(); String ta = null; if (is(TokenType.AS)) advance(); if (is(TokenType.IDENTIFIER)) ta = advance().text; TableRef tab = new SimpleTable(tn, ta); Expression w = null; if (is(TokenType.WHERE)) { advance(); w = parseExpr(); } return new DeleteStmt(tab, w); }
-    MergeStmt parseMerge() { advance(); expect(TokenType.INTO); TableRef tgt = parseTablePrimary(); String tAlias = null; if (is(TokenType.AS)) advance(); if (is(TokenType.IDENTIFIER)) tAlias = advance().text; expect(TokenType.USING); TableRef src = parseTablePrimary(); expect(TokenType.ON); Expression on = parseExpr(); List<MergeAction> acts = new ArrayList<>(); while (is(TokenType.WHEN)) { advance(); boolean m = is(TokenType.MATCHED); advance(); if (!m) { advance(); } expect(TokenType.THEN); if (is(TokenType.UPDATE)) { advance(); expect(TokenType.SET); List<SetClause> s = new ArrayList<>(); do { String c = expectIdentifier(); expect(TokenType.EQ); s.add(new SetClause(c, parseExpr())); } while (is(TokenType.COMMA) && advance() != null); acts.add(new MergeUpdate(s)); } else if (is(TokenType.INSERT)) { advance(); List<String> cs = null; if (is(TokenType.LPAREN)) { advance(); cs = idList(); expect(TokenType.RPAREN); } expect(TokenType.VALUES); expect(TokenType.LPAREN); List<Expression> vs = new ArrayList<>(); do { vs.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); acts.add(new MergeInsert(cs, vs)); } else { advance(); acts.add(new MergeDelete()); } } return new MergeStmt(tgt, tAlias, src, on, acts); }
+    MergeStmt parseMerge() { advance(); expect(TokenType.INTO); TableRef tgt = parseTablePrimary(); String tAlias = null; if (is(TokenType.AS)) advance(); if (is(TokenType.IDENTIFIER)) tAlias = advance().text; expect(TokenType.USING); TableRef src = parseTablePrimary(); expect(TokenType.ON); Expression on = parseExpr(); List<MergeAction> acts = new ArrayList<>(); while (is(TokenType.WHEN)) { advance(); boolean m = is(TokenType.MATCHED); advance(); if (!m) { advance(); } expect(TokenType.THEN); if (is(TokenType.UPDATE)) { advance(); expect(TokenType.SET); List<SetClause> s = new ArrayList<>(); do { String c = parseSetColumn(); expect(TokenType.EQ); s.add(new SetClause(c, parseExpr())); } while (is(TokenType.COMMA) && advance() != null); acts.add(new MergeUpdate(s)); } else if (is(TokenType.INSERT)) { advance(); List<String> cs = null; if (is(TokenType.LPAREN)) { advance(); cs = idList(); expect(TokenType.RPAREN); } expect(TokenType.VALUES); expect(TokenType.LPAREN); List<Expression> vs = new ArrayList<>(); do { vs.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); acts.add(new MergeInsert(cs, vs)); } else { advance(); acts.add(new MergeDelete()); } } return new MergeStmt(tgt, tAlias, src, on, acts); }
 
     // ═══════════════ CREATE ═══════════════
 
@@ -255,6 +258,14 @@ public class HandParser {
         if (tok.type != TokenType.IDENTIFIER && tok.type.ordinal() >= TokenType.LPAREN.ordinal())
             throw error("Expected identifier, got " + tok.type);
         return tok.text;
+    }
+    /** Parse the left-hand side of a SET assignment: accepts `col` or `qualifier.col`,
+     *  returning just the column name (the qualifier is dropped — the target table is
+     *  already fixed by the enclosing UPDATE/MERGE, so SetClause only stores a name). */
+    String parseSetColumn() {
+        String first = expectIdentifier();
+        if (is(TokenType.DOT)) { advance(); return expectIdentifier(); }
+        return first;
     }
     void skipToSemi() { while (pos < tokens.size() && !is(TokenType.SEMI) && !is(TokenType.EOF)) advance(); }
     RuntimeException error(String msg) { Token t = peek(); return new RuntimeException("Parse error line " + t.line + ":" + t.col + " — " + msg); }

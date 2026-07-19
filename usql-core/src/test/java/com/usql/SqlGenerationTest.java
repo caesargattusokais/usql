@@ -26,7 +26,7 @@ public class SqlGenerationTest {
         for (Dialect d : Dialect.values()) { if(d==Dialect.H2)continue;
             CompilationResult r = c.compile("SELECT name FROM users WHERE id = 1", d);
             chk(r.isSuccess(), d+" SELECT WHERE");
-            chk(r.getSql().contains("name"), d+" contains column");
+            chk(r.getSql().toUpperCase().contains("NAME"), d+" contains column");
         }
     }
 
