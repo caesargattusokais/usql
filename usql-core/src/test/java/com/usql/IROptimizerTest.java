@@ -127,12 +127,13 @@ public class IROptimizerTest {
 
     // Level 3: predicate pushdown
     static void testLevel3Pushdown() {
-        // SELECT * FROM (SELECT DISTINCT a FROM t) s WHERE s.a > 1 → push WHERE into subquery
-        // IRColumnRef is (name, qualifier, type) — "a" is name, "s" is qualifier
+        // SELECT * FROM (SELECT a FROM t ORDER BY a LIMIT 100) s WHERE s.a > 1
+        // → push WHERE into subquery (subquery has ORDER BY+FETCH so not flattenable, but safe to push)
         IRSelect inner = new IRSelect(new SelectCore(
             List.of(new IRExprSelect(new IRColumnRef("a",null,null),"a")),
-            List.of(new IRTableName("t",null,null)),null,null,null,null,null,null,true),
-            null,null,Set.of());
+            List.of(new IRTableName("t",null,null)),null,null,null,null,null,null,false),
+            List.of(new OrderBy(new IRColumnRef("a",null,null),OrderDir.ASC,NullsOrder.LAST)),
+            new FetchClause(new IRLiteral(100,null),null),Set.of());
         IRSelect outer = new IRSelect(new SelectCore(
             List.of(new IRWildcardSelect(new IRWildcard(null))),
             List.of(new IRSubqueryTable(inner,"s")),

@@ -141,6 +141,8 @@ public class SqliteBackend extends AbstractDialectBackend {
                 String join = switch (jn.type()) {
                     case INNER -> "INNER JOIN";
                     case LEFT -> "LEFT JOIN";
+                    case RIGHT -> "RIGHT JOIN";
+                    case FULL -> "FULL OUTER JOIN";
                     case CROSS -> "CROSS JOIN";
                     default -> "JOIN";
                 };
@@ -206,12 +208,23 @@ public class SqliteBackend extends AbstractDialectBackend {
             case LTE -> " <= "; case GTE -> " >= "; case AND -> " AND "; case OR -> " OR ";
             case CONCAT -> " || "; case LIKE -> " LIKE "; default -> " " + bo.op().name() + " ";
         };
-        return left + op + right;
+        return "(" + left + op + right + ")";
     }
 
     private String generateUnaryOp(IRUnaryOp uo, GenerateOptions opt) {
         String operand = generateExpr(uo.operand(), opt);
-        return switch (uo.op()) { case NOT -> "NOT " + operand; case NEG -> "-" + operand; default -> uo.op() + " " + operand; };
+        return switch (uo.op()) {
+            case NOT -> "NOT " + operand;
+            case NEG -> "-" + operand;
+            case IS_NULL -> operand + " IS NULL";
+            case IS_NOT_NULL -> operand + " IS NOT NULL";
+            case IS_TRUE -> operand + " IS TRUE";
+            case IS_NOT_TRUE -> operand + " IS NOT TRUE";
+            case IS_FALSE -> operand + " IS FALSE";
+            case IS_NOT_FALSE -> operand + " IS NOT FALSE";
+            case EXISTS -> "EXISTS " + operand;
+            default -> throw new UnsupportedOperationException("SQLite: unsupported unary op " + uo.op());
+        };
     }
 
     private String generateCase(IRCase cs, GenerateOptions opt) {

@@ -1,7 +1,7 @@
 # USQL 执行计划
 
 创建日期: 2026-06-28
-最后更新: 2026-07-12
+最后更新: 2026-07-19
 当前版本: v4.0.0
 
 ---
@@ -11,6 +11,7 @@
 - Phase 1-7: 全部 100% ✅
 - Phase 8 待评估: 0% (0/3)
 - Phase 9 后续方向: 100% ✅ (5/5)
+- Phase 10 Bug 修复: 42/46+28低 (🔴 10/10, 🟠 11/11, 🟡 21/25)
 
 ---
 
@@ -360,6 +361,105 @@
 | CREATE IF NOT EXISTS | ✅ | ✅ | PL/SQL | PL/SQL | T-SQL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 存储过程 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | — | ✅ | — |
 | TCL 事务 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## Phase 10 - Bug 修复（代码审查发现）
+
+> 2026-07-19 全量代码审查，覆盖 Parser/AST/IR/Optimizer/Backend/Polyfill/Compiler/Semantic 模块，
+> 共发现 46 个问题，按严重程度分为 🔴严重 / 🟠高 / 🟡中等 / 🟢低 四级。
+
+### 10.1 🔴 严重 — 生成错误 SQL 或崩溃（10 项）
+
+| # | 模块 | 文件:行号 | 问题 | 状态 |
+|---|------|----------|------|------|
+| 10.1.1 | Lexer | HandLexer:153-158 | `readString()` 中 `''` 转义单引号是死代码，while 条件 `peek() != '\''` 使得内部 `if (peek() == '\'')` 永远不执行。所有含 `''` 的字符串（如 `'it''s'`）被截断 | ✅ |
+| 10.1.2 | Lexer | HandLexer:204-209 | `readQuotedIdentifier()` 同上，`""` 转义引号标识符也是死代码 | ✅ |
+| 10.1.3 | Backend | MySqlBackend:305 | `IS_DISTINCT_FROM` 映射为 `<=>`（null-safe equals），语义相反。应为 `NOT (a <=> b)` | ✅ |
+| 10.1.4 | Backend | OracleBackend:347-364 | KEEP 子句追加在 OVER 之后，但 Oracle 语法要求 KEEP 在 OVER 之前。生成无效 SQL | ✅ |
+| 10.1.5 | Backend | MySqlBackend:588-595 | `generateCreateProcedure` override 总是输出 `()` 忽略 `cp.params()`，带参数的存储过程丢失所有参数 | ✅ |
+| 10.1.6 | Backend | OracleBackend:317 | `MOD` 作为中缀操作符 `a MOD b`，Oracle 只支持 `MOD(a, b)` 函数调用，语法错误 | ✅ |
+| 10.1.7 | Backend | SqliteBackend:209 | 二元操作符不包裹括号，唯一不用括号的 backend，运算符优先级错误 | ✅ |
+| 10.1.8 | Backend | SqliteBackend:214 | 一元操作符 IS_NULL/IS_NOT_NULL/EXISTS 等 default 分支生成 `"IS_NULL col"` 而非 `"col IS NULL"` | ✅ |
+| 10.1.9 | Backend | OracleBackend:108-122 | ROWNUM 分页：OFFSET 为非字面量（如参数 `?`）时 `offsetVal=0`，内层 `ROWNUM <= limit + offset` 缺少 offset 部分 | ✅ |
+| 10.1.10 | Semantic | SemanticAnalyzer:161-169 | WITH 子句在主 SELECT body 之后才分析，CTE 名称未在 FROM 分析前注册到作用域，`SELECT * FROM cte_name` 无法解析 | ✅ |
+
+### 10.2 🟠 高 — 常见场景错误结果（11 项）
+
+| # | 模块 | 文件:行号 | 问题 | 状态 |
+|---|------|----------|------|------|
+| 10.2.1 | Optimizer | IROptimizer:601,604,607,608,618,853 | 常量折叠/简化生成的 IRLiteral/IRBinaryOp/IRUnaryOp 携带 null DataType，违反 IR 设计约束，下游 Backend 可能 NPE | ✅ |
+| 10.2.2 | Optimizer | IROptimizer:638-680 | 谓词下推不检查子查询是否有 GROUP BY/HAVING/聚合，推送谓词改变语义（先过滤再聚合 vs 先聚合再过滤） | ✅ |
+| 10.2.3 | Optimizer | IROptimizer:807-810 | `collectColumns` 第二个 `else if` 匹配 `IRExprSelect` 永远不可达（已被第一个匹配），别名收集失败导致投影裁剪可能删错列 | ✅ |
+| 10.2.4 | Parser | HandParser:209 | 一元减号 `parseExpr()` 无最小优先级，`-a + b` 解析为 `-(a + b)` 而非 `(-a) + b` | ✅ |
+| 10.2.5 | Parser | HandParser:243 | 不支持简单 CASE 表达式 `CASE x WHEN 1 THEN ...`，会解析错误 | ✅ |
+| 10.2.6 | Semantic | SemanticAnalyzer:340-347 | 歧义列引用静默返回第一个匹配，应报错 | ✅ |
+| 10.2.7 | Backend | SqliteBackend:141-146 | RIGHT JOIN / FULL JOIN 静默降级为 INNER JOIN（SQLite 3.39+ 已支持） | ✅ |
+| 10.2.8 | Backend | PgBackend:393-396 | MERGE → ON CONFLICT 只用第一个 INSERT 列作为冲突目标，多列唯一约束会失败 | ✅ |
+| 10.2.9 | Backend | OracleBackend:83 | IntervalDaySecond 的 fractionalSeconds 被用作 DAY 精度而非 SECOND 精度 | ✅ |
+| 10.2.10 | Compiler | USqlCompiler:152-155+281-283 | `compile()` 路径双重优化（先优化 IR 缓存，再调 compileFromIR 又优化），浪费性能且若优化器非幂等则不一致 | ✅ |
+| 10.2.11 | Semantic | SemanticAnalyzer:238-241 | FunctionTable 列未注册到作用域，`SELECT c FROM table_func() AS t` 无法解析 | ✅ |
+
+### 10.3 🟡 中等 — 边缘场景或设计缺陷（25 项）
+
+| # | 模块 | 文件:行号 | 问题 | 状态 |
+|---|------|----------|------|------|
+| 10.3.1 | Lexer | HandLexer:241 | `advance()` 不递增 `col`，所有非空白 token 列号偏移 | ✅ |
+| 10.3.2 | Parser | HandParser:184 | `IS NOT TRUE`/`IS NOT FALSE` 静默丢弃 token（`else { advance(); }`） | ✅ |
+| 10.3.3 | Parser | HandParser:41 | CALL 语句文本被丢弃，返回空 `TCLStmt("")` | ✅ |
+| 10.3.4 | Parser | HandParser:162 | CASCADE vs RESTRICT 都设置 `csc=true`，区别丢失 | ✅ |
+| 10.3.5 | Parser | HandParser:142 | DEFAULT 出现在约束中间时（如 `NOT NULL DEFAULT 0 UNIQUE`），DEFAULT 后的约束丢失 | ✅ |
+| 10.3.6 | AstBuilder | AstBuilder:376 | 一元 plus `+x` 错误创建 `NEG(x)` 节点（`+5` 变 `-5`） | ✅ |
+| 10.3.7 | AstBuilder | AstBuilder:39-41 | Hand parser 异常被静默吞掉，fallback 到 ANTLR，调试困难 | ✅ |
+| 10.3.8 | AstBuilder | AstBuilder:634-649 | Merge actions 重排序（INSERT/UPDATE/DELETE 分三批收集），丢失原始顺序 | ✅ |
+| 10.3.9 | IR | IRExpr + IROptimizer | BETWEEN/IN/IS NULL 有两种 IR 表示（IRBinaryOp vs IRBetween 等），优化器只处理后者，前者被跳过 | ❌ |
+| 10.3.10 | Optimizer | IROptimizer:428-441 | 子查询扁平化不重写外层 WHERE 中的别名引用，`s.col` 引用不存在的别名 | ✅ |
+| 10.3.11 | Optimizer | IROptimizer:705,724 | `referencesOnly`/`stripQualifier` 不处理 BETWEEN 的 low/high 边界，跨表条件可能被错误推送 | ✅ |
+| 10.3.12 | Optimizer | IROptimizer:506-512 | `simplifyExpressions`/`optimizeSubqueries` 只处理 DML，DDL 中的子查询和可折叠表达式被跳过 | ❌ |
+| 10.3.13 | Semantic | SemanticAnalyzer:498 | INSERT IGNORE 错误映射为 MERGE_INTO capability（语义不同） | ✅ |
+| 10.3.14 | Semantic | SemanticVerifier:76-77 | 列数不一致时不报告，静默比较重叠列 | ✅ |
+| 10.3.15 | TypeInferrer | TypeInferrer:24 | CONCAT 类型为 `VarcharType(0)`，零长度 VARCHAR 语义错误 | ✅ |
+| 10.3.16 | TypeInferrer | TypeInferrer:43 | COALESCE/NVL 只看第一个参数类型，`COALESCE(NULL, 42)` 返回 NullType | ✅ |
+| 10.3.17 | Backend | DuckDbBackend:100-109 | `superGenerateExpr` 通过 `substring(7)` 截取表达式，脆弱（若 SELECT 前缀变化则出错） | ✅ |
+| 10.3.18 | Backend | DuckDbBackend:37-38 | DuckDB sequence 名未 `quoteIdentifier()`，含特殊字符的列名会生成无效 SQL | ✅ |
+| 10.3.19 | Backend | ClickHouseBackend:59 | ENUM 值未转义单引号（对比 MySqlBackend 用了 `replace("'", "''")`） | ✅ |
+| 10.3.20 | Backend | ClickHouseBackend:81 | `chCreateTable` 列约束为 null 时 NPE（其他 Backend 有 null 守卫） | ✅ |
+| 10.3.21 | Catalog | TypeCatalog:44-49 | `fromNative` 无法匹配参数化类型（`VARCHAR(255)` 等无法反向映射） | ❌ |
+| 10.3.22 | Catalog | TypeCatalog vs Backend | TypeCatalog 和 Backend `mapType()` 重复且不一致，TypeCatalog 精度更低且缺 6 种方言 | ❌ |
+| 10.3.23 | Backend | MySqlBackend:204 | FULL JOIN 静默降级为 LEFT JOIN（polyfill 可能未触发） | ✅ |
+| 10.3.24 | Backend | OracleBackend:63 | `quoteIdentifier` 始终大写，破坏大小写敏感标识符（`"myCol"` → `"MYCOL"`） | ✅ |
+| 10.3.25 | IR | IRStatement:156-159,232-235 | IRMerge/IRCreateIndex compact 构造器 `capabilities` 为 null 时 NPE | ✅ |
+
+### 10.4 🟢 低 — 设计问题/死代码/小不一致（不单独列表）
+
+- IROptimizer: 重复 import `java.util.Set`
+- IROptimizer: 整数溢出未检测（常量折叠）
+- IROptimizer: `addValues` 字符串+数字混合类型折叠
+- IROptimizer: `foldEquals` 用 doubleValue 比较大数 — 精度丢失
+- IROptimizer: `tryEvaluateBinary/tryEvaluateUnary` 吞掉所有异常
+- IROptimizer: `simplifyBinary` 中 `x * 0 → 0` 对非数值类型不安全
+- IROptimizer: 投影裁剪只检查 alias 不检查 column name
+- IROptimizer: 投影裁剪不检查子查询自身的 GROUP BY/HAVING/ORDER BY 需要的列
+- IROptimizer: `collectColumns` 不处理 IRIsNull/IRBetween/IRInList/IRCast/IRSubquery
+- HandLexer: 不支持科学计数法 (`1e10`)、十六进制 (`0x1A`)、`$` 标识符
+- DataType: DecimalType 允许 precision < scale 等无效值；IntType 允许负数 bits
+- USqlCompiler: `cacheSize()` 非线程安全读取
+- USqlCompiler: `compileFromAst` 和 `compileFromIR` 逻辑重复
+- GenerateOptions.QuoteStyle 从未被任何 Backend 使用
+- PolyfillEngine 3 个 polyfill 是空操作（boolean/FROM DUAL/CONCAT NULL）
+- Dialect.caseSensitive 误导性且从未使用
+- SchemaProvider `getTable(schema, name)` 忽略 schema 参数
+- SemanticAnalyzer: `SELECT *` 不解析列（StarItem 直接透传）
+- SemanticAnalyzer: `extractSubqueryColumns` 忽略 StarItem 投影
+- SemanticAnalyzer: 歧义列引用静默选择第一个匹配
+- TypeInferrer: DECIMAL 算术始终返回 `DecimalType(20,4)`
+- TypeInferrer: FLOAT + INT 提升为 DOUBLE（应为 FLOAT）
+- TypeInferrer: `inferExpressionType` 对 FunctionCall 返回 NullType
+- CapabilityChecker: 多个 Capability 未注册 severity，默认 WARNING 应为 ERROR
+- ClickHouse: chColumnDef 忽略所有约束（NOT NULL/PRIMARY KEY 等）
+- Oracle: SELECT alias 省略 AS 关键字（与其他 backend 不一致）
+- Oracle: DROP TABLE IF EXISTS `EXCEPTION WHEN OTHERS THEN NULL` 吞掉所有错误
+- MySQL/PG: escapeString 替换顺序可能导致双重转义
 
 ---
 

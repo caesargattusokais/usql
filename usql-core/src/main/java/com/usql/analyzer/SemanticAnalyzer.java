@@ -98,7 +98,30 @@ public class SemanticAnalyzer {
     private IRSelect analyzeSelect(SelectStmt s) {
         pushScope();
 
-        // Analyze FROM → populate scope
+        // Analyze WITH clause FIRST — CTE names must be in scope before FROM analysis
+        List<IRStatement.IRCommonTable> withClause = null;
+        if (s.withClause() != null && !s.withClause().isEmpty()) {
+            withClause = new ArrayList<>();
+            for (var cte : s.withClause()) {
+                // Register CTE name in scope so FROM can reference it
+                IRStatement.IRCommonTable irCte = new IRStatement.IRCommonTable(cte.name(), cte.columns(),
+                    analyzeSelect(cte.query()), cte.recursive());
+                withClause.add(irCte);
+                // Register CTE alias in current scope for column resolution
+                Map<String, DataType> cteColumns = new LinkedHashMap<>();
+                if (irCte.query().core().projections() != null) {
+                    for (var p : irCte.query().core().projections()) {
+                        if (p instanceof IRExprSelect es) {
+                            String colName = es.alias() != null ? es.alias() : extractIRColumnName(es.expr());
+                            if (colName != null) cteColumns.put(colName, es.expr().getType());
+                        }
+                    }
+                }
+                scopes.peek().put(cte.name(), new ScopeEntry(cte.name(), cteColumns, false));
+            }
+        }
+
+        // Analyze FROM → populate scope (CTE names are now available)
         List<IRTableRef> from = s.from() != null
             ? s.from().stream().map(this::analyzeTableRef).collect(Collectors.toList())
             : List.of();
@@ -160,13 +183,7 @@ public class SemanticAnalyzer {
 
         popScope();
 
-        List<IRStatement.IRCommonTable> withClause = null;
-        if (s.withClause() != null && !s.withClause().isEmpty()) {
-            withClause = s.withClause().stream()
-                .map(cte -> new IRStatement.IRCommonTable(cte.name(), cte.columns(),
-                    analyzeSelect(cte.query()), cte.recursive()))
-                .collect(Collectors.toList());
-        }
+        // withClause already analyzed above (before FROM)
 
         SelectCore core = new SelectCore(
             projections, from, where, groupBy, having,
@@ -235,10 +252,17 @@ public class SemanticAnalyzer {
                 };
                 yield new IRJoin(left, jtype, right, condition);
             }
-            case FunctionTable ft ->
-                new IRFunctionTable(ft.funcName(),
-                    ft.args().stream().map(this::analyzeExpr).collect(Collectors.toList()),
-                    ft.alias(), ft.lateral());
+            case FunctionTable ft -> {
+                // Analyze function arguments
+                List<IRExpr> analyzedArgs = ft.args().stream().map(this::analyzeExpr).collect(Collectors.toList());
+                // Register the function table alias in scope (like SimpleTable)
+                String alias = ft.alias();
+                if (alias != null) {
+                    // Function table columns are unknown at compile time — register as open scope
+                    scopes.peek().put(alias, ScopeEntry.open(alias));
+                }
+                yield new IRFunctionTable(ft.funcName(), analyzedArgs, ft.alias(), ft.lateral());
+            }
         };
     }
 
@@ -267,6 +291,13 @@ public class SemanticAnalyzer {
     private String extractColumnName(Expression expr) {
         if (expr instanceof ColumnRef c) return c.name();
         if (expr instanceof FunctionCall f) return f.name();
+        return "?column?";
+    }
+
+    /** Extract a column name from an IR expression (for CTE column registration). */
+    private String extractIRColumnName(IRExpr expr) {
+        if (expr instanceof IRExpr.IRColumnRef cr) return cr.name();
+        if (expr instanceof IRExpr.IRFunctionCall fc) return fc.funcName();
         return "?column?";
     }
 
@@ -337,13 +368,28 @@ public class SemanticAnalyzer {
                     .collect(java.util.stream.Collectors.joining(", "))));
             return new IRColumnRef(name, qual, new DataType.NullType());
         } else {
-            // Unqualified: search all scopes
+            // Unqualified: search all scopes — check for ambiguity
+            List<ScopeEntry> matches = new ArrayList<>();
             for (var scope : scopes) {
                 for (var entry : scope.values()) {
-                    if (entry.columns().containsKey(name)) {
-                        return new IRColumnRef(name, entry.alias(), entry.columns().get(name));
+                    if (entry.hasColumn(name)) {
+                        matches.add(entry);
                     }
                 }
+            }
+            if (matches.size() > 1) {
+                // Ambiguous: column exists in multiple tables
+                String tableList = matches.stream()
+                    .map(ScopeEntry::alias)
+                    .collect(Collectors.joining(", "));
+                warnings.add(CompilationResult.Warning.of(0, 0,
+                    "Column '" + name + "' is ambiguous — found in tables: " + tableList
+                        + ". Using '" + matches.get(0).alias() + "'"));
+            }
+            if (!matches.isEmpty()) {
+                var entry = matches.get(0);
+                DataType type = entry.open() ? new DataType.NullType() : entry.columns().getOrDefault(name, new DataType.NullType());
+                return new IRColumnRef(name, entry.alias(), type);
             }
             // Column not found in scope — might be a standalone expression
             warnings.add(CompilationResult.Warning.of(0, 0,
@@ -442,9 +488,19 @@ public class SemanticAnalyzer {
     }
 
     private IRExpr analyzeCase(CaseExpr cs) {
-        List<IRCase.WhenClause> whens = cs.whens().stream()
-            .map(w -> new IRCase.WhenClause(analyzeExpr(w.condition()), analyzeExpr(w.result())))
-            .collect(Collectors.toList());
+        // Simple CASE: CASE x WHEN v1 THEN r1 ... → transform to searched CASE: WHEN x=v1 THEN r1 ...
+        IRExpr operand = cs.operand() != null ? analyzeExpr(cs.operand()) : null;
+
+        List<IRCase.WhenClause> whens = new ArrayList<>();
+        for (var w : cs.whens()) {
+            IRExpr condition = analyzeExpr(w.condition());
+            IRExpr result = analyzeExpr(w.result());
+            if (operand != null) {
+                // Simple CASE: transform operand WHEN value → operand = value
+                condition = new IRBinaryOp(operand, IRBinaryOp.BinaryOp.EQ, condition, new DataType.BooleanType());
+            }
+            whens.add(new IRCase.WhenClause(condition, result));
+        }
         IRExpr elseExpr = cs.elseExpr() != null ? analyzeExpr(cs.elseExpr()) : null;
 
         // Result type = first non-null branch (ELSE → THENs)
@@ -495,7 +551,7 @@ public class SemanticAnalyzer {
         }
         IRSelect selectSource = ins.selectSource() != null ? analyzeSelect(ins.selectSource()) : null;
         Set<Capability> caps = new LinkedHashSet<>();
-        if (ins.ignore()) caps.add(Capability.MERGE_INTO); // INSERT IGNORE → ON CONFLICT behavior
+        if (ins.ignore()) caps.add(Capability.ON_DUPLICATE_KEY_UPDATE); // INSERT IGNORE → MySQL-specific upsert behavior
 
         return new IRInsert(table, ins.columns(), valueRows, selectSource, ins.ignore(), caps);
     }

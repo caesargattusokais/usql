@@ -21,7 +21,7 @@ public final class TypeInferrer {
     public static DataType inferBinaryResultType(DataType left, DataType right, BinOp op) {
         return switch (op) {
             case EQ, NEQ, LT, GT, LTE, GTE, AND, OR, LIKE, NOT_LIKE -> new DataType.BooleanType();
-            case CONCAT -> new DataType.VarcharType(0);
+            case CONCAT -> new DataType.VarcharType(255);
             case ADD, SUB, MUL, DIV, MOD -> {
                 if (left instanceof DataType.FloatType || right instanceof DataType.FloatType)
                     yield DataType.FloatType.DOUBLE;
@@ -52,12 +52,21 @@ public final class TypeInferrer {
                 ? new DataType.NullType() : argType;
             case "UPPER", "LOWER", "TRIM", "LTRIM", "RTRIM", "REVERSE",
                  "LPAD", "RPAD", "REPEAT", "INITCAP", "TRANSLATE" ->
-                new DataType.VarcharType(0);
+                new DataType.VarcharType(255);
             case "CONCAT", "CONCAT_WS", "SUBSTR", "REPLACE", "SPACE" ->
-                new DataType.VarcharType(0);
+                new DataType.VarcharType(255);
             case "COALESCE", "IFNULL", "NVL", "NULLIF", "IF",
-                 "NVL2", "GREATEST", "LEAST" ->
-                argType instanceof DataType.NullType ? new DataType.NullType() : argType;
+                 "NVL2", "GREATEST", "LEAST" -> {
+                // Find first non-null argument type (not just the first argument)
+                DataType found = null;
+                for (var a : args) {
+                    if (a.getType() != null && !(a.getType() instanceof DataType.NullType)) {
+                        found = a.getType();
+                        break;
+                    }
+                }
+                yield found != null ? found : new DataType.NullType();
+            }
             default -> new DataType.NullType();
         };
     }

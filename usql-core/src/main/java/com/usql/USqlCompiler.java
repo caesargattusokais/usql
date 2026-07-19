@@ -273,15 +273,12 @@ public class USqlCompiler {
 
     /**
      * Compile from IR statement with custom options.
+     *
+     * Note: IR optimization is NOT applied here — the caller is responsible
+     * for optimizing before calling this method. This avoids double-optimization
+     * when called from {@link #compile} or {@link #compileFromAst}.
      */
     public CompilationResult compileFromIR(IRStatement ir, Dialect target, GenerateOptions genOpts) {
-        // Phase 5: IR optimization — applied here so every entry point (text, AST, raw IR)
-        // produces identical output. Constant folding is idempotent, so re-optimizing an
-        // already-optimized IR (e.g. from the plan cache) is a harmless no-op.
-        if (optimizeLevel > 0) {
-            ir = com.usql.optimizer.IROptimizer.optimize(new SemanticIR(ir), optimizeLevel).rootStatement();
-        }
-
         // Phase 6: Capability check + polyfill
         CapabilityChecker.CapabilityReport capReport = capabilityChecker.check(ir, target);
         if (capReport.hasFatal()) {

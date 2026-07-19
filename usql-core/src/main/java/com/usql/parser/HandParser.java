@@ -38,7 +38,7 @@ public class HandParser {
         if (t.is(TokenType.ALTER)) return parseAlter();
         if (t.is(TokenType.BEGIN) || t.is(TokenType.START)) return parseTcl();
         if (t.is(TokenType.COMMIT) || t.is(TokenType.ROLLBACK) || t.is(TokenType.SAVEPOINT) || t.is(TokenType.RELEASE)) return parseTcl();
-        if (t.is(TokenType.CALL)) { parseCall(); return new TCLStmt(""); }
+        if (t.is(TokenType.CALL)) { return parseCallStmt(); }
         throw error("Unexpected: " + t.type);
     }
 
@@ -139,7 +139,7 @@ public class HandParser {
 
     CreateTableStmt parseCreateTable() { advance(); boolean ifn = false; if (is(TokenType.IF)) { advance(); advance(); ifn = true; } String tn = expectIdentifier(); expect(TokenType.LPAREN); List<ColumnDef> cols = new ArrayList<>(); List<TableConstraint> cons = new ArrayList<>(); if (!is(TokenType.RPAREN)) { do { if (is(TokenType.PRIMARY) || is(TokenType.FOREIGN) || is(TokenType.UNIQUE) || is(TokenType.CHECK) || is(TokenType.CONSTRAINT)) cons.add(parseTableConstraint()); else cols.add(parseColumnDef()); } while (is(TokenType.COMMA) && advance() != null); } expect(TokenType.RPAREN); return new CreateTableStmt(ifn, tn, cols, cons, parseTableOptions()); }
 
-    ColumnDef parseColumnDef() { String n = expectIdentifier(); Token dt = advance(); String tn = dt.text; int prec = 0, scale = 0; List<String> ev = null; if (is(TokenType.LPAREN)) { advance(); if (tn.equalsIgnoreCase("ENUM")) { ev = new ArrayList<>(); do { ev.add(expect(TokenType.STRING_LITERAL).text); } while (is(TokenType.COMMA) && advance() != null); } else { if (is(TokenType.INT_LITERAL)) prec = Integer.parseInt(advance().text); if (is(TokenType.COMMA)) { advance(); scale = Integer.parseInt(expect(TokenType.INT_LITERAL).text); } } expect(TokenType.RPAREN); } List<ColumnConstraint> cc = new ArrayList<>(); while (isConstraint()) cc.add(parseColumnConstraint()); Expression def = null; if (is(TokenType.DEFAULT)) { advance(); def = parseExpr(); } return new ColumnDef(n, tn, prec, scale, ev, cc, def); }
+    ColumnDef parseColumnDef() { String n = expectIdentifier(); Token dt = advance(); String tn = dt.text; int prec = 0, scale = 0; List<String> ev = null; if (is(TokenType.LPAREN)) { advance(); if (tn.equalsIgnoreCase("ENUM")) { ev = new ArrayList<>(); do { ev.add(expect(TokenType.STRING_LITERAL).text); } while (is(TokenType.COMMA) && advance() != null); } else { if (is(TokenType.INT_LITERAL)) prec = Integer.parseInt(advance().text); if (is(TokenType.COMMA)) { advance(); scale = Integer.parseInt(expect(TokenType.INT_LITERAL).text); } } expect(TokenType.RPAREN); } List<ColumnConstraint> cc = new ArrayList<>(); while (isConstraint()) cc.add(parseColumnConstraint()); Expression def = null; if (is(TokenType.DEFAULT)) { advance(); def = parseExpr(); while (isConstraint()) cc.add(parseColumnConstraint()); } return new ColumnDef(n, tn, prec, scale, ev, cc, def); }
 
     boolean isConstraint() { TokenType t = peek().type; return t == TokenType.NOT || t == TokenType.NULL || t == TokenType.PRIMARY || t == TokenType.UNIQUE || t == TokenType.CHECK || t == TokenType.REFERENCES || t == TokenType.AUTO_INCREMENT || t == TokenType.IDENTITY || t == TokenType.GENERATED; }
 
@@ -159,7 +159,7 @@ public class HandParser {
 
     // ═══════════════ DROP / TRUNCATE / ALTER ═══════════════
 
-    Statement parseDrop() { advance(); if (is(TokenType.TABLE)) { advance(); boolean ifEx = false; if (is(TokenType.IF)) { advance(); advance(); ifEx = true; } String n = expectIdentifier(); boolean csc = false; if (is(TokenType.CASCADE) || is(TokenType.RESTRICT)) { advance(); csc = true; } return new DropTableStmt(n, ifEx, csc); } if (is(TokenType.INDEX)) { advance(); boolean ifEx = false; if (is(TokenType.IF)) { advance(); advance(); ifEx = true; } String n = expectIdentifier(); String t = null; if (is(TokenType.ON)) { advance(); t = expectIdentifier(); } return new DropIndexStmt(n, t, ifEx); } if (is(TokenType.DATABASE)) { advance(); boolean ifEx = false; if (is(TokenType.IF)) { advance(); advance(); ifEx = true; } return new DropDatabaseStmt(expectIdentifier(), ifEx); } throw error("Unknown DROP"); }
+    Statement parseDrop() { advance(); if (is(TokenType.TABLE)) { advance(); boolean ifEx = false; if (is(TokenType.IF)) { advance(); advance(); ifEx = true; } String n = expectIdentifier(); boolean csc = false; if (is(TokenType.CASCADE)) { advance(); csc = true; } else if (is(TokenType.RESTRICT)) { advance(); } return new DropTableStmt(n, ifEx, csc); } if (is(TokenType.INDEX)) { advance(); boolean ifEx = false; if (is(TokenType.IF)) { advance(); advance(); ifEx = true; } String n = expectIdentifier(); String t = null; if (is(TokenType.ON)) { advance(); t = expectIdentifier(); } return new DropIndexStmt(n, t, ifEx); } if (is(TokenType.DATABASE)) { advance(); boolean ifEx = false; if (is(TokenType.IF)) { advance(); advance(); ifEx = true; } return new DropDatabaseStmt(expectIdentifier(), ifEx); } throw error("Unknown DROP"); }
 
     Statement parseTruncate() { advance(); if (is(TokenType.TABLE)) advance(); return new TruncateStmt(expectIdentifier()); }
 
@@ -169,7 +169,19 @@ public class HandParser {
 
     Statement parseTcl() { StringBuilder sb = new StringBuilder(); while (!is(TokenType.SEMI) && !is(TokenType.EOF)) { if (sb.length() > 0) sb.append(' '); sb.append(advance().text); } return new TCLStmt(sb.toString()); }
 
-    void parseCall() { while (!is(TokenType.SEMI) && !is(TokenType.EOF)) advance(); }
+    CallStmt parseCallStmt() {
+        advance(); // consume CALL
+        String name = expectIdentifier();
+        List<Expression> args = new ArrayList<>();
+        if (is(TokenType.LPAREN)) {
+            advance();
+            if (!is(TokenType.RPAREN)) {
+                do { args.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null);
+            }
+            expect(TokenType.RPAREN);
+        }
+        return new CallStmt(name, args);
+    }
 
     // ═══════════════ EXPRESSIONS (Pratt) ═══════════════
 
@@ -181,7 +193,7 @@ public class HandParser {
             int prec = infixPrec(peek().type);
             if (prec <= minPrec) break;
             TokenType t = peek().type;
-            if (t == TokenType.IS) { advance(); boolean not = is(TokenType.NOT); if (not) advance(); if (is(TokenType.NULL)) { advance(); left = new IsNullExpr(left, not); } else { advance(); } continue; }
+            if (t == TokenType.IS) { advance(); boolean not = is(TokenType.NOT); if (not) advance(); if (is(TokenType.NULL)) { advance(); left = new IsNullExpr(left, not); } else if (is(TokenType.TRUE)) { advance(); left = new UnaryOp(not ? UnOp.IS_NOT_TRUE : UnOp.IS_TRUE, left); } else if (is(TokenType.FALSE)) { advance(); left = new UnaryOp(not ? UnOp.IS_NOT_FALSE : UnOp.IS_FALSE, left); } else { advance(); } continue; }
             if (t == TokenType.NOT) { if (peek2() != null && (peek2().is(TokenType.IN) || peek2().is(TokenType.LIKE) || peek2().is(TokenType.BETWEEN))) { advance(); if (is(TokenType.IN)) { advance(); expect(TokenType.LPAREN); if (is(TokenType.SELECT)) { SelectStmt sq = parseSelect(); expect(TokenType.RPAREN); left = new InListExpr(left, null, sq, true); } else { List<Expression> vs = new ArrayList<>(); do { vs.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); left = new InListExpr(left, vs, null, true); } } else if (is(TokenType.LIKE)) { advance(); left = new BinaryOp(left, BinOp.NOT_LIKE, parseExpr(prec)); } else { advance(); Expression lo = parseExpr(30); expect(TokenType.AND); left = new BetweenExpr(left, lo, parseExpr(30), true); } continue; } }
             if (t == TokenType.BETWEEN) { advance(); Expression lo = parseExpr(30); expect(TokenType.AND); left = new BetweenExpr(left, lo, parseExpr(30), false); continue; }
             if (t == TokenType.IN) { advance(); expect(TokenType.LPAREN); if (is(TokenType.SELECT)) { SelectStmt sq = parseSelect(); expect(TokenType.RPAREN); left = new InListExpr(left, null, sq, false); } else { List<Expression> vs = new ArrayList<>(); do { vs.add(parseExpr()); } while (is(TokenType.COMMA) && advance() != null); expect(TokenType.RPAREN); left = new InListExpr(left, vs, null, false); } continue; }
@@ -206,9 +218,9 @@ public class HandParser {
             case NULL -> { advance(); yield new NullLiteral(); }
             case STAR -> { advance(); yield new StarExpr(null); }
             case LPAREN -> { advance(); if (is(TokenType.SELECT)) { SelectStmt sq = parseSelect(); expect(TokenType.RPAREN); yield new SubqueryExpr(sq); } Expression e = parseExpr(); expect(TokenType.RPAREN); yield e; }
-            case MINUS -> { advance(); yield new UnaryOp(UnOp.NEG, parseExpr()); }
-            case PLUS -> { advance(); yield parseExpr(); }
-            case NOT -> { advance(); yield new UnaryOp(UnOp.NOT, parseExpr()); }
+            case MINUS -> { advance(); yield new UnaryOp(UnOp.NEG, parseExpr(60)); }
+            case PLUS -> { advance(); yield parseExpr(60); }
+            case NOT -> { advance(); yield new UnaryOp(UnOp.NOT, parseExpr(35)); }
             case EXISTS -> { advance(); expect(TokenType.LPAREN); SelectStmt sq = parseSelect(); expect(TokenType.RPAREN); yield new UnaryOp(UnOp.EXISTS, new SubqueryExpr(sq)); }
             case CASE -> { yield parseCase(); }
             case CAST -> { yield parseCast(); }
@@ -240,7 +252,7 @@ public class HandParser {
         return new ColumnRef(List.of(), name);
     }
 
-    Expression parseCase() { advance(); List<WhenClause> ws = new ArrayList<>(); while (is(TokenType.WHEN)) { advance(); Expression c = parseExpr(); expect(TokenType.THEN); ws.add(new WhenClause(c, parseExpr())); } Expression el = null; if (is(TokenType.ELSE)) { advance(); el = parseExpr(); } expect(TokenType.END); return new CaseExpr(ws, el); }
+    Expression parseCase() { advance(); Expression operand = null; if (!is(TokenType.WHEN)) { operand = parseExpr(); } List<WhenClause> ws = new ArrayList<>(); while (is(TokenType.WHEN)) { advance(); Expression c = parseExpr(); expect(TokenType.THEN); ws.add(new WhenClause(c, parseExpr())); } Expression el = null; if (is(TokenType.ELSE)) { advance(); el = parseExpr(); } expect(TokenType.END); return new CaseExpr(operand, ws, el); }
 
     Expression parseCast() { advance(); expect(TokenType.LPAREN); Expression e = parseExpr(); expect(TokenType.AS); DataTypeDecl dt = parseDataTypeDecl(); expect(TokenType.RPAREN); return new CastExpr(e, dt.name(), dt.precision(), dt.scale()); }
 

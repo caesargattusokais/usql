@@ -37,7 +37,8 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
                 HandParser parser = new HandParser(tokens);
                 return parser.parseProgram();
             } catch (Exception e) {
-                // Fallback to ANTLR if hand parser fails
+                // Fallback to ANTLR if hand parser fails — log for debugging
+                System.err.println("[HandParser] fallback to ANTLR: " + e.getMessage());
             }
         }
 
@@ -631,18 +632,14 @@ public class AstBuilder extends USqlBaseVisitor<Object> {
         Expression onCondition = (Expression) visit(ctx.expr());
 
         List<MergeAction> actions = new ArrayList<>();
-        if (ctx.mergeInsert() != null) {
-            for (var insCtx : ctx.mergeInsert()) {
+        // Walk all children in source order to preserve original action sequence
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            var child = ctx.getChild(i);
+            if (child instanceof USqlParser.MergeInsertContext insCtx) {
                 actions.add((MergeAction) visit(insCtx));
-            }
-        }
-        if (ctx.mergeUpdate() != null) {
-            for (var updCtx : ctx.mergeUpdate()) {
+            } else if (child instanceof USqlParser.MergeUpdateContext updCtx) {
                 actions.add((MergeAction) visit(updCtx));
-            }
-        }
-        if (ctx.mergeDelete() != null) {
-            for (var delCtx : ctx.mergeDelete()) {
+            } else if (child instanceof USqlParser.MergeDeleteContext delCtx) {
                 actions.add((MergeAction) visit(delCtx));
             }
         }

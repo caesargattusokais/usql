@@ -69,6 +69,15 @@ public class SemanticVerifier {
                 ));
             }
 
+            // Compare column counts
+            if (refColumns.size() != targetColumns.size()) {
+                mismatches.add(new VerificationReport.Mismatch(
+                    -1, -1, "COLUMN_COUNT",
+                    "Column count differs: ref=" + refColumns.size() + " vs target=" + targetColumns.size(),
+                    VerificationReport.Severity.HARD_MISMATCH
+                ));
+            }
+
             int maxRows = Math.min(refRows.size(), targetRows.size());
             for (int row = 0; row < maxRows; row++) {
                 var refRow = refRows.get(row);
@@ -253,7 +262,7 @@ public class SemanticVerifier {
             case Types.BINARY, Types.VARBINARY -> new DataType.BinaryType(1);
             case Types.BLOB -> new DataType.BlobType();
             case Types.NULL -> new DataType.NullType();
-            default -> new DataType.VarcharType(0); // fallback
+            default -> new DataType.VarcharType(255); // fallback
         };
     }
 

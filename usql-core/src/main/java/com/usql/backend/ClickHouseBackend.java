@@ -56,7 +56,7 @@ public class ClickHouseBackend extends MySqlBackend {
             case DataType.UuidType u -> "UUID";
             case DataType.BinaryType b -> "String";
             case DataType.BlobType bl -> "String";
-            case DataType.EnumType e -> "Enum8(" + e.values().stream().map(v -> "'" + v + "'").collect(Collectors.joining(", ")) + ")";
+            case DataType.EnumType e -> "Enum8(" + e.values().stream().map(v -> "'" + v.replace("'", "''") + "'").collect(Collectors.joining(", ")) + ")";
             default -> "String";
         };
     }
@@ -76,9 +76,13 @@ public class ClickHouseBackend extends MySqlBackend {
         sb.append("\n) ENGINE = MergeTree()");
         // ORDER BY first column (or PK)
         String orderCol = ct.columns().get(0).name();
-        for (var col : ct.columns()) {
-            for (var c : col.constraints()) {
-                if (c instanceof ColPrimaryKey) { orderCol = col.name(); break; }
+        if (ct.columns().get(0).constraints() != null) {
+            for (var col : ct.columns()) {
+                if (col.constraints() != null) {
+                    for (var c : col.constraints()) {
+                        if (c instanceof ColPrimaryKey) { orderCol = col.name(); break; }
+                    }
+                }
             }
         }
         sb.append(" ORDER BY ").append(quoteIdentifier(orderCol));
@@ -106,6 +110,7 @@ public class ClickHouseBackend extends MySqlBackend {
             null, null, null, null, null, null, null, false),
             null, null, java.util.Set.of());
         String sql = super.generate(dummy, GenerateOptions.MINIMAL);
-        return sql.substring(7).trim();
+        int idx = sql.indexOf(' ');
+        return idx >= 0 ? sql.substring(idx + 1).trim() : sql.trim();
     }
 }

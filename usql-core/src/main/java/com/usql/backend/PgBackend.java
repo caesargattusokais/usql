@@ -392,7 +392,9 @@ public class PgBackend extends AbstractDialectBackend {
         if (upd != null) {
             sb.append(" ON CONFLICT (");
             if (ins != null && !ins.columns().isEmpty())
-                sb.append(quoteIdentifier(ins.columns().get(0)));
+                sb.append(ins.columns().stream()
+                    .map(this::quoteIdentifier)
+                    .collect(Collectors.joining(", ")));
             sb.append(") DO UPDATE SET ");
             sb.append(upd.sets().stream()
                 .map(s -> quoteIdentifier(s.column()) + " = EXCLUDED." + quoteIdentifier(s.column()))

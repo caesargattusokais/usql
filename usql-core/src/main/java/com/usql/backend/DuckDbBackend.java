@@ -35,7 +35,7 @@ public class DuckDbBackend extends PgBackend {
                 for (var c : col.constraints()) {
                     if (c instanceof ColPrimaryKey pk && pk.autoIncrement()) {
                         preSeq.append("CREATE SEQUENCE IF NOT EXISTS ")
-                            .append(col.name()).append("_seq;\n");
+                            .append(quoteIdentifier(col.name() + "_seq")).append(";\n");
                     }
                 }
             }
@@ -67,7 +67,7 @@ public class DuckDbBackend extends PgBackend {
                 if (c instanceof ColPrimaryKey pk) {
                 isPK = true;
                 if (pk.autoIncrement())
-                    sb.append(" DEFAULT nextval('" + col.name() + "_seq')");
+                    sb.append(" DEFAULT nextval('" + quoteIdentifier(col.name() + "_seq") + "')");
             } else if (c instanceof ColNotNull && !isPK) sb.append(" NOT NULL");
                 else if (c instanceof ColUnique) sb.append(" UNIQUE");
                 else if (c instanceof ColCheck chk)
@@ -104,7 +104,8 @@ public class DuckDbBackend extends PgBackend {
             null, null, null, null, null, null, null, false),
             null, null, java.util.Set.of());
         String sql = super.generate(dummy, GenerateOptions.MINIMAL);
-        // "SELECT expr" → extract just "expr"
-        return sql.substring(7).trim();
+        // "SELECT expr" → extract just "expr" (robust: find first space after SELECT)
+        int idx = sql.indexOf(' ');
+        return idx >= 0 ? sql.substring(idx + 1).trim() : sql.trim();
     }
 }

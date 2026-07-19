@@ -424,14 +424,19 @@ public class IROptimizer {
             }
         }
 
-        // Merge WHERE conditions
+        // Merge WHERE conditions — strip subquery alias from outer WHERE references
         IRExpr where = sel.core().where();
         for (var ref : sel.core().from()) {
             if (ref instanceof IRSubqueryTable sq && isFlattenable(sq.query())) {
+                // Strip the subquery alias from outer WHERE (s.col → col)
+                if (where != null) {
+                    where = stripQualifier(where, sq.alias());
+                }
+                // Merge inner WHERE
                 if (sq.query().core().where() != null) {
                     if (where != null) {
                         where = new IRBinaryOp(where, IRBinaryOp.BinaryOp.AND,
-                            sq.query().core().where(), null);
+                            sq.query().core().where(), new DataType.BooleanType());
                     } else {
                         where = sq.query().core().where();
                     }
@@ -456,6 +461,44 @@ public class IROptimizer {
         if (sel.orderBy() != null && !sel.orderBy().isEmpty()) return false;
         if (sel.fetch() != null) return false;
         return true;
+    }
+
+    /** Check if predicates can be safely pushed into a subquery.
+     *  Predicates must NOT be pushed past GROUP BY, HAVING, DISTINCT, or aggregates
+     *  as that would change semantics (filter before aggregation instead of after). */
+    private static boolean isPushdownSafe(IRSelect sel) {
+        if (sel.core().distinct()) return false;
+        if (sel.core().groupBy() != null && !sel.core().groupBy().isEmpty()) return false;
+        if (sel.core().having() != null) return false;
+        // Check for aggregate functions in projections
+        if (sel.core().projections() != null) {
+            for (var p : sel.core().projections()) {
+                if (p instanceof IRExprSelect es && containsAggregate(es.expr())) return false;
+            }
+        }
+        return true;
+    }
+
+    /** Check if an expression contains an aggregate function call. */
+    private static boolean containsAggregate(IRExpr expr) {
+        return switch (expr) {
+            case IRFunctionCall fc -> isAggregate(fc.funcName());
+            case IRBinaryOp bo -> containsAggregate(bo.left()) || containsAggregate(bo.right());
+            case IRUnaryOp uo -> containsAggregate(uo.operand());
+            case IRCase cs -> {
+                for (var w : cs.whens()) {
+                    if (containsAggregate(w.condition()) || containsAggregate(w.result())) { yield true; }
+                }
+                yield cs.elseExpr() != null && containsAggregate(cs.elseExpr());
+            }
+            default -> false;
+        };
+    }
+
+    private static boolean isAggregate(String funcName) {
+        String upper = funcName.toUpperCase();
+        return upper.equals("COUNT") || upper.equals("SUM") || upper.equals("AVG")
+            || upper.equals("MIN") || upper.equals("MAX") || upper.equals("GROUPING");
     }
 
     /** Rewrite table reference aliases for inlined subquery. */
@@ -598,14 +641,14 @@ public class IROptimizer {
             return right;
         // x * 0 → 0, 0 * x → 0
         if (op == IRBinaryOp.BinaryOp.MUL && (isLiteral(left, 0) || isLiteral(right, 0)))
-            return new IRLiteral(0, null);
+            return new IRLiteral(0, inferBinaryType(op, left, right));
         // x AND FALSE → FALSE, FALSE AND x → FALSE
         if (op == IRBinaryOp.BinaryOp.AND && (isLiteral(left, false) || isLiteral(right, false)))
-            return new IRLiteral(false, null);
+            return new IRLiteral(false, new DataType.BooleanType());
         // x OR TRUE → TRUE, TRUE OR x → TRUE
         if (op == IRBinaryOp.BinaryOp.OR && (isLiteral(left, true) || isLiteral(right, true)))
-            return new IRLiteral(true, null);
-        return new IRBinaryOp(left, op, right, null);
+            return new IRLiteral(true, new DataType.BooleanType());
+        return new IRBinaryOp(left, op, right, inferBinaryType(op, left, right));
     }
 
     private static IRExpr simplifyUnary(IRUnaryOp.UnaryOp op, IRExpr operand) {
@@ -615,7 +658,7 @@ public class IROptimizer {
         // -(-x) → x
         if (op == IRUnaryOp.UnaryOp.NEG && operand instanceof IRUnaryOp uo3 && uo3.op() == IRUnaryOp.UnaryOp.NEG)
             return uo3.operand();
-        return new IRUnaryOp(op, operand, null);
+        return new IRUnaryOp(op, operand, inferUnaryType(op, operand));
     }
 
     private static boolean isLiteral(IRExpr expr, long value) {
@@ -623,6 +666,45 @@ public class IROptimizer {
     }
     private static boolean isLiteral(IRExpr expr, boolean value) {
         return expr instanceof IRLiteral lit && lit.value() instanceof Boolean b && b == value;
+    }
+
+    // ── Type inference helpers for optimizer-generated nodes ──
+
+    /** Infer the DataType for a binary operation result. */
+    private static DataType inferBinaryType(IRBinaryOp.BinaryOp op, IRExpr left, IRExpr right) {
+        DataType lt = left.getType(), rt = right.getType();
+        return switch (op) {
+            case AND, OR -> new DataType.BooleanType();
+            case EQ, NEQ, LT, GT, LTE, GTE, LIKE, NOT_LIKE, IN, NOT_IN, BETWEEN, IS_DISTINCT_FROM
+                -> new DataType.BooleanType();
+            case CONCAT -> new DataType.VarcharType(255);
+            case ADD, SUB, MUL, DIV, MOD -> {
+                if (lt instanceof DataType.FloatType || rt instanceof DataType.FloatType)
+                    yield DataType.FloatType.DOUBLE;
+                if (lt instanceof DataType.DecimalType || rt instanceof DataType.DecimalType)
+                    yield new DataType.DecimalType(20, 4);
+                yield lt != null ? lt : (rt != null ? rt : new DataType.IntType(32));
+            }
+        };
+    }
+
+    /** Infer the DataType for a unary operation result. */
+    private static DataType inferUnaryType(IRUnaryOp.UnaryOp op, IRExpr operand) {
+        DataType ot = operand.getType();
+        return switch (op) {
+            case NOT, IS_NULL, IS_NOT_NULL, IS_TRUE, IS_NOT_TRUE, IS_FALSE, IS_NOT_FALSE, EXISTS, UNIQUE
+                -> new DataType.BooleanType();
+            case NEG -> ot != null ? ot : new DataType.IntType(32);
+        };
+    }
+
+    /** Infer the DataType for a folded literal value. */
+    private static DataType inferLiteralType(Object value) {
+        if (value instanceof Boolean) return new DataType.BooleanType();
+        if (value instanceof Long || value instanceof Integer) return new DataType.IntType(32);
+        if (value instanceof Double || value instanceof Float) return DataType.FloatType.DOUBLE;
+        if (value instanceof String) return new DataType.VarcharType(255);
+        return new DataType.NullType();
     }
 
     // ══════════════════════════════════════════════════
@@ -643,7 +725,7 @@ public class IROptimizer {
         IRExpr remainingWhere = outerWhere;
 
         for (var ref : sel.core().from()) {
-            if (ref instanceof IRSubqueryTable sq) {
+            if (ref instanceof IRSubqueryTable sq && isPushdownSafe(sq.query())) {
                 List<IRExpr> pushable = extractPushable(outerWhere, sq.alias());
                 if (!pushable.isEmpty()) {
                     // Merge pushable conditions into subquery's WHERE
@@ -655,7 +737,7 @@ public class IROptimizer {
                         // so rewrite "s.col" → "col" to keep the reference valid there.
                         IRExpr pushed = stripQualifier(p, sq.alias());
                         innerWhere = innerWhere == null ? pushed
-                            : new IRBinaryOp(innerWhere, IRBinaryOp.BinaryOp.AND, pushed, null);
+                            : new IRBinaryOp(innerWhere, IRBinaryOp.BinaryOp.AND, pushed, new DataType.BooleanType());
                         // Remove from outer WHERE
                         remainingWhere = removeCondition(remainingWhere, p);
                     }
@@ -702,7 +784,8 @@ public class IROptimizer {
             case IRBinaryOp bo -> referencesOnly(bo.left(), alias) && referencesOnly(bo.right(), alias);
             case IRUnaryOp uo -> referencesOnly(uo.operand(), alias);
             case IRIsNull isn -> referencesOnly(isn.expr(), alias);
-            case IRBetween btw -> referencesOnly(btw.expr(), alias);
+            case IRBetween btw -> referencesOnly(btw.expr(), alias)
+                && referencesOnly(btw.low(), alias) && referencesOnly(btw.high(), alias);
             case IRLiteral lit -> true;
             default -> false;
         };
@@ -721,7 +804,7 @@ public class IROptimizer {
             case IRUnaryOp uo -> new IRUnaryOp(uo.op(), stripQualifier(uo.operand(), alias), uo.type());
             case IRIsNull isn -> new IRIsNull(stripQualifier(isn.expr(), alias), isn.not(), isn.type());
             case IRBetween btw -> new IRBetween(stripQualifier(btw.expr(), alias),
-                btw.low(), btw.high(), btw.not(), btw.type());
+                stripQualifier(btw.low(), alias), stripQualifier(btw.high(), alias), btw.not(), btw.type());
             default -> expr;
         };
     }
@@ -735,7 +818,7 @@ public class IROptimizer {
             IRExpr newRight = removeCondition(bo.right(), target);
             if (newLeft == null) return newRight;
             if (newRight == null) return newLeft;
-            return new IRBinaryOp(newLeft, IRBinaryOp.BinaryOp.AND, newRight, null);
+            return new IRBinaryOp(newLeft, IRBinaryOp.BinaryOp.AND, newRight, new DataType.BooleanType());
         }
         return where; // not found in this branch
     }
@@ -806,8 +889,10 @@ public class IROptimizer {
 
     private static void collectColumns(Object node, Set<String> cols) {
         if (node instanceof IRColumnRef cr && cr.name() != null) cols.add(cr.name());
-        else if (node instanceof IRExprSelect es) collectColumns(es.expr(), cols);
-        else if (node instanceof IRExprSelect es && es.alias() != null) cols.add(es.alias());
+        else if (node instanceof IRExprSelect es) {
+            collectColumns(es.expr(), cols);
+            if (es.alias() != null) cols.add(es.alias());
+        }
         else if (node instanceof IRWildcardSelect) {}
         else if (node instanceof IRBinaryOp bo) { collectColumns(bo.left(), cols); collectColumns(bo.right(), cols); }
         else if (node instanceof IRUnaryOp uo) collectColumns(uo.operand(), cols);
@@ -819,7 +904,7 @@ public class IROptimizer {
 
     private static IRExpr tryEvaluateBinary(IRExpr left, IRBinaryOp.BinaryOp op, IRExpr right) {
         if (!(left instanceof IRLiteral lv) || !(right instanceof IRLiteral rv)) {
-            return new IRBinaryOp(left, op, right, null);
+            return new IRBinaryOp(left, op, right, inferBinaryType(op, left, right));
         }
         Object l = lv.value();
         Object r = rv.value();
@@ -850,11 +935,11 @@ public class IROptimizer {
                 default -> null; // comparison on differing types kept as-is
             };
             if (result != null) {
-                return new IRLiteral(result, null);
+                return new IRLiteral(result, inferLiteralType(result));
             }
         } catch (Exception ignored) {}
 
-        return new IRBinaryOp(left, op, right, null);
+        return new IRBinaryOp(left, op, right, inferBinaryType(op, left, right));
     }
 
     private static Object addValues(Object l, Object r) {
@@ -900,10 +985,10 @@ public class IROptimizer {
 
     private static IRExpr tryEvaluateUnary(IRUnaryOp.UnaryOp op, IRExpr operand) {
         if (op != IRUnaryOp.UnaryOp.NOT && op != IRUnaryOp.UnaryOp.NEG)
-            return new IRUnaryOp(op, operand, null);
+            return new IRUnaryOp(op, operand, inferUnaryType(op, operand));
 
         if (!(operand instanceof IRLiteral lit)) {
-            return new IRUnaryOp(op, operand, null);
+            return new IRUnaryOp(op, operand, inferUnaryType(op, operand));
         }
         Object val = lit.value();
         try {
@@ -917,15 +1002,15 @@ public class IROptimizer {
                 }
                 default -> null;
             };
-            if (result != null) return new IRLiteral(result, null);
+            if (result != null) return new IRLiteral(result, inferLiteralType(result));
         } catch (Exception ignored) {}
-        return new IRUnaryOp(op, operand, null);
+        return new IRUnaryOp(op, operand, inferUnaryType(op, operand));
     }
 
     private static IRExpr tryEvaluateIsNull(IRExpr expr, boolean not) {
         if (expr instanceof IRLiteral lit) {
-            if (lit.value() == null) return new IRLiteral(!not, null);
-            else return new IRLiteral(not, null); // non-null IS NULL → false, IS NOT NULL → true
+            if (lit.value() == null) return new IRLiteral(!not, new DataType.BooleanType());
+            else return new IRLiteral(not, new DataType.BooleanType()); // non-null IS NULL → false, IS NOT NULL → true
         }
         return new IRIsNull(expr, not, expr.getType());
     }

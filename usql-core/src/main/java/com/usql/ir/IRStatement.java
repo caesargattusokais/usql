@@ -154,7 +154,9 @@ public sealed interface IRStatement {
         Set<Capability> capabilities
     ) implements IRStatement {
         public IRMerge {
-            capabilities = new java.util.LinkedHashSet<>(capabilities);
+            capabilities = capabilities != null
+                ? new java.util.LinkedHashSet<>(capabilities)
+                : new java.util.LinkedHashSet<>();
             capabilities.add(Capability.MERGE_INTO);
         }
     }
@@ -230,7 +232,9 @@ public sealed interface IRStatement {
         Set<Capability> capabilities
     ) implements IRStatement {
         public IRCreateIndex {
-            capabilities = new java.util.LinkedHashSet<>(capabilities);
+            capabilities = capabilities != null
+                ? new java.util.LinkedHashSet<>(capabilities)
+                : new java.util.LinkedHashSet<>();
             if (whereClause != null) capabilities.add(Capability.PARTIAL_INDEX);
         }
     }

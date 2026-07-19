@@ -265,7 +265,12 @@ public final class USqlAst {
                               com.usql.ir.IRExpr.WindowFrame frame) {}
 
     // CASE
-    public record CaseExpr(List<WhenClause> whens, Expression elseExpr) implements Expression {}
+    public record CaseExpr(Expression operand, List<WhenClause> whens, Expression elseExpr) implements Expression {
+        /** Backward-compatible constructor for searched CASE (no operand). */
+        public CaseExpr(List<WhenClause> whens, Expression elseExpr) {
+            this(null, whens, elseExpr);
+        }
+    }
     public record WhenClause(Expression condition, Expression result) {}
 
     // Other

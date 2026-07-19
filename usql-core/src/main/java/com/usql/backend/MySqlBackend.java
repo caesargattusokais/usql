@@ -201,7 +201,7 @@ public class MySqlBackend extends AbstractDialectBackend {
                     case LEFT  -> "LEFT JOIN";
                     case RIGHT -> "RIGHT JOIN";
                     case CROSS -> "CROSS JOIN";
-                    case FULL  -> "LEFT JOIN"; // MySQL → LEFT JOIN (polyfill handled earlier)
+                    case FULL  -> "FULL JOIN"; // MySQL 8.0 lacks FULL JOIN; polyfill converts to UNION
                 };
                 String right = generateTableRef(jn.right(), opt);
                 String on = jn.onCondition() != null
@@ -302,12 +302,16 @@ public class MySqlBackend extends AbstractDialectBackend {
             case OR     -> " OR ";
             case LIKE             -> " LIKE ";
             case NOT_LIKE         -> " NOT LIKE ";
-            case IS_DISTINCT_FROM -> " <=> "; // MySQL's null-safe equals
+            case IS_DISTINCT_FROM -> " <=> "; // handled below — negated
             case IN               -> " IN ";
             case NOT_IN           -> " NOT IN ";
             case BETWEEN          -> " BETWEEN ";
             case CONCAT           -> throw new IllegalStateException("handled above");
         };
+        // IS DISTINCT FROM is the opposite of <=> (null-safe equals)
+        if (op.op() == IRBinaryOp.BinaryOp.IS_DISTINCT_FROM) {
+            return "NOT (" + left + " <=> " + right + ")";
+        }
         return "(" + left + operator + right + ")";
     }
 
@@ -590,7 +594,12 @@ public class MySqlBackend extends AbstractDialectBackend {
         if (cp.orReplace()) sb.append("OR REPLACE ");
         sb.append("PROCEDURE ").append(quoteIdentifier(cp.name()));
         // MySQL requires () even when no params
-        sb.append("()\n").append(cp.body());
+        if (cp.params() == null || cp.params().isEmpty()) {
+            sb.append("()");
+        } else {
+            sb.append(paramsDecl(cp.params(), opt));
+        }
+        sb.append("\n").append(cp.body());
         return sb.toString();
     }
 

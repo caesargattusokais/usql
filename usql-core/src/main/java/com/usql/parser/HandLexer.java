@@ -150,9 +150,13 @@ public class HandLexer {
         int start = pos, startCol = col;
         advance(); // skip opening '
         StringBuilder sb = new StringBuilder();
-        while (pos < input.length() && peek() != '\'') {
-            if (peek() == '\'' && pos + 1 < input.length() && input.charAt(pos + 1) == '\'') {
-                advance(); advance(); sb.append('\'');
+        while (pos < input.length()) {
+            if (peek() == '\'') {
+                if (pos + 1 < input.length() && input.charAt(pos + 1) == '\'') {
+                    advance(); advance(); sb.append('\''); // escaped ''
+                } else {
+                    break; // closing quote
+                }
             } else {
                 sb.append(peek()); advance();
             }
@@ -201,9 +205,13 @@ public class HandLexer {
     private Token readQuotedIdentifier(char quote, int startCol) {
         advance(); // skip opening quote
         StringBuilder sb = new StringBuilder();
-        while (pos < input.length() && peek() != quote) {
-            if (peek() == quote && pos + 1 < input.length() && input.charAt(pos + 1) == quote) {
-                advance(); advance(); sb.append(quote);
+        while (pos < input.length()) {
+            if (peek() == quote) {
+                if (pos + 1 < input.length() && input.charAt(pos + 1) == quote) {
+                    advance(); advance(); sb.append(quote); // escaped quote
+                } else {
+                    break; // closing quote
+                }
             } else {
                 sb.append(peek()); advance();
             }
@@ -238,7 +246,7 @@ public class HandLexer {
     }
 
     private char peek() { return input.charAt(pos); }
-    private void advance() { pos++; }
+    private void advance() { pos++; col++; }
 
     private Token tok(TokenType type, String text) {
         return new Token(type, text != null ? text : type.name(), line, col);

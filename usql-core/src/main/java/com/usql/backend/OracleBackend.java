@@ -58,9 +58,10 @@ public class OracleBackend extends AbstractDialectBackend {
     @Override
     public String quoteIdentifier(String id) {
         // Oracle auto-folds unquoted identifiers to UPPERCASE.
-        // We uppercase + double-quote to match that behavior, while still
-        // allowing reserved words (like COMMENT) that can't be used unquoted.
-        return "\"" + id.toUpperCase().replace("\"", "\"\"") + "\"";
+        // Double-quoting preserves case — so we quote but keep original case.
+        // This allows case-sensitive identifiers (e.g. "myCol") while still
+        // protecting reserved words.
+        return "\"" + id.replace("\"", "\"\"") + "\"";
     }
 
     @Override
@@ -80,7 +81,7 @@ public class OracleBackend extends AbstractDialectBackend {
             case DataType.DatetimeType dt -> "TIMESTAMP(" + dt.fractionalSeconds() + ")";
             case DataType.TimestampType ts -> "TIMESTAMP(" + ts.fractionalSeconds() + ") WITH TIME ZONE";
             case DataType.IntervalYearMonth i -> "INTERVAL YEAR TO MONTH";
-            case DataType.IntervalDaySecond i -> "INTERVAL DAY(" + i.fractionalSeconds() + ") TO SECOND";
+            case DataType.IntervalDaySecond i -> "INTERVAL DAY(2) TO SECOND(" + i.fractionalSeconds() + ")";
             case DataType.JsonType j    -> "CLOB";
             case DataType.UuidType u    -> "RAW(16)";
             case DataType.BinaryType b  -> "RAW(" + b.length() + ")";
@@ -102,12 +103,6 @@ public class OracleBackend extends AbstractDialectBackend {
         // For broader compat, use ROWNUM wrapping
         if (sel.fetch() != null && sel.fetch().limit() != null) {
             boolean hasOffset = sel.fetch().offset() != null;
-            long offsetVal = 0;
-
-            // Check if offset is a literal for simpler generation
-            if (sel.fetch().offset() instanceof IRLiteral lit && lit.value() instanceof Number n) {
-                offsetVal = n.longValue();
-            }
 
             if (hasOffset) {
                 // ROWNUM 3-layer wrap: Oracle classic pattern
@@ -115,11 +110,12 @@ public class OracleBackend extends AbstractDialectBackend {
                 String limitExpr = generateExpr(sel.fetch().limit(), opt);
                 String offsetExpr = generateExpr(sel.fetch().offset(), opt);
 
+                // Always add offset to ROWNUM limit (works for both literal and parameterized offsets)
                 return "SELECT " + quoteIdentifier("inner__") + ".* FROM (\n" +
                        "  SELECT " + quoteIdentifier("core__") + ".*, ROWNUM AS " + quoteIdentifier("rn__") + " FROM (\n" +
                        "    " + innerSQL + "\n" +
                        "  ) " + quoteIdentifier("core__") + "\n" +
-                       "  WHERE ROWNUM <= " + limitExpr + (offsetVal > 0 ? " + " + offsetVal : "") + "\n" +
+                       "  WHERE ROWNUM <= " + limitExpr + " + " + offsetExpr + "\n" +
                        ") " + quoteIdentifier("inner__") + "\n" +
                        "WHERE " + quoteIdentifier("rn__") + " > " + offsetExpr;
             } else {
@@ -314,7 +310,7 @@ public class OracleBackend extends AbstractDialectBackend {
         String right = generateExpr(op.right(), opt);
         String operator = switch (op.op()) {
             case ADD -> " + "; case SUB -> " - "; case MUL -> " * "; case DIV -> " / ";
-            case MOD -> " MOD "; // Oracle: MOD(a, b) function — but keeps infix for inline
+            case MOD -> " MOD "; // handled separately below as MOD(a, b) function
             case EQ -> " = "; case NEQ -> " != ";
             case LT -> " < "; case GT -> " > "; case LTE -> " <= "; case GTE -> " >= ";
             case AND -> " AND "; case OR -> " OR ";
@@ -323,6 +319,10 @@ public class OracleBackend extends AbstractDialectBackend {
             case IS_DISTINCT_FROM -> " IS DISTINCT FROM ";
             case IN -> " IN "; case NOT_IN -> " NOT IN "; case BETWEEN -> " BETWEEN ";
         };
+        // Oracle does not support MOD as infix operator — use MOD(a, b) function call
+        if (op.op() == IRBinaryOp.BinaryOp.MOD) {
+            return "MOD(" + left + ", " + right + ")";
+        }
         return "(" + left + operator + right + ")";
     }
 
@@ -349,15 +349,52 @@ public class OracleBackend extends AbstractDialectBackend {
             .collect(Collectors.toList());
         String argsStr = String.join(", ", argList);
 
-        String result = resolveFunctionCall(fc.funcName(), argList, argsStr, fc.over(), opt);
+        // Oracle native: KEEP must come BEFORE OVER
+        // Build the base function call (name + args) without OVER
+        String baseFunc;
+        if (functionCatalog != null) {
+            var def = functionCatalog.get(fc.funcName());
+            if (def.isPresent()) {
+                var mapping = def.get().forDialect(Dialect.ORACLE);
+                if (mapping.isPresent()) {
+                    String tpl = mapping.get().renderTemplate();
+                    if (tpl != null) {
+                        baseFunc = tpl;
+                        for (int i = 0; i < argList.size(); i++)
+                            baseFunc = baseFunc.replace("{" + i + "}", argList.get(i));
+                    } else {
+                        baseFunc = mapping.get().nativeName() + "(" + argsStr + ")";
+                    }
+                } else { baseFunc = fc.funcName() + "(" + argsStr + ")"; }
+            } else { baseFunc = fc.funcName() + "(" + argsStr + ")"; }
+        } else { baseFunc = fc.funcName() + "(" + argsStr + ")"; }
 
-        // Oracle native KEEP clause
+        String result = baseFunc;
+
+        // Oracle native KEEP clause (before OVER)
         if (fc.keep() != null) {
             result += " KEEP (DENSE_RANK ";
             result += (fc.keep() instanceof KeepSpec.Last) ? "LAST" : "FIRST";
             result += " ORDER BY " + fc.keep().orderBy().stream()
                 .map(o -> generateExpr(o.expr(), opt) + (o.dir() == OrderDir.DESC ? " DESC" : ""))
                 .collect(Collectors.joining(", "));
+            result += ")";
+        }
+
+        // OVER clause (after KEEP)
+        if (fc.over() != null) {
+            result += " OVER (";
+            if (fc.over().partitionBy() != null && !fc.over().partitionBy().isEmpty()) {
+                result += "PARTITION BY " + fc.over().partitionBy().stream()
+                    .map(e -> generateExpr(e, opt)).collect(Collectors.joining(", "));
+            }
+            if (fc.over().orderBy() != null && !fc.over().orderBy().isEmpty()) {
+                if (fc.over().partitionBy() != null && !fc.over().partitionBy().isEmpty()) result += " ";
+                result += "ORDER BY " + fc.over().orderBy().stream()
+                    .map(o -> generateExpr(o.expr(), opt) + (o.dir() == OrderDir.DESC ? " DESC" : " ASC"))
+                    .collect(Collectors.joining(", "));
+            }
+            if (fc.over().frame() != null) result += " " + fc.over().frame().toSql();
             result += ")";
         }
         return result;
