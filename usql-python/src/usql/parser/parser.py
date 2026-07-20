@@ -1075,6 +1075,8 @@ class Parser:
                 return 10
             case TokenType.AND:
                 return 20
+            case TokenType.NOT:
+                return 25  # NOT IN / NOT LIKE / NOT BETWEEN — must be > AND (20) and < comparison (30)
             case TokenType.EQ | TokenType.NEQ | TokenType.LT | TokenType.GT | TokenType.LTE | TokenType.GTE | TokenType.IS | TokenType.LIKE | TokenType.IN:
                 return 30
             case TokenType.BETWEEN:

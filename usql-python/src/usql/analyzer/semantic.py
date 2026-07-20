@@ -110,6 +110,11 @@ class SemanticAnalyzer:
 
     def _analyze_select(self, sel: SelectStmt) -> IRSelect:
         """Analyze a SELECT statement."""
+        # WITH clause (CTE)
+        with_clause = None
+        if sel.with_clause:
+            with_clause = tuple(self._analyze_cte(cte) for cte in sel.with_clause)
+
         # Projections
         projections = []
         for item in (sel.projections or []):
@@ -137,10 +142,16 @@ class SemanticAnalyzer:
             caps.add(Capability.LIMIT_OFFSET)
         if group_by:
             caps.add(Capability.AGGREGATE)
+            # Check for ROLLUP/CUBE/GROUPING SETS
+            for g in (sel.group_by or []):
+                if hasattr(g, 'kind') and g.kind and g.kind != "PLAIN":
+                    caps.add(Capability.GROUPING_SETS)
         if having:
             caps.add(Capability.HAVING)
         if sel.distinct:
             caps.add(Capability.DISTINCT)
+        if self._has_full_join(from_clause):
+            caps.add(Capability.FULL_OUTER_JOIN)
 
         core = SelectCore(
             projections=tuple(projections),
@@ -148,6 +159,7 @@ class SemanticAnalyzer:
             where=where,
             group_by=group_by,
             having=having,
+            with_clause=with_clause,
             distinct=sel.distinct,
         )
 
@@ -191,11 +203,13 @@ class SemanticAnalyzer:
             case SimpleTable(name=name, alias=alias):
                 return IRTableName(name=name, alias=alias)
             case JoinTable(left=left, type=jtype, right=right, condition=on):
+                # AST JoinType and IR JoinType are different enums;
+                # use .name (e.g. "LEFT") to bridge between them.
                 join_type = {
                     "INNER": JoinType.INNER, "LEFT": JoinType.LEFT,
                     "RIGHT": JoinType.RIGHT, "FULL": JoinType.FULL,
                     "CROSS": JoinType.CROSS,
-                }.get(jtype, JoinType.INNER)
+                }.get(jtype.name, JoinType.INNER)
                 return IRJoin(
                     left=self._analyze_table_ref(left),
                     type=join_type,
@@ -222,6 +236,28 @@ class SemanticAnalyzer:
             "GROUPING_SETS": GroupByKind.GROUPING_SETS,
         }.get(item.kind, GroupByKind.PLAIN)
         return IRGroupBy(expr=self._analyze_expr(item.expr), kind=kind)
+
+    def _has_full_join(self, from_clause) -> bool:
+        """Recursively check if any join in the FROM clause is FULL OUTER JOIN."""
+        if from_clause is None:
+            return False
+        for ref in from_clause:
+            if isinstance(ref, IRJoin):
+                if ref.type == JoinType.FULL:
+                    return True
+                if self._has_full_join((ref.left,)) or self._has_full_join((ref.right,)):
+                    return True
+        return False
+
+    def _analyze_cte(self, cte):
+        """Analyze a Common Table Expression (WITH clause entry)."""
+        from usql.ir.statement import IRCommonTable
+        return IRCommonTable(
+            name=cte.name,
+            columns=tuple(cte.columns) if cte.columns else None,
+            query=self._analyze_select(cte.query),
+            recursive=cte.recursive,
+        )
 
     # ═══════════════════════════════════════
     #  DML: INSERT / UPDATE / DELETE
@@ -464,8 +500,14 @@ class SemanticAnalyzer:
             savepoint = parts[1].strip() if len(parts) > 1 else None
         elif sql.startswith("RELEASE"):
             tcl_type = TclType.RELEASE_SAVEPOINT
-            parts = sql.split(None, 1)
-            savepoint = parts[1].strip() if len(parts) > 1 else None
+            parts = sql.split(None, 2)  # ["RELEASE", "SAVEPOINT", "SP"]
+            # Handle both "RELEASE SAVEPOINT sp" and "RELEASE sp"
+            if len(parts) >= 3 and parts[1] == "SAVEPOINT":
+                savepoint = parts[2].strip()
+            elif len(parts) >= 2:
+                savepoint = parts[1].strip()
+            else:
+                savepoint = None
         else:
             tcl_type = TclType.BEGIN
             savepoint = None
