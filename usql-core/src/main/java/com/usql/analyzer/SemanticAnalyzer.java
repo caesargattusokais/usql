@@ -83,12 +83,34 @@ public class SemanticAnalyzer {
             case DropDatabaseStmt s      -> new IRDropDatabase(s.dbName(), s.ifExists(), Set.of());
             case CreateViewStmt s        -> new IRCreateView(s.viewName(), analyzeSelect(s.query()), Set.of());
             case CreateSchemaStmt s      -> new IRCreateSchema(s.schemaName(), Set.of());
-            case TCLStmt s               -> new IRTCL(s.sql(), Set.of());
+            case TCLStmt s               -> analyzeTCL(s);
             case TruncateStmt s          -> new IRTruncateTable(s.tableName(), Set.of());
             case AlterTableStmt s        -> analyzeAlterTable(s);
             default -> throw new UnsupportedOperationException(
                 "Analysis not implemented for: " + stmt.getClass().getSimpleName());
         };
+    }
+
+    // ══════════════════════════════════════════════════
+    //  TCL
+    // ══════════════════════════════════════════════════
+
+    private IRTCL analyzeTCL(TCLStmt s) {
+        String sql = s.sql().toUpperCase().trim();
+        if (sql.startsWith("START TRANSACTION") || sql.startsWith("BEGIN"))
+            return new IRTCL(IRStatement.TclType.BEGIN, Set.of());
+        if (sql.startsWith("COMMIT"))
+            return new IRTCL(IRStatement.TclType.COMMIT, Set.of());
+        if (sql.startsWith("ROLLBACK"))
+            return new IRTCL(IRStatement.TclType.ROLLBACK, Set.of());
+        if (sql.startsWith("SAVEPOINT"))
+            return new IRTCL(IRStatement.TclType.SAVEPOINT, Set.of());
+        if (sql.startsWith("RELEASE SAVEPOINT") || sql.startsWith("RELEASE"))
+            return new IRTCL(IRStatement.TclType.RELEASE_SAVEPOINT, Set.of());
+        if (sql.startsWith("SET TRANSACTION"))
+            return new IRTCL(IRStatement.TclType.SET_TRANSACTION, Set.of());
+        // Fallback — treat as BEGIN for unknown TCL
+        return new IRTCL(IRStatement.TclType.BEGIN, Set.of());
     }
 
     // ══════════════════════════════════════════════════

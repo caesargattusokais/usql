@@ -245,4 +245,18 @@ public class ClickHouseBackend extends MySqlBackend {
         int idx = sql.indexOf(' ');
         return idx >= 0 ? sql.substring(idx + 1).trim() : sql.trim();
     }
+
+    // ═══════════════════════════════════════
+    //  TCL — ClickHouse: transactions not supported
+    // ═══════════════════════════════════════
+
+    @Override
+    protected String generateTCL(IRTCL tcl, GenerateOptions opt) {
+        return switch (tcl.type()) {
+            case BEGIN    -> "SELECT 1 /* ClickHouse: BEGIN TRANSACTION not supported */";
+            case COMMIT   -> "SELECT 1 /* ClickHouse: COMMIT not supported */";
+            case ROLLBACK -> "SELECT 1 /* ClickHouse: ROLLBACK not supported */";
+            default       -> "SELECT 1 /* ClickHouse: TCL not supported */";
+        };
+    }
 }

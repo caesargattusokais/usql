@@ -695,4 +695,20 @@ public class OracleBackend extends AbstractDialectBackend {
     private String escapeString(String s) {
         return s.replace("'", "''");
     }
+
+    // ══════════════════════════════════════════════════
+    //  TCL — Oracle: no explicit BEGIN; COMMIT/ROLLBACK are standalone
+    // ══════════════════════════════════════════════════
+
+    @Override
+    protected String generateTCL(IRTCL tcl, GenerateOptions opt) {
+        return switch (tcl.type()) {
+            case BEGIN    -> "SELECT 1 FROM DUAL";  // Oracle: implicit transaction start, no BEGIN needed
+            case COMMIT   -> "COMMIT";
+            case ROLLBACK -> "ROLLBACK";
+            case SAVEPOINT       -> "SAVEPOINT " + tcl.savepointName();
+            case RELEASE_SAVEPOINT -> "RELEASE SAVEPOINT " + tcl.savepointName();
+            case SET_TRANSACTION -> "SET TRANSACTION ISOLATION LEVEL READ COMMITTED";
+        };
+    }
 }

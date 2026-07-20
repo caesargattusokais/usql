@@ -361,4 +361,20 @@ public class SqliteBackend extends AbstractDialectBackend {
         return "ALTER TABLE " + quoteIdentifier(rc.tableName())
             + " RENAME COLUMN " + quoteIdentifier(rc.oldName()) + " TO " + quoteIdentifier(rc.newName());
     }
+
+    // ═══════════════════════════════════════
+    //  TCL — SQLite: uses BEGIN TRANSACTION (not plain BEGIN)
+    // ═══════════════════════════════════════
+
+    @Override
+    protected String generateTCL(IRTCL tcl, GenerateOptions opt) {
+        return switch (tcl.type()) {
+            case BEGIN    -> "BEGIN TRANSACTION";
+            case COMMIT   -> "COMMIT";
+            case ROLLBACK -> "ROLLBACK";
+            case SAVEPOINT       -> "SAVEPOINT " + tcl.savepointName();
+            case RELEASE_SAVEPOINT -> "RELEASE SAVEPOINT " + tcl.savepointName();
+            case SET_TRANSACTION -> "SELECT 1 /* SQLite: SET TRANSACTION not supported */";
+        };
+    }
 }

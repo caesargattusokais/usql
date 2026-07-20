@@ -290,7 +290,13 @@ public sealed interface IRStatement {
     record IRDropDatabase(String name, boolean ifExists, Set<Capability> capabilities) implements IRStatement {}
     record IRCreateView(String name, IRSelect query, Set<Capability> capabilities) implements IRStatement {}
     record IRCreateSchema(String name, Set<Capability> capabilities) implements IRStatement {}
-    record IRTCL(String sql, Set<Capability> capabilities) implements IRStatement {}  // pass-through TCL
+
+    /** TCL (Transaction Control Language) statement. */
+    enum TclType { BEGIN, COMMIT, ROLLBACK, SAVEPOINT, RELEASE_SAVEPOINT, SET_TRANSACTION }
+    record IRTCL(TclType type, String savepointName, Set<Capability> capabilities) implements IRStatement {
+        public IRTCL(TclType type, Set<Capability> capabilities) { this(type, null, capabilities); }
+    }
+
     record IRTruncateTable(String name, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableAddColumn(String tableName, IRColumnDef column, boolean ifNotExists, Set<Capability> capabilities) implements IRStatement {}
     record IRAlterTableDropColumn(String tableName, String columnName, Set<Capability> capabilities) implements IRStatement {}

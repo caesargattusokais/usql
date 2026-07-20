@@ -252,7 +252,14 @@ public abstract class AbstractDialectBackend implements DialectBackend {
     }
 
     protected String generateTCL(IRTCL tcl, GenerateOptions opt) {
-        return tcl.sql(); // pass-through — TCL is standard across databases
+        return switch (tcl.type()) {
+            case BEGIN           -> "BEGIN";
+            case COMMIT          -> "COMMIT";
+            case ROLLBACK        -> "ROLLBACK";
+            case SAVEPOINT       -> "SAVEPOINT " + tcl.savepointName();
+            case RELEASE_SAVEPOINT -> "RELEASE SAVEPOINT " + tcl.savepointName();
+            case SET_TRANSACTION -> "SET TRANSACTION";
+        };
     }
 
     protected String generateDropIndex(IRDropIndex di, GenerateOptions opt) {

@@ -584,4 +584,20 @@ public class SqlServerBackend extends AbstractDialectBackend {
             .map(p -> paramDecl(p, opt))
             .collect(Collectors.joining(",\n  ")) + "\n";
     }
+
+    // ══════════════════════════════════════════════════
+    //  TCL — SQL Server uses BEGIN/COMMIT/ROLLBACK TRANSACTION
+    // ══════════════════════════════════════════════════
+
+    @Override
+    protected String generateTCL(IRTCL tcl, GenerateOptions opt) {
+        return switch (tcl.type()) {
+            case BEGIN    -> "BEGIN TRANSACTION";
+            case COMMIT   -> "COMMIT TRANSACTION";
+            case ROLLBACK -> "ROLLBACK TRANSACTION";
+            case SAVEPOINT       -> "SAVE TRANSACTION " + tcl.savepointName();
+            case RELEASE_SAVEPOINT -> "SAVE TRANSACTION " + tcl.savepointName(); // SQL Server has no RELEASE SAVEPOINT
+            case SET_TRANSACTION -> "SET TRANSACTION ISOLATION LEVEL READ COMMITTED";
+        };
+    }
 }

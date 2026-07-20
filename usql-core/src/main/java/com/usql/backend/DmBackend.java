@@ -555,4 +555,20 @@ public class DmBackend extends AbstractDialectBackend {
     private String escapeString(String s) {
         return s.replace("'", "''");
     }
+
+    // ══════════════════════════════════════════════════
+    //  TCL — DM: similar to Oracle, no standalone BEGIN
+    // ══════════════════════════════════════════════════
+
+    @Override
+    protected String generateTCL(IRTCL tcl, GenerateOptions opt) {
+        return switch (tcl.type()) {
+            case BEGIN    -> "SELECT 1 FROM DUAL";  // DM: implicit transaction start, no BEGIN needed
+            case COMMIT   -> "COMMIT";
+            case ROLLBACK -> "ROLLBACK";
+            case SAVEPOINT       -> "SAVEPOINT " + tcl.savepointName();
+            case RELEASE_SAVEPOINT -> "RELEASE SAVEPOINT " + tcl.savepointName();
+            case SET_TRANSACTION -> "SET TRANSACTION ISOLATION LEVEL READ COMMITTED";
+        };
+    }
 }

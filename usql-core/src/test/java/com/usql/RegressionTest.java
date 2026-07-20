@@ -585,15 +585,24 @@ public class RegressionTest {
     // ═══════════════════════════════════════
 
     static void testTCL(Db db, Connection conn) throws Exception {
-        for (String tcl : new String[]{"BEGIN", "START TRANSACTION", "COMMIT", "ROLLBACK"}) {
+        // Test TCL in proper sequence: BEGIN → COMMIT, then BEGIN → ROLLBACK
+        var tclCases = List.of(
+            // Sequence 1: BEGIN then COMMIT
+            "BEGIN", "COMMIT",
+            // Sequence 2: START TRANSACTION then ROLLBACK
+            "START TRANSACTION", "ROLLBACK"
+        );
+        boolean inTransaction = false;
+        for (String tcl : tclCases) {
             CompilationResult r = compiler.compile(tcl, db.dialect());
             check(r.isSuccess(), "TCL " + tcl + " compiles");
             if (r.isSuccess()) {
                 try (Statement stmt = conn.createStatement()) {
                     stmt.execute(r.getSql());
                     check(true, "TCL " + tcl + " executed");
+                    inTransaction = tcl.equals("BEGIN") || tcl.equals("START TRANSACTION");
                 } catch (SQLException e) {
-                    System.out.println("    ⚠️  TCL " + tcl + ": " + e.getMessage());
+                    System.out.println("    ??  TCL " + tcl + ": " + e.getMessage());
                     skipped++;
                 }
             }
