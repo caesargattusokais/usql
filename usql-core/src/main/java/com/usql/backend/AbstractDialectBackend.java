@@ -66,13 +66,23 @@ public abstract class AbstractDialectBackend implements DialectBackend {
     }
 
     /** Build the subquery-wrapped FROM clause with DENSE_RANK columns.
-     *  @param originalFrom the original FROM clause SQL (already rendered) */
-    protected String wrapFromWithKeep(String originalFrom, String partitionBy) {
+     *  @param originalFrom the original FROM clause SQL (already rendered)
+     *  @param partitionBy the PARTITION BY clause (references original table alias)
+     *  @param originalTableAlias the original table alias/name used in FROM (to rewrite to _t) */
+    protected String wrapFromWithKeep(String originalFrom, String partitionBy, String originalTableAlias) {
+        // Inside the subquery, the table is aliased as _t, so rewrite references
+        // from originalTableAlias to _t in PARTITION BY and ORDER BY expressions
+        String rewrittenPartitionBy = originalTableAlias != null && !originalTableAlias.isEmpty()
+            ? partitionBy.replace(quoteIdentifier(originalTableAlias) + ".", quoteIdentifier("_t") + ".")
+            : partitionBy;
         var sb = new StringBuilder(" FROM (SELECT " + quoteIdentifier("_t") + ".*");
         for (int i = 0; i < keepCols.size(); i++) {
             var kc = keepCols.get(i);
-            sb.append(", DENSE_RANK() OVER (").append(partitionBy)
-              .append("ORDER BY ").append(kc.sortExpr());
+            String sortExpr = originalTableAlias != null && !originalTableAlias.isEmpty()
+                ? kc.sortExpr().replace(quoteIdentifier(originalTableAlias) + ".", quoteIdentifier("_t") + ".")
+                : kc.sortExpr();
+            sb.append(", DENSE_RANK() OVER (").append(rewrittenPartitionBy)
+              .append("ORDER BY ").append(sortExpr);
             if (kc.desc()) sb.append(" DESC");
             sb.append(") AS ").append(quoteIdentifier("_keep_" + i));
         }
@@ -82,6 +92,13 @@ public abstract class AbstractDialectBackend implements DialectBackend {
         return sb.toString();
     }
 
+    /** Build the subquery-wrapped FROM clause with DENSE_RANK columns.
+     *  @param originalFrom the original FROM clause SQL (already rendered)
+     *  @param partitionBy the PARTITION BY clause */
+    protected String wrapFromWithKeep(String originalFrom, String partitionBy) {
+        return wrapFromWithKeep(originalFrom, partitionBy, null);
+    }
+
     /** Build PARTITION BY clause from GROUP BY for DENSE_RANK. */
     protected String partitionFromGroupBy(IRSelect sel, GenerateOptions opt) {
         if (sel.core().groupBy() == null || sel.core().groupBy().isEmpty()) return "";
@@ -89,6 +106,16 @@ public abstract class AbstractDialectBackend implements DialectBackend {
             .filter(g -> g.kind() == GroupByKind.PLAIN)
             .map(g -> generateExpr(g.expr(), opt))
             .collect(Collectors.joining(", ")) + " ";
+    }
+
+    /** Extract the first table name/alias from the FROM clause (for KEEP polyfill rewriting). */
+    protected String extractFirstTableAlias(IRSelect sel) {
+        if (sel.core().from() == null || sel.core().from().isEmpty()) return null;
+        IRTableRef first = sel.core().from().get(0);
+        if (first instanceof IRTableName tn) {
+            return tn.alias() != null ? tn.alias() : tn.name();
+        }
+        return null;
     }
 
     // ══════════════════════════════════════════════════

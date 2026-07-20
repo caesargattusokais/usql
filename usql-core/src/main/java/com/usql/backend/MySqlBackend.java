@@ -120,7 +120,7 @@ public class MySqlBackend extends AbstractDialectBackend {
         if (sel.core().from() != null && !sel.core().from().isEmpty()) {
             if (hasKeep) {
                 String fromSql = sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", "));
-                sb.append(wrapFromWithKeep(fromSql, partitionBy));
+                sb.append(wrapFromWithKeep(fromSql, partitionBy, extractFirstTableAlias(sel)));
             } else {
                 sb.append(" FROM ");
                 sb.append(sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", ")));
@@ -162,6 +162,21 @@ public class MySqlBackend extends AbstractDialectBackend {
         if (sel.core().setOp() != null && sel.core().setOperand() != null) {
             sb.append(" ").append(sel.core().setOp().name().replace("_", " "));
             sb.append(" ").append(generateSelect(sel.core().setOperand(), opt));
+        }
+
+        // KEEP polyfill post-processing: the outer query sees _src instead of the original table,
+        // so rewrite qualified references from the original table alias to _src.
+        // Inside the subquery, references are already rewritten to _t, so replacing
+        // `alias`.col → `_src`.col globally is safe (no false positives inside the subquery).
+        if (hasKeep) {
+            String tableAlias = extractFirstTableAlias(sel);
+            if (tableAlias != null) {
+                String result = sb.toString();
+                String quotedAlias = quoteIdentifier(tableAlias);
+                String quotedSrc = quoteIdentifier("_src");
+                result = result.replace(quotedAlias + ".", quotedSrc + ".");
+                sb = new StringBuilder(result);
+            }
         }
 
         return sb.toString();

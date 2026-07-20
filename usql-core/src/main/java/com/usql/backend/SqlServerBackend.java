@@ -120,7 +120,7 @@ public class SqlServerBackend extends AbstractDialectBackend {
         if (sel.core().from() != null && !sel.core().from().isEmpty()) {
             if (hasKeep) {
                 String fromSql = sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", "));
-                sb.append(wrapFromWithKeep(fromSql, partitionBy));
+                sb.append(wrapFromWithKeep(fromSql, partitionBy, extractFirstTableAlias(sel)));
             } else {
                 sb.append(" FROM ");
                 sb.append(sel.core().from().stream().map(f -> generateTableRef(f, opt)).collect(Collectors.joining(", ")));
@@ -159,6 +159,19 @@ public class SqlServerBackend extends AbstractDialectBackend {
             sb.append(" ").append(sel.core().setOp().name().replace("_", " "));
             sb.append(" ").append(generateSelect(sel.core().setOperand(), opt));
         }
+
+        // KEEP polyfill post-processing: rewrite original table alias → _src in outer query
+        if (hasKeep) {
+            String tableAlias = extractFirstTableAlias(sel);
+            if (tableAlias != null) {
+                String result = sb.toString();
+                String quotedAlias = quoteIdentifier(tableAlias);
+                String quotedSrc = quoteIdentifier("_src");
+                result = result.replace(quotedAlias + ".", quotedSrc + ".");
+                sb = new StringBuilder(result);
+            }
+        }
+
         return sb.toString();
     }
 
