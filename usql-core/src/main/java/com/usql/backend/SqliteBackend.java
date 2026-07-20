@@ -29,6 +29,7 @@ public class SqliteBackend extends AbstractDialectBackend {
             case IRTruncateTable tt        -> "DELETE FROM " + quoteIdentifier(tt.name());
             case IRAlterTableAddColumn aa  -> generateAlterTableAddColumn(aa, options);
             case IRAlterTableDropColumn ad -> generateAlterTableDropColumn(ad, options);
+            case IRRenameColumn rc         -> generateRenameColumn(rc, options);
             case IRDropDatabase dd         -> generateDropDatabase(dd, options);
             case IRCreateView cv           -> generateCreateView(cv, options);
             case IRCreateSchema cs         -> generateCreateSchema(cs, options);
@@ -36,6 +37,9 @@ public class SqliteBackend extends AbstractDialectBackend {
             case IRCreateProcedure cp      -> generateCreateProcedure(cp, options);
             case IRCreateFunction cf       -> generateCreateFunction(cf, options);
             case IRCall call               -> generateCall(call, options);
+            case IRAlterColumnSetDefault ad  -> "SELECT 1 /* SQLite: ALTER COLUMN SET DEFAULT not supported */";
+            case IRAlterColumnDropDefault dd  -> "SELECT 1 /* SQLite: ALTER COLUMN DROP DEFAULT not supported */";
+            case IRAlterColumnType act        -> "SELECT 1 /* SQLite: ALTER COLUMN TYPE not supported */";
             default ->
                 throw new UnsupportedOperationException("SQLite: " + statement.getClass().getSimpleName());
         };

@@ -152,11 +152,16 @@ services:
     image: oceanbase/oceanbase-ce
     container_name: oceanbase_test
     restart: unless-stopped
+    shm_size: '2gb'
     ports:
       - "2881:2881"
     environment:
       MODE: mini
       OB_TENANT_PASSWORD: "ob123456"
+      OB_MEMORY_LIMIT: "6G"
+      OB_SYSTEM_MEMORY: "1G"
+      OB_DATAFILE_SIZE: "5G"
+      OB_LOG_DISK_SIZE: "5G"
 
   # SQLite 是嵌入式数据库，提供 CLI 工具容器
   sqlite:

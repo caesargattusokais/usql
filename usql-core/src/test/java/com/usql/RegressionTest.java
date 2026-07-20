@@ -34,14 +34,19 @@ public class RegressionTest {
         new Db("TiDB", Dialect.TIDB,
             "jdbc:mysql://localhost:4000/test?allowPublicKeyRetrieval=true&useSSL=false&allowMultiQueries=true",
             "root", ""),
-        new Db("SQLite", Dialect.SQLITE,
-            "jdbc:sqlite::memory:", "", ""),
-        new Db("OceanBase", Dialect.OCEANBASE,
-            "jdbc:mysql://localhost:2881/test?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true",
-            "root", "ob123456"),
         new Db("ClickHouse", Dialect.CLICKHOUSE,
             "jdbc:clickhouse://127.0.0.1:8123/default?user=default&compress=0", "", ""),
+        // In-process databases (no Docker memory needed)
+        new Db("SQLite", Dialect.SQLITE,
+            "jdbc:sqlite::memory:", "", ""),
         new Db("DuckDB", Dialect.DUCKDB, "jdbc:duckdb:", "", "")
+    );
+
+    /** OceanBase runs separately due to high memory requirements (3G+). */
+    static List<Db> oceanBaseOnly = List.of(
+        new Db("OceanBase", Dialect.OCEANBASE,
+            "jdbc:mysql://localhost:2881/test?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true",
+            "root@test", "ob123456")
     );
 
     static USqlCompiler compiler = USqlCompiler.builder().build();
@@ -50,11 +55,13 @@ public class RegressionTest {
     static String currentDb;
 
     public static void main(String[] args) {
+        // --oceanbase: run OceanBase separately (needs 3G+ memory, can't coexist with other DBs)
+        List<Db> dbList = args.length > 0 && args[0].equals("--oceanbase") ? oceanBaseOnly : databases;
         System.out.println("=== USQL Full Regression ===\n");
-        for (Db db : databases) {
+        for (Db db : dbList) {
             currentDb = db.name();
             System.out.println("── " + db.name() + " ──");
-            try (Connection conn = DriverManager.getConnection(db.url(), db.user(), db.pw())) {
+            try (Connection conn = connectWithRetry(db)) {
                 testDDL(db, conn);
                 testDML(db, conn);
                 testQueryFeatures(db, conn);
@@ -623,6 +630,24 @@ public class RegressionTest {
 
     static String autoIncPK(Db db) {
         return db.dialect() == Dialect.DUCKDB ? "id INT PRIMARY KEY" : "id INT PRIMARY KEY AUTO_INCREMENT";
+    }
+
+    /** Connect with retry — some databases (e.g. OceanBase) take time to start. */
+    static Connection connectWithRetry(Db db) throws Exception {
+        int maxRetries = "OceanBase".equals(db.name()) ? 6 : 1;
+        Exception last = null;
+        for (int i = 0; i < maxRetries; i++) {
+            try {
+                return DriverManager.getConnection(db.url(), db.user(), db.pw());
+            } catch (Exception e) {
+                last = e;
+                if (i < maxRetries - 1) {
+                    System.out.println("  Retry " + (i + 1) + "/" + (maxRetries - 1) + " for " + db.name() + "...");
+                    Thread.sleep(10_000);
+                }
+            }
+        }
+        throw last;
     }
 
     static void execDDL(Db db, Connection conn, String usql, String label) throws Exception {
