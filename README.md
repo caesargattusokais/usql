@@ -11,6 +11,7 @@
 - [方言映射表](#方言映射表)
 - [DDL 映射](#ddl-映射)
 - [SQL 编写规则](#sql-编写规则)
+- [Python 版](#python-版)
 - [Spring Boot 集成](#spring-boot-集成)
 - [Java 项目集成](#java-项目集成)
 - [命令行工具](#命令行工具)
@@ -501,6 +502,156 @@ DROP DATABASE my_db
 
 ---
 
+## Python 版
+
+USQL 同时提供 Python 实现，可在 Python 生态中使用（数据分析、ETL、AI pipeline 等）。
+
+### 安装
+
+```bash
+cd usql-python
+pip install -e .
+# 开发依赖
+pip install -e ".[dev]"
+```
+
+要求 Python 3.10+，运行时依赖仅 `click` + `pyyaml`。
+
+### Python API
+
+```python
+from usql import USqlCompiler, Dialect
+
+compiler = USqlCompiler()
+
+# 翻译到 Oracle（LIMIT → ROWNUM 子查询包裹）
+result = compiler.compile("SELECT name FROM users LIMIT 10", Dialect.ORACLE)
+if result.success:
+    print(result.sql)
+    # SELECT * FROM (SELECT "name" FROM "users") WHERE ROWNUM <= 10
+
+# 翻译到 SQL Server（LIMIT → OFFSET/FETCH）
+result = compiler.compile("SELECT name FROM users LIMIT 10", Dialect.SQLSERVER)
+print(result.sql)
+# SELECT [name] FROM [users] ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY
+
+# 翻译到 ClickHouse（INT → Int32，添加 ENGINE）
+result = compiler.compile("CREATE TABLE t1 (id INT PRIMARY KEY)", Dialect.CLICKHOUSE)
+print(result.sql)
+# CREATE TABLE `t1` (
+#   `id` Int32 PRIMARY KEY
+# ) ENGINE = MergeTree() ORDER BY `id`
+
+# 翻译到 SQLite（TRUNCATE → DELETE FROM）
+result = compiler.compile("TRUNCATE TABLE t1", Dialect.SQLITE)
+print(result.sql)
+# DELETE FROM "t1"
+```
+
+#### 构造参数
+
+```python
+compiler = USqlCompiler(
+    schema=None,           # SchemaProvider — 表结构元数据（可选）
+    verify=False,          # 是否生成 H2 参考SQL
+    optimize_level=1,      # IR优化级别: 0=关闭, 1=常量折叠, 2=表达式简化, 3=谓词下推
+    default_dialect=Dialect.MYSQL,
+    cache_enabled=True,    # 编译缓存
+    cache_size=256,        # 缓存条目上限
+)
+```
+
+#### CompilationResult
+
+```python
+result.success       # bool — 是否编译成功
+result.sql           # str | None — 生成的方言SQL
+result.errors        # tuple[Error, ...] — 错误列表
+result.warnings      # tuple[Warning, ...] — 警告列表
+result.report()      # str — 人类可读报告
+```
+
+#### 从 IR 直接编译
+
+```python
+from usql.ir.statement import IRSelect, SelectCore, IRExprSelect
+from usql.ir.expr import IRLiteral
+from usql.ir.types import IntType
+
+ir = IRSelect(core=SelectCore(projections=(
+    IRExprSelect(expr=IRLiteral(value=1, type=IntType(32))),
+)))
+result = compiler.compile_from_ir(ir, Dialect.MYSQL)
+```
+
+### 命令行工具
+
+```bash
+# 翻译单条 SQL
+usql translate --sql "SELECT name FROM users LIMIT 10" --to oracle
+
+# 批量迁移 SQL 文件
+usql migrate --to postgresql --input ./mysql-sql/ --output ./pg-sql/
+
+# 验证 SQL 兼容性
+usql verify --sql "SELECT name FROM users LIMIT 10" --to oracle
+
+# 列出支持的方言
+usql dialects
+```
+
+`--to` 可选值：`mysql`, `postgresql`, `oracle`, `dm`, `sqlserver`, `mariadb`, `tidb`, `sqlite`, `oceanbase`, `clickhouse`, `duckdb`
+
+### 测试
+
+```bash
+cd usql-python
+set PYTHONPATH=src
+python -m pytest tests/ -v
+```
+
+86 个回归测试覆盖 DDL/DML/Query/TCL/方言特定行为/Parser/Compiler API，全部 11 方言通过。
+
+### 与 Java 版对比
+
+| 对比项 | Java 版 | Python 版 |
+|--------|---------|----------|
+| 解析器 | 手写递归下降 (HandLexer + HandParser) | 移植自 Java，相同算法 |
+| IR 模型 | sealed interface + record | `@dataclass(frozen=True)` + `Union[]` |
+| 后端继承 | AbstractDialectBackend → 11 子类 | 相同继承层次 |
+| 函数目录 | functions.yaml (110+ 函数) | 复用同一 YAML |
+| 性能 | ~100,000 SQL/秒 | 适合脚本/ETL/AI pipeline |
+| 数据库执行 | JDBC Driver + DataSource 包装 | SQLAlchemy 2.0+ 透明集成 |
+| Spring Boot | 自动 DataSource 包装 | 不适用 |
+| Flask/FastAPI | 不适用 | `usql_engine()` / `listen_engine()` |
+
+### SQLAlchemy 集成
+
+Python 版通过 SQLAlchemy `before_cursor_execute` 事件钩子实现透明翻译，支持 Flask-SQLAlchemy、FastAPI、pandas、Alembic 等上层框架：
+
+```python
+from usql.sqlalchemy_ext import usql_engine
+from sqlalchemy import text
+
+engine = usql_engine("oracle+oracledb://user:pass@host/db")
+with engine.connect() as conn:
+    conn.execute(text("SELECT name FROM users LIMIT 10"))
+    # 自动翻译为: SELECT * FROM (SELECT "name" FROM "users") WHERE ROWNUM <= 10
+```
+
+也可包装已有 Engine：
+
+```python
+from usql.sqlalchemy_ext import listen_engine
+
+engine = create_engine("postgresql+psycopg2://user:pass@host/db")
+listen_engine(engine)  # 自动检测方言
+```
+
+> 详细文档见 [usql-python/README.md](usql-python/README.md)。
+
+---
+
 ## Spring Boot 集成
 
 ### 架构
@@ -664,6 +815,7 @@ usql/
 ├── usql-jdbc/      JDBC 驱动 + DataSource 包装
 ├── usql-cli/       命令行工具 (translate/migrate/verify)
 ├── usql-proxy/     数据库代理 (文本模式 + MySQL Wire Protocol)
+├── usql-python/    Python 实现（手写递归下降解析器 + 11 方言后端）
 ├── docker/         Docker Compose (MySQL/PG/Oracle/DM/SQL Server)
 ├── demo/           Spring Boot 集成示例
 └── docs/           执行计划
