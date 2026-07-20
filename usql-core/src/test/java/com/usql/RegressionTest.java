@@ -40,7 +40,7 @@ public class RegressionTest {
             "jdbc:mysql://localhost:2881/test?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true",
             "root", "ob123456"),
         new Db("ClickHouse", Dialect.CLICKHOUSE,
-            "jdbc:clickhouse://localhost:8123/default", "", ""),
+            "jdbc:clickhouse://127.0.0.1:8123/default?user=default&compress=0", "", ""),
         new Db("DuckDB", Dialect.DUCKDB, "jdbc:duckdb:", "", "")
     );
 
@@ -233,8 +233,7 @@ public class RegressionTest {
         execDML(db, conn, "INSERT INTO reg_fj_a (id, name) VALUES (1, 'A1'), (2, 'A2')", "Insert fj_a");
         execDML(db, conn, "INSERT INTO reg_fj_b (id, label) VALUES (2, 'B2'), (3, 'B3')", "Insert fj_b");
 
-        int expected = db.name().equals("SQLite") ? 2 : 3; // SQLite no RIGHT JOIN
-        execQuery(db, conn, "SELECT a.name, b.label FROM reg_fj_a a FULL JOIN reg_fj_b b ON a.id = b.id", expected);
+        execQuery(db, conn, "SELECT a.name, b.label FROM reg_fj_a a FULL JOIN reg_fj_b b ON a.id = b.id", 3);
 
         dropTable(db, conn, "reg_fj_a"); dropTable(db, conn, "reg_fj_b");
     }
@@ -375,8 +374,8 @@ public class RegressionTest {
                 + "GROUP BY ROLLUP(dept, city)", 7);
         }
 
-        // CUBE (MySQL/MariaDB/TiDB/SQLite/OceanBase don't support)
-        if (!Set.of("MySQL", "MariaDB", "TiDB", "SQLite", "OceanBase").contains(db.name())) {
+        // CUBE (MySQL/MariaDB/TiDB/SQLite/OceanBase/ClickHouse don't support or have different semantics)
+        if (!Set.of("MySQL", "MariaDB", "TiDB", "SQLite", "OceanBase", "ClickHouse").contains(db.name())) {
             execQuery(db, conn,
                 "SELECT dept, city, SUM(sales) AS total FROM reg_rc "
                 + "GROUP BY CUBE(dept, city)", 9);

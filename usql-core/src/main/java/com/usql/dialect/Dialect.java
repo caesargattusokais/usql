@@ -190,9 +190,10 @@ public enum Dialect {
         Capability.HAVING,
         Capability.DISTINCT,
         Capability.CHECK_CONSTRAINT,
-        Capability.TRUNCATE_TABLE            // DELETE FROM polyfill
+        Capability.TRUNCATE_TABLE,           // DELETE FROM polyfill
+        Capability.FULL_OUTER_JOIN           // 3.39+ (RIGHT JOIN + FULL JOIN)
         // Missing: AUTO_INCREMENT (uses AUTOINCREMENT via INTEGER PK),
-        // BOOLEAN_TYPE, FULL_OUTER_JOIN, LATERAL_JOIN, ARRAY_TYPE,
+        // BOOLEAN_TYPE, LATERAL_JOIN, ARRAY_TYPE,
         // ENUM_TYPE, SEQUENCE, GENERATED_COLUMN, etc.
     ),
 

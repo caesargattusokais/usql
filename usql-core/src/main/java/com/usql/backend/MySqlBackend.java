@@ -318,9 +318,6 @@ public class MySqlBackend extends AbstractDialectBackend {
             case LIKE             -> " LIKE ";
             case NOT_LIKE         -> " NOT LIKE ";
             case IS_DISTINCT_FROM -> " <=> "; // handled below — negated
-            case IN               -> " IN ";
-            case NOT_IN           -> " NOT IN ";
-            case BETWEEN          -> " BETWEEN ";
             case CONCAT           -> throw new IllegalStateException("handled above");
         };
         // IS DISTINCT FROM is the opposite of <=> (null-safe equals)

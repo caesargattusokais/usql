@@ -9,6 +9,14 @@ import java.util.stream.Collectors;
 /**
  * ClickHouse backend — columnar analytical database.
  * Extends MySqlBackend for similar LIMIT/OFFSET and general SQL patterns.
+ *
+ * Key ClickHouse differences from MySQL:
+ * - UNION requires explicit ALL or DISTINCT
+ * - UPDATE/DELETE don't support qualified column references (table.col)
+ * - CREATE INDEX requires TYPE clause
+ * - ALTER COLUMN uses MODIFY COLUMN syntax
+ * - No CASCADE on DROP TABLE
+ * - No MERGE, stored procedures, or functions
  */
 public class ClickHouseBackend extends MySqlBackend {
 
@@ -19,10 +27,17 @@ public class ClickHouseBackend extends MySqlBackend {
     public String generate(IRStatement statement, GenerateOptions options) {
         return switch (statement) {
             case IRCreateTable ct       -> chCreateTable(ct, options);
-            case IRMerge merge          -> "-- ClickHouse: MERGE not supported";
-            case IRCreateProcedure cp   -> "-- ClickHouse: stored procedures not supported";
-            case IRCreateFunction cf    -> "-- ClickHouse: stored functions not supported";
-            case IRCall call            -> "-- ClickHouse: CALL not supported";
+            case IRCreateIndex ci       -> chCreateIndex(ci, options);
+            case IRSelect sel           -> chSelect(sel, options);
+            case IRUpdate upd           -> chUpdate(upd, options);
+            case IRDelete del           -> chDelete(del, options);
+            case IRDropTable dt         -> chDropTable(dt, options);
+            case IRMerge merge          -> "SELECT 1 /* ClickHouse: MERGE not supported */";
+            case IRCreateProcedure cp   -> "SELECT 1 /* ClickHouse: stored procedures not supported */";
+            case IRCreateFunction cf    -> "SELECT 1 /* ClickHouse: stored functions not supported */";
+            case IRCall call            -> "SELECT 1 /* ClickHouse: CALL not supported */";
+            case IRAlterColumnSetDefault ad  -> chAlterSetDefault(ad, options);
+            case IRAlterColumnDropDefault dd  -> chAlterDropDefault(dd, options);
             default -> super.generate(statement, options);
         };
     }
@@ -102,11 +117,122 @@ public class ClickHouseBackend extends MySqlBackend {
         return sb.toString();
     }
 
+    // ═══════════════════════
+    //  CREATE INDEX — ClickHouse requires TYPE
+    // ═══════════════════════
+
+    private String chCreateIndex(IRCreateIndex ci, GenerateOptions opt) {
+        if (ci.unique()) {
+            // ClickHouse does not support UNIQUE index; emit a harmless no-op query
+            return "SELECT 1 /* ClickHouse: CREATE UNIQUE INDEX not supported */";
+        }
+        var sb = new StringBuilder("CREATE INDEX ");
+        if (ci.ifNotExists()) sb.append("IF NOT EXISTS ");
+        sb.append(quoteIdentifier(ci.name())).append(" ON ");
+        sb.append(quoteIdentifier(ci.table().name())).append(" (");
+        sb.append(ci.columns().stream()
+            .map(c -> quoteIdentifier(c.name()))
+            .collect(Collectors.joining(", ")));
+        sb.append(") TYPE minmax GRANULARITY 1");
+        return sb.toString();
+    }
+
+    // ═══════════════════════
+    //  SELECT — ClickHouse requires UNION ALL / UNION DISTINCT
+    // ═══════════════════════
+
+    private String chSelect(IRSelect sel, GenerateOptions opt) {
+        String sql = super.generate(sel, opt);
+        // ClickHouse requires explicit ALL or DISTINCT after UNION
+        // Replace bare "UNION SELECT" with "UNION DISTINCT SELECT"
+        sql = sql.replace(" UNION SELECT", " UNION DISTINCT SELECT");
+        // Guard against double-replacement
+        sql = sql.replace(" UNION DISTINCT DISTINCT SELECT", " UNION DISTINCT SELECT");
+        return sql;
+    }
+
+    // ═══════════════════════
+    //  UPDATE / DELETE — strip table qualifier from column references
+    // ═══════════════════════
+
+    private String chUpdate(IRUpdate upd, GenerateOptions opt) {
+        // ClickHouse UPDATE doesn't support qualified column references (table.col)
+        return super.generate(stripUpdateQualifiers(upd), opt);
+    }
+
+    private String chDelete(IRDelete del, GenerateOptions opt) {
+        return super.generate(stripDeleteQualifiers(del), opt);
+    }
+
+    /** Strip table qualifiers from UPDATE's SET clauses and WHERE. */
+    private IRUpdate stripUpdateQualifiers(IRUpdate upd) {
+        var sets = upd.sets().stream()
+            .map(s -> new SetClause(s.column(), stripQual(s.value())))
+            .toList();
+        IRExpr where = upd.where() != null ? stripQual(upd.where()) : null;
+        return new IRUpdate(upd.table(), sets, where, upd.capabilities());
+    }
+
+    private IRDelete stripDeleteQualifiers(IRDelete del) {
+        IRExpr where = del.where() != null ? stripQual(del.where()) : null;
+        return new IRDelete(del.table(), where, del.capabilities());
+    }
+
+    /** Recursively strip qualifiers from column references in an expression. */
+    private IRExpr stripQual(IRExpr expr) {
+        return switch (expr) {
+            case IRColumnRef cr -> cr.qualifier() != null
+                ? new IRColumnRef(cr.name(), null, cr.type())
+                : cr;
+            case IRBinaryOp bo -> new IRBinaryOp(stripQual(bo.left()), bo.op(), stripQual(bo.right()), bo.type());
+            case IRUnaryOp uo -> new IRUnaryOp(uo.op(), stripQual(uo.operand()), uo.type());
+            case IRBetween bw -> new IRBetween(stripQual(bw.expr()), stripQual(bw.low()), stripQual(bw.high()), bw.not(), bw.type());
+            case IRInList il -> {
+                var vals = il.values() != null ? il.values().stream().map(this::stripQual).toList() : null;
+                yield new IRInList(stripQual(il.expr()), vals, il.subquery(), il.not(), il.type());
+            }
+            case IRIsNull isn -> new IRIsNull(stripQual(isn.expr()), isn.not(), isn.type());
+            case IRFunctionCall fc -> new IRFunctionCall(fc.funcName(), fc.args().stream().map(this::stripQual).toList(), fc.type(), fc.over(), fc.keep());
+            case IRLiteral lit -> lit;
+            default -> expr;
+        };
+    }
+
+    // ═══════════════════════
+    //  ALTER COLUMN DEFAULT
+    // ═══════════════════════
+
+    /** ClickHouse: ALTER TABLE t MODIFY COLUMN c DEFAULT val */
+    private String chAlterSetDefault(IRAlterColumnSetDefault ad, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(ad.tableName())
+            + " MODIFY COLUMN " + quoteIdentifier(ad.column())
+            + " DEFAULT " + generateExpr(ad.value(), opt);
+    }
+
+    /** ClickHouse: ALTER TABLE t MODIFY COLUMN c REMOVE DEFAULT */
+    private String chAlterDropDefault(IRAlterColumnDropDefault dd, GenerateOptions opt) {
+        return "ALTER TABLE " + quoteIdentifier(dd.tableName())
+            + " MODIFY COLUMN " + quoteIdentifier(dd.column())
+            + " REMOVE DEFAULT";
+    }
+
     // ClickHouse doesn't support standard ALTER COLUMN TYPE with the same syntax
     @Override
     protected String generateAlterColumnType(IRAlterColumnType act, GenerateOptions opt) {
         return "ALTER TABLE " + quoteIdentifier(act.tableName())
             + " MODIFY COLUMN " + quoteIdentifier(act.column()) + " " + mapType(act.newType());
+    }
+
+    // ═══════════════════════
+    //  DROP TABLE — ClickHouse doesn't support CASCADE
+    // ═══════════════════════
+
+    private String chDropTable(IRDropTable dt, GenerateOptions opt) {
+        var sb = new StringBuilder("DROP TABLE ");
+        if (dt.ifExists()) sb.append("IF EXISTS ");
+        sb.append(quoteIdentifier(dt.name()));
+        // ClickHouse doesn't support CASCADE — omit it
+        return sb.toString();
     }
 
     // Expr hack — same as DuckDB

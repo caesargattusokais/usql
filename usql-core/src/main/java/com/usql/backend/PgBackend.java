@@ -310,7 +310,6 @@ public class PgBackend extends AbstractDialectBackend {
             case CONCAT -> " || ";
             case LIKE -> " LIKE "; case NOT_LIKE -> " NOT LIKE ";
             case IS_DISTINCT_FROM -> " IS DISTINCT FROM ";
-            case IN -> " IN "; case NOT_IN -> " NOT IN "; case BETWEEN -> " BETWEEN ";
         };
         return "(" + left + operator + right + ")";
     }
@@ -402,17 +401,61 @@ public class PgBackend extends AbstractDialectBackend {
             sb.append(" FROM ").append(generateTableRef(merge.source(), opt));
         }
         if (upd != null) {
+            // Extract conflict columns from MERGE ON condition (e.g. t.id = s.id → "id")
+            // rather than using all INSERT columns, which may lack a unique constraint.
+            List<String> conflictCols = extractConflictColumns(merge);
             sb.append(" ON CONFLICT (");
-            if (ins != null && !ins.columns().isEmpty())
-                sb.append(ins.columns().stream()
-                    .map(this::quoteIdentifier)
-                    .collect(Collectors.joining(", ")));
+            sb.append(conflictCols.stream()
+                .map(this::quoteIdentifier)
+                .collect(Collectors.joining(", ")));
             sb.append(") DO UPDATE SET ");
             sb.append(upd.sets().stream()
                 .map(s -> quoteIdentifier(s.column()) + " = EXCLUDED." + quoteIdentifier(s.column()))
                 .collect(Collectors.joining(", ")));
         }
         return sb.toString();
+    }
+
+    /** Extract target-table column names from the MERGE ON condition (e.g. t.id = s.id → ["id"]). */
+    private List<String> extractConflictColumns(IRMerge merge) {
+        List<String> cols = new ArrayList<>();
+        String targetAlias = merge.target() instanceof IRTableName nt ? nt.alias() : null;
+        String targetName = merge.target() instanceof IRTableName nt ? nt.name() : null;
+        collectConflictColumns(merge.onCondition(), targetAlias, targetName, cols);
+        // Fallback: if extraction failed, use INSERT columns
+        if (cols.isEmpty()) {
+            IRMerge.MergeInsert ins = null;
+            for (var a : merge.actions()) if (a instanceof IRMerge.MergeInsert i) ins = i;
+            if (ins != null) cols.addAll(ins.columns());
+        }
+        return cols;
+    }
+
+    private void collectConflictColumns(IRExpr expr, String targetAlias, String targetName, List<String> out) {
+        if (expr instanceof IRBinaryOp bo && bo.op() == IRBinaryOp.BinaryOp.EQ) {
+            // t.id = s.id  →  check which side references the target table
+            String col = matchTargetColumn(bo.left(), targetAlias, targetName);
+            if (col == null) col = matchTargetColumn(bo.right(), targetAlias, targetName);
+            if (col != null) out.add(col);
+        } else if (expr instanceof IRBinaryOp bo && bo.op() == IRBinaryOp.BinaryOp.AND) {
+            collectConflictColumns(bo.left(), targetAlias, targetName, out);
+            collectConflictColumns(bo.right(), targetAlias, targetName, out);
+        }
+    }
+
+    /** If the expression is a qualified reference matching the target table alias/name, return the column name. */
+    private String matchTargetColumn(IRExpr expr, String targetAlias, String targetName) {
+        if (expr instanceof IRColumnRef cr) {
+            if (cr.qualifier() != null) {
+                if (cr.qualifier().equals(targetAlias) || cr.qualifier().equalsIgnoreCase(targetName)) {
+                    return cr.name();
+                }
+            } else {
+                // Unqualified — assume it belongs to the target if no alias context
+                return cr.name();
+            }
+        }
+        return null;
     }
 
     // ══════════════════════════════════════════════════

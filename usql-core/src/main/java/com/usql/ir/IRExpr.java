@@ -54,7 +54,7 @@ public sealed interface IRExpr {
             // String
             CONCAT,
             // SQL-specific
-            LIKE, NOT_LIKE, IN, NOT_IN, BETWEEN, IS_DISTINCT_FROM
+            LIKE, NOT_LIKE, IS_DISTINCT_FROM
         }
     }
 

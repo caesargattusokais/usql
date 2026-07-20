@@ -291,7 +291,6 @@ public class SqlServerBackend extends AbstractDialectBackend {
             case CONCAT -> " + ";     // SQL Server string concat uses +
             case LIKE -> " LIKE ";
             case NOT_LIKE -> " NOT LIKE ";
-            case BETWEEN -> " BETWEEN ";
             case IS_DISTINCT_FROM -> " IS DISTINCT FROM ";
             default -> " " + bo.op().name() + " ";
         };

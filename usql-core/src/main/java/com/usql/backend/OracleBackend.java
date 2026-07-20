@@ -317,7 +317,6 @@ public class OracleBackend extends AbstractDialectBackend {
             case CONCAT -> " || ";
             case LIKE -> " LIKE "; case NOT_LIKE -> " NOT LIKE ";
             case IS_DISTINCT_FROM -> " IS DISTINCT FROM ";
-            case IN -> " IN "; case NOT_IN -> " NOT IN "; case BETWEEN -> " BETWEEN ";
         };
         // Oracle does not support MOD as infix operator — use MOD(a, b) function call
         if (op.op() == IRBinaryOp.BinaryOp.MOD) {

@@ -142,8 +142,11 @@ services:
     restart: unless-stopped
     ports:
       - "8123:8123"
+      - "9000:9000"
     ulimits:
       nofile: 262144
+    volumes:
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/allow-remote.xml
 
   oceanbase:
     image: oceanbase/oceanbase-ce

@@ -367,6 +367,7 @@ public class IROptimizer {
             case IRInsert ins   -> flattenSubqueriesInInsert(ins);
             case IRUpdate upd   -> flattenSubqueriesInUpdate(upd);
             case IRDelete del   -> flattenSubqueriesInDelete(del);
+            case IRCreateView cv -> new IRCreateView(cv.name(), flattenSubqueries(cv.query()), cv.capabilities());
             default -> stmt;
         };
     }
@@ -550,6 +551,10 @@ public class IROptimizer {
             case IRInsert ins   -> simplifyInsert(ins);
             case IRUpdate upd   -> simplifyUpdate(upd);
             case IRDelete del   -> simplifyDelete(del);
+            case IRCreateView cv   -> simplifyCreateView(cv);
+            case IRCreateTable ct  -> simplifyCreateTable(ct);
+            case IRCreateIndex ci  -> simplifyCreateIndex(ci);
+            case IRAlterColumnSetDefault ad -> simplifyAlterSetDefault(ad);
             default -> stmt;
         };
     }
@@ -579,6 +584,43 @@ public class IROptimizer {
     private static IRDelete simplifyDelete(IRDelete del) {
         IRExpr where = del.where() != null ? simplifyExpr(del.where()) : null;
         return new IRDelete(del.table(), where, del.capabilities());
+    }
+
+    // ── DDL simplification ──
+
+    private static IRCreateView simplifyCreateView(IRCreateView cv) {
+        return new IRCreateView(cv.name(), simplifySelect(cv.query()), cv.capabilities());
+    }
+
+    private static IRCreateTable simplifyCreateTable(IRCreateTable ct) {
+        List<IRColumnDef> cols = ct.columns().stream()
+            .map(IROptimizer::simplifyColumnDef)
+            .toList();
+        return new IRCreateTable(ct.name(), ct.ifNotExists(), cols, ct.constraints(), ct.options(), ct.capabilities());
+    }
+
+    private static IRColumnDef simplifyColumnDef(IRColumnDef col) {
+        IRExpr dv = col.defaultValue() != null ? simplifyExpr(col.defaultValue()) : null;
+        List<IRColumnConstraint> cons = col.constraints() != null
+            ? col.constraints().stream().map(IROptimizer::simplifyColumnConstraint).toList()
+            : col.constraints();
+        return new IRColumnDef(col.name(), col.type(), cons, dv);
+    }
+
+    private static IRColumnConstraint simplifyColumnConstraint(IRColumnConstraint c) {
+        if (c instanceof ColCheck chk) return new ColCheck(simplifyExpr(chk.condition()));
+        if (c instanceof ColGenerated gen) return new ColGenerated(gen.strategy(), gen.virtual(), simplifyExpr(gen.expression()));
+        return c;
+    }
+
+    private static IRCreateIndex simplifyCreateIndex(IRCreateIndex ci) {
+        IRExpr wc = ci.whereClause() != null ? simplifyExpr(ci.whereClause()) : null;
+        return new IRCreateIndex(ci.name(), ci.table(), ci.columns(), ci.unique(), ci.ifNotExists(), ci.type(), wc, ci.capabilities());
+    }
+
+    private static IRAlterColumnSetDefault simplifyAlterSetDefault(IRAlterColumnSetDefault ad) {
+        IRExpr val = ad.value() != null ? simplifyExpr(ad.value()) : null;
+        return new IRAlterColumnSetDefault(ad.tableName(), ad.column(), val, ad.capabilities());
     }
 
     private static IRSelectItem simplifySelectItem(IRSelectItem item) {
@@ -691,7 +733,7 @@ public class IROptimizer {
         DataType lt = left.getType(), rt = right.getType();
         return switch (op) {
             case AND, OR -> new DataType.BooleanType();
-            case EQ, NEQ, LT, GT, LTE, GTE, LIKE, NOT_LIKE, IN, NOT_IN, BETWEEN, IS_DISTINCT_FROM
+            case EQ, NEQ, LT, GT, LTE, GTE, LIKE, NOT_LIKE, IS_DISTINCT_FROM
                 -> new DataType.BooleanType();
             case CONCAT -> new DataType.VarcharType(255);
             case ADD, SUB, MUL, DIV, MOD -> {
